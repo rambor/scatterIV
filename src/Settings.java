@@ -540,5 +540,5 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
         return defaultDmax;
     }
 
-    public static String getATSASDir() { return atsasDirectory; }
+    public String getATSASDir() { return atsasDirectory; }
 }

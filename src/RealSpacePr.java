@@ -10,7 +10,10 @@ import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.Vector;
 
 public class RealSpacePr {
@@ -686,7 +689,7 @@ prSplitPane.setPreferredSize(new Dimension(-1,(int)(contentPane.getSize().getHei
 
                         prStatusLabel.setText("Files written to " + WORKING_DIRECTORY.getWorkingDirectory() + ", ready to run DAMMIN/F");
 
-//                        runDatGnom(newname, collectionSelected.getDataset(prModel.getDataset(rowID).getId()).getRealRg());
+                        runDatGnom(newname, collectionSelected.getDataset(prModel.getDataset(rowID).getId()).getRealRg());
                         // run gnom
                         prModel.fireTableDataChanged();
                     }
@@ -711,7 +714,7 @@ prSplitPane.setPreferredSize(new Dimension(-1,(int)(contentPane.getSize().getHei
                     );
 
                     status.setText("Files written to " + WORKING_DIRECTORY.getWorkingDirectory() + ", ready to run DAMMIN/F");
-//                    runDatGnom(newname, collectionSelected.getDataset(prModel.getDataset(rowID).getId()).getRealRg());
+                    runDatGnom(newname, collectionSelected.getDataset(prModel.getDataset(rowID).getId()).getRealRg());
                 }
             }
         }
@@ -984,6 +987,58 @@ prSplitPane.setPreferredSize(new Dimension(-1,(int)(contentPane.getSize().getHei
         }
     }
 
+    private void runDatGnom(String dat_file_name, double rg){
+        // run datgnom
+        String os = System.getProperty("os.name");
+        String datgnom = "";
+        Runtime rt = Runtime.getRuntime();
+
+        if (os.indexOf("win") >=0 ){
+            datgnom = "datgnom.exe";
+        } else {
+            datgnom = "datgnom";
+        }
+
+        String[] base_name = dat_file_name.split("\\.");
+        Settings setit = Settings.getInstance();
+        String atsas = setit.getATSASDir();
+
+        try {
+            System.out.println("Running datgnom: " + atsas+"/"+datgnom);
+
+            ProcessBuilder pr = new ProcessBuilder(atsas+"/"+datgnom, "-r", Constants.Scientific1dot3e1.format(rg), "-o", base_name[0]+"_dg.out", WORKING_DIRECTORY.getWorkingDirectory()+ "/" + dat_file_name);
+            pr.directory(new File(WORKING_DIRECTORY.getWorkingDirectory()));
+            Process ps = pr.start();
+
+            BufferedReader input = new BufferedReader(new InputStreamReader(ps.getInputStream()));
+            String line=null;
+            String gnomdmax = "";
+            while((line=input.readLine()) != null) {
+
+                System.out.println(line);
+                String trimmed = line.trim();
+                String[] row = trimmed.split("[\\s\\t]+"); // CSV files could have a ", "
+                if (row[0].equals("dmax:") || row[0].equals("dmax")){
+                    gnomdmax = row[1];
+                }
+
+            }
+
+            String outlabel = (gnomdmax.length() > 1) ? String.format("=> autoGNOM DMAX :: %.2f", Double.parseDouble(gnomdmax)) :  "autoGNOM did not run :: check settings";
+            System.out.println("Finished datgnom: file " + base_name[0] + "_dg.out");
+
+            prStatusLabel.setText(outlabel);
+
+            Modeling modeler = Modeling.getInstance();
+            modeler.setOutFileLabel(WORKING_DIRECTORY.getWorkingDirectory() + "/"+ base_name[0] + "_dg.out");
+
+        } catch (IOException e) {
+            System.out.println("Problem running datgnom from " + atsas);
+            status.setText("Problem running datgnom from " + atsas);
+            System.out.println(e.toString());
+            e.printStackTrace();
+        }
+    }
 
 }
 

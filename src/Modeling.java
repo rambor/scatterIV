@@ -207,7 +207,7 @@ public class Modeling implements ChangeListener, PropertyChangeListener {
                                 damminOrIf,
                                 Integer.valueOf(runsComboBox.getSelectedItem().toString()),
                                 symmetryBox.getSelectedItem().toString(),
-                                Settings.getATSASDir(),
+                                setIt.getATSASDir(),
                                 workingDirectory.getWorkingDirectory(),
                                 damminfModelsModel,
                                 fastOrSlow,
@@ -259,5 +259,9 @@ public class Modeling implements ChangeListener, PropertyChangeListener {
     @Override
     public void stateChanged(ChangeEvent e) {
 
+    }
+
+    public void setOutFileLabel(String text){
+        outFileLabel.setText(text);
     }
 }
