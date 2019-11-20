@@ -1,0 +1,8 @@
+{"sas_beam":{"instrument_name":"mybeamline","type_of_source":"synchrotron","radiation_type":"XRAY","radiation_wavelength":12400.0,"flux":".","units":"ev","sample_to_detector_distance":"."},"sas_buffer":{"pH":7.0,"comment":"no details specified","name":"water"},"sas_scan":{"intensity_units":"au","momentum_transfer_units":"inverse Angstroms","type":"background"},"sas_detc":{"name":"detector","detector_read_out_dead_time":0.1,"dead_time_units":"seconds"},"sas_sample":{"cell_temperature":298.0,"calibration_details":"water","thickness":0.0,"sec_column":"not specified","sec_flow_rate_units":"not specified"}}
+#
+# file should not be modified 1A9BD749FCCC4E9E3207C4BF0B6EEC63
+#
+# line 123749
+0.001 0.002 0.003 0.004 0.005
+# line 3
+1.123749 1.0983747 1.38570303 1.1839849 1.38484 1.348459. 1.058237494

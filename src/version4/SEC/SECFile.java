@@ -1,0 +1,710 @@
+package version4.SEC;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.apache.commons.codec.digest.DigestUtils;
+import org.jfree.data.xy.XYSeries;
+import org.jfree.data.xy.XYSeriesCollection;
+import version4.sasCIF.*;
+
+import java.io.*;
+import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.charset.Charset;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Stream;
+
+import static java.nio.file.Files.exists;
+import static java.nio.file.Files.newInputStream;
+
+public class SECFile {
+    private static long LINES_TO_READ = 10_000_000;
+
+    private String filename, filebase;
+    private RandomAccessFile file;
+    private ArrayList<Long> lineNumbers; // location of where lines start based on byte length
+    private ArrayList<Double> qvalues;
+    private int totalQValues;
+
+    //private MappedByteBuffer buffer;
+    private FileChannel fileChannel;
+    private Map<Integer, Integer> linesAndLength;
+
+    SecFormat secFormat;
+    private ArrayList<Double> rgvalues;
+    private ArrayList<Integer> frame_indices;
+
+    private SasObject sasObject;
+
+    private XYSeries selectedBuffers;
+    private XYSeriesCollection signalCollection;
+    private XYSeries signalSeries;
+    private XYSeries frame;
+
+    private int start_index_intensity;
+
+    private final int totalFrames;
+
+    public SECFile(File file) throws IOException {
+        this.filename = file.getName();
+
+        String[] fileElements = file.getName().split("\\.(?=[^\\.]+$)");
+        filebase = fileElements[0];
+
+        this.lineNumbers = new ArrayList<>();
+        this.streamWithLargeBuffer(file);
+
+        try {
+            this.file = new RandomAccessFile(file, "rw");
+            fileChannel = this.file.getChannel();
+            this.file.seek(0); // measured in bytes
+
+//            long currentPos = this.file.getFilePointer();
+//            byte[] bytes = new byte[5];
+//            this.file.read(bytes);
+//            System.out.println(new String(bytes));
+
+//            this.file.length();
+
+            /*
+             * starting at seek position 0, readline, get length and advance by +1, repeat until EOF
+             * map line numbers to byte location
+             */
+//            int startIndex = 0;
+//            while(startIndex < this.file.length()){
+//                lineNumbers.add(startIndex);
+//                this.file.seek(startIndex);
+//                int tempLength = this.file.readLine().getBytes().length;
+//                System.out.println("SStartIndex :: " + startIndex + " " + tempLength);
+//                startIndex += tempLength + 1;
+//            }
+
+            /*
+             * convert lines and length to location entries
+             */
+            long startIndex=0L;
+            for (Map.Entry<Integer, Integer> entry : linesAndLength.entrySet()) {
+                lineNumbers.add(startIndex);
+                startIndex += entry.getValue() + 1;
+            }
+
+//            for(Integer index : lineNumbers){
+//                this.file.seek(index);
+//                System.out.println(index + " :: " + this.file.readLine());
+//            }
+
+            long startTime = System.currentTimeMillis();
+            fileChannel = this.file.getChannel();
+            System.out.println("FileChannel size " + fileChannel.size());
+            CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
+            //Get direct byte buffer access using channel.map() operation
+            //buffer.position(lineNumbers.get(4));
+            MappedByteBuffer buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(9), linesAndLength.get(9));
+            CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+            System.out.println(charBuffer.toString());
+
+            long endTime = System.currentTimeMillis();
+            System.out.println("mapped access " + (endTime - startTime) + " milliseocnds");
+            this.parseJSONHeader();
+            this.loadSignal();
+            this.extractRgValues(); // compulsory
+            frame = new XYSeries("frame");
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        totalFrames = signalSeries.getItemCount(); // total frames in file should be same as size of signalseries
+    }
+
+
+    /**
+     * first element in file must be JSON string
+     * UTF-8 will only use one byte per character
+     */
+    private void parseJSONHeader() {
+
+        try {
+            file.seek(0);
+            String header = file.readLine();
+            sasObject = new SasObject(header);
+            secFormat = sasObject.getSecFormat(); // need to throw exception
+
+            ObjectMapper mapper = new ObjectMapper();
+            JsonNode root = mapper.readTree(header);
+            // Get Name
+            JsonNode nameNode = root.path("sec_format");
+            if (!nameNode.isMissingNode()) {        // if "name" node is exist
+                secFormat = mapper.treeToValue(nameNode, SecFormat.class);
+            } else {
+
+            }
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+
+    }
+
+    public XYSeries getSeriesAtFrame(int frameIndex){
+        int index = start_index_intensity + frameIndex;
+        /*
+         * grab data at index and repopulate frame replacing yvalues
+         */
+        return frame;
+    }
+
+
+    public double getRgbyIndex(int index){
+        return rgvalues.get(index);
+    }
+
+
+    public XYSeriesCollection getSignalCollection(){
+        return signalCollection;
+    }
+
+    public XYSeries getSignalSeries(){
+        return signalSeries;
+    }
+
+    public XYSeries getBackground(){
+        return selectedBuffers;
+    }
+
+    public SasObject getSasObject() { return sasObject; }
+
+
+    /**
+     * Counts the length of read lines excluding the newline character at end of each line.
+     * @param f
+     */
+    public void streamWithLargeBuffer(File f) {
+
+        CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
+        int size = 8192 * 16;
+        linesAndLength = new TreeMap<>();
+
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(newInputStream(f.toPath()), decoder), size)) {
+
+            AtomicInteger counter = new AtomicInteger(0);
+            br.lines().limit(LINES_TO_READ).forEach(s -> {
+                linesAndLength.put( counter.getAndIncrement(), s.getBytes().length); // length of lines without new line characters
+                //System.out.println(s.getBytes().length);
+            });
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public void loadSignal(){
+
+        qvalues = new ArrayList<>();
+        int qlineIndex = secFormat.getMomentum_transfer_vector_index();
+        int flineIndex = secFormat.getFrame_index();
+        int buffIndex = secFormat.getBackground_index();
+        int signalIndex = secFormat.getSignal_index();
+        MappedByteBuffer buffer = null;
+
+        try {
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(flineIndex), linesAndLength.get(flineIndex));
+            CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+            String[] fvalues = charBuffer.toString().split("\\s+"); // starts with checksum
+
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(signalIndex), linesAndLength.get(signalIndex));
+            charBuffer = Charset.forName("UTF-8").decode(buffer);
+            String[] signals = charBuffer.toString().split("\\s+");
+
+            // grab background
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(buffIndex), linesAndLength.get(buffIndex));
+            charBuffer = Charset.forName("UTF-8").decode(buffer);
+            String[] bckgrnd = charBuffer.toString().split("\\s+");
+
+            frame_indices = new ArrayList<>();
+            signalCollection = new XYSeriesCollection();
+            signalSeries = new XYSeries("Signal");
+            selectedBuffers = new XYSeries("Selected Buffers");
+
+            for(int i=1; i<fvalues.length;i++){
+
+                signalCollection.addSeries(new XYSeries("frame " + (i-1)));
+                String fIndex = fvalues[i];
+                frame_indices.add(Integer.valueOf(fIndex));
+
+                XYSeries last = signalCollection.getSeries(i-1);
+                last.add(Double.parseDouble(fIndex), Double.parseDouble(signals[i]));
+                signalSeries.add(last.getDataItem(0));
+
+                if (Integer.parseInt(bckgrnd[i]) > 0){
+                    selectedBuffers.add(last.getDataItem(0));
+                }
+            }
+
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(qlineIndex), linesAndLength.get(qlineIndex));
+            charBuffer = Charset.forName("UTF-8").decode(buffer);
+            String[] qvals = charBuffer.toString().split("\\s+");
+            for(int i=1; i<qvals.length;i++){ // skip first value since it is the checksum
+                qvalues.add(Double.valueOf(qvals[i]));
+            }
+
+            totalQValues = qvalues.size();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public ArrayList<Double> getUnSubtractedErrorFrameAt(int index){
+        int lookAt = secFormat.getUnsubtracted_intensities_error_index() + index;
+
+        MappedByteBuffer buffer = null;
+        try {
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(lookAt), linesAndLength.get(lookAt));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
+
+        if (index != Integer.parseInt(values[0])){
+            System.out.println("major error " + index + " " + values[0]);
+            String message = "Indices do not match - file corruption do checksum validation ";
+            throw new IllegalArgumentException(message);
+        }
+
+
+        ArrayList<Double> intensities = new ArrayList<>();
+        for(int i=2; i<values.length; i++){
+            intensities.add(Double.valueOf(values[i]));
+        }
+
+        return (intensities);
+    }
+
+    private void extractRgValues(){
+        int rgAt = secFormat.getRg_index();
+        MappedByteBuffer buffer = null;
+        try {
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(rgAt), linesAndLength.get(rgAt));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
+        rgvalues = new ArrayList<>();
+        for(int i=1; i<values.length; i++){
+            rgvalues.add(Double.valueOf(values[i]));
+        }
+    }
+
+    public ArrayList<Double> getUnSubtractedFrameAt(int index){
+
+        int lookAt = secFormat.getUnsubtracted_intensities_index() + index;
+
+        MappedByteBuffer buffer = null;
+        try {
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(lookAt), linesAndLength.get(lookAt));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
+
+        if (index != Integer.parseInt(values[0])){
+            System.out.println("major error " + index + " " + values[0]);
+            String message = "Indices do not match - file corruption do checksum validation ";
+            throw new IllegalArgumentException(message);
+        }
+
+
+        ArrayList<Double> intensities = new ArrayList<>();
+        for(int i=2; i<values.length; i++){
+            intensities.add(Double.valueOf(values[i]));
+        }
+
+        return (intensities);
+    }
+
+    public ArrayList<Double> getSubtractedErrorAtFrame(int index){
+        int lookAt = secFormat.getSubtracted_intensities_error_index() + index;
+
+        MappedByteBuffer buffer = null;
+        try {
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(lookAt), linesAndLength.get(lookAt));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
+
+        if (index != Integer.parseInt(values[0])){
+            System.out.println("major error " + index + " " + values[0]);
+            String message = "Indices do not match - file corruption do checksum validation ";
+            throw new IllegalArgumentException(message);
+        }
+
+
+        ArrayList<Double> errors = new ArrayList<>();
+        for(int i=2; i<values.length; i++){
+            errors.add(Double.parseDouble(values[i]));
+        }
+
+        return (errors);
+    }
+
+    public ArrayList<Double> getSubtractedFrameAt(int index){
+        int lookAt = secFormat.getSubtracted_intensities_index() + index;
+
+        MappedByteBuffer buffer = null;
+        try {
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(lookAt), linesAndLength.get(lookAt));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
+
+        if (index != Integer.parseInt(values[0])){
+            System.out.println("major error " + index + " " + values[0]);
+            String message = "Indices do not match - file corruption do checksum validation ";
+            throw new IllegalArgumentException(message);
+        }
+
+
+        ArrayList<Double> intensities = new ArrayList<>();
+        for(int i=2; i<values.length; i++){
+            intensities.add(Double.parseDouble(values[i]));
+        }
+
+        return (intensities);
+    }
+
+    public int getTotalQValues(){
+        return qvalues.size();
+    }
+
+    public int getTotalFrames(){ return secFormat.getTotal_frames();}
+
+    public int getClosestIndex(double qvalue){
+
+        int index = 0;
+        double value=0;
+        for(;index< totalQValues; index++){
+            value = qvalues.get(index);
+            if (qvalue < value){
+                break;
+            }
+        }
+
+        if ((value-qvalue) < (qvalue - qvalues.get(index-1))){
+             return index;
+        }
+        return index-1;
+    }
+
+
+
+    public void updateBufferIndices(SortedSet<Integer> newBufferIndices){
+
+
+        ArrayList<Integer> yesno = new ArrayList<>(totalFrames);
+
+        for(int i=0; i<totalFrames; i++){
+            yesno.add(0);
+        }
+        // clear old series
+        selectedBuffers.clear();
+        for(Integer newIndex : newBufferIndices){
+            selectedBuffers.add(signalSeries.getDataItem(newIndex));
+            yesno.set(newIndex, 1);
+        }
+
+        StringBuilder bufferLine = new StringBuilder(totalFrames*2);
+        for(Integer isBuff : yesno){
+            bufferLine.append(String.format(Locale.US, "%d ", isBuff));
+        }
+
+        String bufferLineMD5HEX = DigestUtils.md5Hex(bufferLine.toString()).toUpperCase();
+        byte[] outputstring = (bufferLineMD5HEX + " " + bufferLine.toString() + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
+        ByteBuffer outbuff = ByteBuffer.wrap(outputstring);
+
+        int indexOfContentToBeReplaced = secFormat.getBackground_index(); // line that will be written over
+
+        // length is determined by => s.getBytes().length
+
+        if ((outputstring.length-1) != linesAndLength.get(indexOfContentToBeReplaced) ){
+            /*
+             * inserting into file
+             * 1. write contents I want to keep after insertion point to temp file
+             * 2. write content to original file
+             * 3. transfer contents from temp back
+             * 4. update lines and length for new point
+             */
+            insertIntoFile(indexOfContentToBeReplaced, outbuff);
+        } else {
+            try {
+                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+
+    private void insertIntoFile(int indexOfContentToBeReplaced, ByteBuffer outbuff) {
+
+        try {
+            int keepAfter = indexOfContentToBeReplaced + 1;
+            long oldFileSize = this.file.length();
+            long keepAfterHereInBytes = lineNumbers.get(keepAfter);
+
+            File tfile = new File(filename+"~");
+
+            RandomAccessFile rtemp = new RandomAccessFile(tfile, "rw");
+            FileChannel tempChannel = rtemp.getChannel();
+
+            fileChannel.transferTo(keepAfterHereInBytes, (oldFileSize-keepAfterHereInBytes), tempChannel);
+
+            long offset = lineNumbers.get(indexOfContentToBeReplaced) ;
+            fileChannel.truncate(offset);
+            fileChannel.write(outbuff, offset); // write new line
+
+            long newOffset = offset + (outbuff.array().length); // length of outbuff includes the new line character
+            tempChannel.position(0L);
+            fileChannel.transferFrom(tempChannel, newOffset, (oldFileSize-keepAfterHereInBytes));
+
+            tempChannel.close();
+            rtemp.close();
+            tfile.delete();
+
+            linesAndLength.replace(indexOfContentToBeReplaced, outbuff.array().length-1); // should be the length of lines without newline character
+
+            long startIndex=0L;
+            lineNumbers.clear();
+            for (Map.Entry<Integer, Integer> entry : linesAndLength.entrySet()) {
+                lineNumbers.add(startIndex);
+                startIndex += entry.getValue() + 1;
+            }
+
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+
+    /**
+     * New line Separator adds an extra bit that is not counted by readline
+     *
+     * @param newLine
+     */
+    public void updateIZeroLine(String newLine){
+
+        int indexOfContentToBeReplaced = secFormat.getIzero_index(); // line that will be written over
+
+        String newMD5HEX = DigestUtils.md5Hex(newLine).toUpperCase();
+        ByteBuffer outbuff = ByteBuffer.wrap((newMD5HEX + " " + newLine + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
+
+        // length is determined by => s.getBytes().length
+        if ((outbuff.array().length-1) != linesAndLength.get(indexOfContentToBeReplaced) ){
+            insertIntoFile(indexOfContentToBeReplaced, outbuff);
+        } else {
+            try {
+                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+
+    public void updateqIqLine(String newLine){
+
+        int indexOfContentToBeReplaced = secFormat.getIntegrated_qIq_index(); // line that will be written over
+
+        String newMD5HEX = DigestUtils.md5Hex(newLine).toUpperCase();
+        ByteBuffer outbuff = ByteBuffer.wrap((newMD5HEX + " " + newLine + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
+
+        // length is determined by => s.getBytes().length
+        if ((outbuff.array().length-1) > linesAndLength.get(indexOfContentToBeReplaced) ){
+            insertIntoFile(indexOfContentToBeReplaced, outbuff);
+        } else {
+            try {
+                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+    public void updateRgLine(String newLine){
+
+        int indexOfContentToBeReplaced = secFormat.getRg_index(); // line that will be written over
+
+        String newMD5HEX = DigestUtils.md5Hex(newLine).toUpperCase();
+        ByteBuffer outbuff = ByteBuffer.wrap((newMD5HEX + " " + newLine + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
+
+        // length is determined by => s.getBytes().length
+            if ((outbuff.array().length-1) > linesAndLength.get(indexOfContentToBeReplaced) ){
+                insertIntoFile(indexOfContentToBeReplaced, outbuff);
+            } else {
+                try {
+                    fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+    }
+
+
+    public void updateSignalLine(String newLine){
+
+        int indexOfContentToBeReplaced = secFormat.getSignal_index(); // line that will be written over
+
+        String newMD5HEX = DigestUtils.md5Hex(newLine).toUpperCase();
+        ByteBuffer outbuff = ByteBuffer.wrap((newMD5HEX + " " + newLine + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
+
+        // length is determined by => s.getBytes().length
+        if ((outbuff.array().length-1) > linesAndLength.get(indexOfContentToBeReplaced) ){
+            insertIntoFile(indexOfContentToBeReplaced, outbuff);
+        } else {
+            try {
+                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void updateSubtractedFrame(int indexOfFrame, String newSub, String newSubSigmas) {
+
+        int indexOfContentToBeReplaced = secFormat.getSubtracted_intensities_index()  + indexOfFrame; // line that will be written over
+
+        String newMD5HEX = DigestUtils.md5Hex(newSub).toUpperCase();
+        byte[] outputstring = (indexOfFrame + " " + newMD5HEX + " " + newSub + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
+        ByteBuffer outbuff = ByteBuffer.wrap(outputstring);
+        // length is determined by => s.getBytes().length
+
+        if ((outputstring.length-1) != linesAndLength.get(indexOfContentToBeReplaced) ){
+            insertIntoFile(indexOfContentToBeReplaced, outbuff);
+        } else {
+            try {
+                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        indexOfContentToBeReplaced = secFormat.getSubtracted_intensities_error_index() + indexOfFrame;
+        String newSubSigmasMD5HEX = DigestUtils.md5Hex(newSubSigmas).toUpperCase();
+        outputstring = (indexOfFrame + " " + newSubSigmasMD5HEX + " " + newSubSigmas + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
+        outbuff = ByteBuffer.wrap(outputstring);
+
+        if ((outputstring.length-1) != linesAndLength.get(indexOfContentToBeReplaced) ){
+            insertIntoFile(indexOfContentToBeReplaced, outbuff);
+        } else {
+            try {
+                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+    public void updateAveragedBuffer(String newaveragedBuffer, String newSigmas) {
+
+        int indexOfContentToBeReplaced = secFormat.getAveraged_buffer_index(); // line that will be written over
+        String avgBufferMD5HEX = DigestUtils.md5Hex(newaveragedBuffer).toUpperCase();
+        ByteBuffer outbuff = ByteBuffer.wrap((avgBufferMD5HEX + " " + newaveragedBuffer + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
+
+        // length is determined by => s.getBytes().length
+        if ((outbuff.array().length-1) > linesAndLength.get(indexOfContentToBeReplaced) ){
+            insertIntoFile(indexOfContentToBeReplaced, outbuff);
+        } else {
+            try {
+                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        String avgBuffererrorMD5HEX = DigestUtils.md5Hex(newSigmas).toUpperCase();
+        outbuff = ByteBuffer.wrap((avgBuffererrorMD5HEX + " " + newSigmas + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
+        indexOfContentToBeReplaced = secFormat.getAveraged_buffer_error_index();
+
+        if (outbuff.toString().getBytes().length > linesAndLength.get(indexOfContentToBeReplaced) ){
+            insertIntoFile(indexOfContentToBeReplaced, outbuff);
+        } else {
+            try {
+                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+    public ArrayList<Double> getQvalues(){ return qvalues; }
+
+    public int getFrameByIndex(int index) { return frame_indices.get(index);}
+
+
+    public XYSeries getUnsubtractedXYSeries(int frameByIndex) {
+
+        ArrayList<Double> data = this.getUnSubtractedFrameAt(frameByIndex);
+
+        XYSeries tempXY = new XYSeries("temp"); // can load multple in graph as they will have same name/key
+        for(int i=0; i<totalQValues; i++){
+            tempXY.add(qvalues.get(i), data.get(i));
+        }
+        return tempXY;
+    }
+
+
+
+    public String getFilename() {
+        return filename;
+    }
+
+    public int getBufferCount(){
+        int lookAt = secFormat.getBackground_index();
+
+        MappedByteBuffer buffer = null;
+        try {
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(lookAt), linesAndLength.get(lookAt));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
+
+        int sum = 0;
+        for(int i=1; i<values.length; i++){
+            sum += Integer.parseInt(values[i]);
+        }
+
+        return (sum);
+    }
+
+    public String getFilebase() {
+        return filebase;
+    }
+}
