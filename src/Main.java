@@ -347,8 +347,8 @@ public class Main {
                 analysisPane.add(subtractTab.getPanel());
                 analysisPane.revalidate();
                 analysisPane.repaint();
-                System.out.println("centermain " + analysisPane.getWidth());
-                subtractTab.printDimensions();
+//                System.out.println("centermain " + analysisPane.getWidth());
+//                subtractTab.printDimensions();
             }
         });
 
@@ -402,6 +402,7 @@ public class Main {
         File propertyFile = new File("scatter.config");
 
         if (propertyFile.exists() && !propertyFile.isDirectory()){
+
             Properties prop = new Properties();
             InputStream input = null;
 
@@ -417,14 +418,11 @@ public class Main {
                 }
                 if (prop.getProperty("atsasDirectory") != null) {
                     ATSAS_DIRECTORY = prop.getProperty("atsasDirectory");
+                    Settings setIt = Settings.getInstance();
+                    setIt.setATSASDir(ATSAS_DIRECTORY);
                 }
                 if (prop.getProperty("subtractionDirectory") != null) {
                     OUTPUT_DIR_SUBTRACTION_NAME = prop.getProperty("subtractionDirectory");
-                }
-
-                THRESHOLD="0.24";
-                if (prop.getProperty("threshold") != null) {
-                    THRESHOLD = prop.getProperty("threshold");
                 }
 
             } catch (IOException ex) {
@@ -457,6 +455,9 @@ public class Main {
         Properties prop = new Properties();
         OutputStream output = null;
 
+        Settings setit = Settings.getInstance();
+        ATSAS_DIRECTORY = setit.getATSASDir();
+        System.out.println("Updating prop " + ATSAS_DIRECTORY);
         try {
             output = new FileOutputStream("scatter.config");
 
@@ -464,7 +465,6 @@ public class Main {
             prop.setProperty("workingDirectory", WORKING_DIRECTORY.getWorkingDirectory());
             prop.setProperty("atsasDirectory", ATSAS_DIRECTORY);
             prop.setProperty("subtractionDirectory", OUTPUT_DIR_SUBTRACTION_NAME);
-            prop.setProperty("threshold", THRESHOLD);
             // save properties to project root folder
             prop.store(output, null);
 

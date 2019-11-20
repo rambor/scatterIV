@@ -220,6 +220,7 @@ public class SECTool extends JDialog {
                                         selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
 
                                         secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
+                                        secFileLabel.setForeground(Color.cyan);
 
                                     } catch (IOException e) {
                                         e.printStackTrace();
@@ -502,13 +503,14 @@ public class SECTool extends JDialog {
                 sampleFilesModel.removeAllElements();
                 collection.removeAllDatasets();
                 secFileLabel.setText("SEC FILE :: ");
+                secFileLabel.setForeground(Color.white);
                 chart.setNotify(false);
                 signalPlot.removeAllSeries();
                 chart.setNotify(true);
 
                 totalBuffers = 0;
                 selectedBuffers.clear();
-                signalPlot.getSeries(0).clear();
+                //signalPlot.getSeries(0).clear();
 
                 combinedPlot.setNotify(false);
                 selectedRegionCollection.removeAllSeries();

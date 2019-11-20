@@ -156,7 +156,7 @@
                 </constraints>
                 <properties>
                   <background color="-13483695"/>
-                  <foreground color="-14902"/>
+                  <foreground color="-34442"/>
                   <text value="Clear Samples"/>
                 </properties>
               </component>
@@ -166,7 +166,7 @@
                 </constraints>
                 <properties>
                   <background color="-13483695"/>
-                  <foreground color="-14902"/>
+                  <foreground color="-34442"/>
                   <text value="Clear Buffers"/>
                 </properties>
               </component>

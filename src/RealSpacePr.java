@@ -1,5 +1,9 @@
+import FileManager.DataLine;
 import FileManager.FileObject;
 import FileManager.WorkingDirectory;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import version4.*;
 import version4.InverseTransform.RefinePrManager;
 
@@ -10,11 +14,9 @@ import javax.swing.table.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.util.Vector;
+import java.util.logging.Level;
 
 public class RealSpacePr {
     private JPanel contentPane;
@@ -1021,16 +1023,28 @@ prSplitPane.setPreferredSize(new Dimension(-1,(int)(contentPane.getSize().getHei
                 if (row[0].equals("dmax:") || row[0].equals("dmax")){
                     gnomdmax = row[1];
                 }
-
             }
 
             String outlabel = (gnomdmax.length() > 1) ? String.format("=> autoGNOM DMAX :: %.2f", Double.parseDouble(gnomdmax)) :  "autoGNOM did not run :: check settings";
             System.out.println("Finished datgnom: file " + base_name[0] + "_dg.out");
 
+            File datFile = new File(WORKING_DIRECTORY.getWorkingDirectory() + "/"+base_name[0]+"_dg.out");
+            BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(datFile)));
+            String strLine;
+            while ((strLine = br.readLine()) != null) {
+                String newString = strLine.replaceAll( "[\\s\\t]+", " " );
+                String trimmed = newString.trim();
+                if (trimmed.contains("Maximum") && trimmed.contains("characteristic") && trimmed.contains("size:")){
+                    System.out.println(":: trimmed " + trimmed);
+                }
+            }
+
             prStatusLabel.setText(outlabel);
 
             Modeling modeler = Modeling.getInstance();
             modeler.setOutFileLabel(WORKING_DIRECTORY.getWorkingDirectory() + "/"+ base_name[0] + "_dg.out");
+
+            modeler.setWorkingDir(WORKING_DIRECTORY.getWorkingDirectory());
 
         } catch (IOException e) {
             System.out.println("Problem running datgnom from " + atsas);

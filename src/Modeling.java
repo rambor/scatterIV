@@ -10,6 +10,9 @@ import java.awt.event.ActionListener;
 import java.beans.PropertyChangeEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Vector;
 
 public class Modeling implements ChangeListener, PropertyChangeListener {
@@ -37,8 +40,10 @@ public class Modeling implements ChangeListener, PropertyChangeListener {
     private JLabel supcombLabel;
     private JLabel workingDirLabel;
     private JButton cwdButton;
+    private JPanel mainPanel;
     private static JLabel status;
     private static WorkingDirectory workingDirectory;
+    private static String currentworkingdirectory;
 
     private static boolean damstartStatus = false;
     private static File supcombFile;
@@ -60,6 +65,7 @@ public class Modeling implements ChangeListener, PropertyChangeListener {
         damminfModelsModel = new DefaultListModel<String>();
         completedModelingList.setModel(damminfModelsModel);
         dammifRadioButton.setSelected(true);
+        fastRadioButton.setSelected(true);
 
         selectOutFileButton.addActionListener(new ActionListener() {
             @Override
@@ -142,6 +148,7 @@ public class Modeling implements ChangeListener, PropertyChangeListener {
                    // damStartLabel.setText(chooser.getSelectedFile().toString());
                     damstartStatus = true;
                     int test = chooser.getSelectedFile().toString().indexOf("damstart.pdb");
+                    damRefineCheckBox.setSelected(true);
                     //workingDirectory.setWorkingDirectory(chooser.getCurrentDirectory().toString());
 
                     if (test < 0){
@@ -225,6 +232,13 @@ public class Modeling implements ChangeListener, PropertyChangeListener {
                 }.start();
             }
         });
+
+        cwdButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+
+            }
+        });
     }
 
     /* Static 'instance' method */
@@ -263,5 +277,17 @@ public class Modeling implements ChangeListener, PropertyChangeListener {
 
     public void setOutFileLabel(String text){
         outFileLabel.setText(text);
+    }
+
+    public void setWorkingDir(String text){
+
+        Path path = Paths.get(text);
+        if (Files.isDirectory(path)){
+            workingDirLabel.setText("Working in :: " + text);
+            currentworkingdirectory = text;
+            status.setText("Modeling set to :: " + text);
+        } else {
+            status.setText("Directory does not exists");
+        }
     }
 }
