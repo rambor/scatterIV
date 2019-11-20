@@ -26,6 +26,7 @@ public class WorkingDirectory {
     }
 
     public void setWorkingDirectory(String temp){
+        System.out.println("Temp " + temp);
         this.workingDirectory = temp;
         this.notifyDirectoryChange();
     }
@@ -49,6 +50,7 @@ public class WorkingDirectory {
     // notify listening objects of property changes
     protected void notifyDirectoryChange() {
         // create the event object
+        System.out.println("New Directory " + workingDirectory);
         PropertyChangeEvent evt = new PropertyChangeEvent(this, "WorkingDirectory", null, new String(workingDirectory));
         // make a copy of the listener object vector so that it cannot
         // be changed while we are firing events
@@ -62,6 +64,7 @@ public class WorkingDirectory {
         for (int i = 0; i < cnt; i++) {
             PropertyChangeListener client = (PropertyChangeListener)v.elementAt(i);
             client.propertyChange(evt);
+            System.out.println(i + " " + client.toString());
         }
     }
 }

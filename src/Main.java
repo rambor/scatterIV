@@ -79,6 +79,7 @@ public class Main {
     public static AnalysisTable analysisTable;
     private SECTool secTab;
     private Settings settingsTab;
+    private Modeling modeling;
     private Subtract subtractTab;
     private static int cpuCores;
 
@@ -93,6 +94,8 @@ public class Main {
         //settingsTab = new Settings(WORKING_DIRECTORY, status);
         settingsTab = Settings.getInstance();
         settingsTab.setFields(WORKING_DIRECTORY, status);
+        modeling = Modeling.getInstance();
+        modeling.setFields(WORKING_DIRECTORY, status);
 
         cpuCores = Runtime.getRuntime().availableProcessors();
         Vector comboBoxItemsCPU = new Vector();
@@ -349,6 +352,20 @@ public class Main {
             }
         });
 
+        modelPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                super.mouseClicked(e);
+                analysisPane.removeAll();
+                dehighlightSideButtons();
+                sideButtons.get(4).highlight(new Color(198,248,255));
+                analysisPane.add(modeling.getPanel());
+                analysisPane.revalidate();
+                analysisPane.repaint();
+            }
+        });
+
+
         SettingsPanel.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -447,8 +464,6 @@ public class Main {
             prop.setProperty("workingDirectory", WORKING_DIRECTORY.getWorkingDirectory());
             prop.setProperty("atsasDirectory", ATSAS_DIRECTORY);
             prop.setProperty("subtractionDirectory", OUTPUT_DIR_SUBTRACTION_NAME);
-//            prop.setProperty("xraysource", XRAYSOURCE);
-//            prop.setProperty("beamlineOrManufacturer", BEAMLINEMANUFACTURER);
             prop.setProperty("threshold", THRESHOLD);
             // save properties to project root folder
             prop.store(output, null);
@@ -463,7 +478,6 @@ public class Main {
                     e.printStackTrace();
                 }
             }
-
         }
     }
 

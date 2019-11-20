@@ -35,6 +35,7 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
     private static DoubleValue defaultDmax;
     private static Settings singleton = new Settings();
     private static JLabel status;
+    private static String atsasDirectory;
 
     private Settings(){
         dmaxSearchMinValue = new DoubleValue(37);
@@ -75,7 +76,7 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
             }
         });
 
-        workingDirLabel.setText(Main.WORKING_DIRECTORY.getWorkingDirectory());
+
         setContentPane(contentPane);
         setModal(true);
 
@@ -238,6 +239,31 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
 
             }
         });
+
+        workingDirLabel.setText(Main.WORKING_DIRECTORY.getWorkingDirectory());
+
+        atsasDirButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                //Set working directory
+                File theCWD = new File(System.getProperty("user.dir"));
+                JFileChooser chooser = new JFileChooser(theCWD);
+                chooser.setDialogTitle("Select Directory");
+
+                chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+                chooser.setAcceptAllFileFilterUsed(false);
+
+                if (chooser.showOpenDialog(contentPane) == JFileChooser.APPROVE_OPTION){
+                    if (chooser.getSelectedFile().isDirectory()){
+                        atsasDirectory = chooser.getSelectedFile().toString();
+                    } else {
+                        atsasDirectory = chooser.getCurrentDirectory().toString();
+                    }
+                    atsasDirLabel.setText(atsasDirectory);
+                    Main.updateProp();
+                }
+            }
+        });
     }
 
     /* Static 'instance' method */
@@ -250,7 +276,6 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
         workingDirectory.addPropertyChangeListener(singleton);
         status = tstatus;
     }
-
 
 //    public Settings(WorkingDirectory wd, JLabel status) {
 
@@ -473,8 +498,8 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
         if ( evt.getPropertyName() == "WorkingDirectory") {
             WorkingDirectory t = (WorkingDirectory) evt.getSource();
             // get the new value object
-//            Object o = evt.getNewValue();
-            workingDirLabel.setText(Main.WORKING_DIRECTORY.getWorkingDirectory());
+            String o = (String)evt.getNewValue();
+            workingDirLabel.setText(o);
         }
     }
 
@@ -514,4 +539,6 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
     public static DoubleValue getDefaultDmax() {
         return defaultDmax;
     }
+
+    public static String getATSASDir() { return atsasDirectory; }
 }
