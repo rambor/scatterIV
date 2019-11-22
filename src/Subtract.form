@@ -135,7 +135,7 @@
                   <grid row="1" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
                 </constraints>
                 <properties>
-                  <background color="-13483695"/>
+                  <background color="-1315861"/>
                   <foreground color="-12086017"/>
                   <text value="Output Dir"/>
                 </properties>
@@ -145,7 +145,7 @@
                   <grid row="1" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
                 </constraints>
                 <properties>
-                  <background color="-13483695"/>
+                  <background color="-1315861"/>
                   <foreground color="-12086017"/>
                   <text value="SUBTRACT"/>
                 </properties>
@@ -155,7 +155,7 @@
                   <grid row="2" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
                 </constraints>
                 <properties>
-                  <background color="-13483695"/>
+                  <background color="-1315861"/>
                   <foreground color="-34442"/>
                   <text value="Clear Samples"/>
                 </properties>
@@ -165,7 +165,7 @@
                   <grid row="2" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
                 </constraints>
                 <properties>
-                  <background color="-13483695"/>
+                  <background color="-1315861"/>
                   <foreground color="-34442"/>
                   <text value="Clear Buffers"/>
                 </properties>
@@ -175,7 +175,7 @@
                   <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
                 </constraints>
                 <properties>
-                  <background color="-13483695"/>
+                  <background color="-1315861"/>
                   <text value="Edit Details"/>
                 </properties>
               </component>
@@ -206,6 +206,7 @@
                   <grid row="1" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
                 </constraints>
                 <properties>
+                  <background color="-13419191"/>
                   <foreground color="-1"/>
                   <selected value="true"/>
                   <text value="Average"/>
@@ -256,6 +257,7 @@
                   <grid row="2" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
                 </constraints>
                 <properties>
+                  <background color="-13419191"/>
                   <foreground color="-1"/>
                   <text value="Merge by Median"/>
                 </properties>
@@ -265,6 +267,7 @@
                   <grid row="3" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
                 </constraints>
                 <properties>
+                  <background color="-13419191"/>
                   <foreground color="-1"/>
                   <selected value="true"/>
                   <text value="Scale then Merge"/>
@@ -287,6 +290,7 @@
                   <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
                 </constraints>
                 <properties>
+                  <background color="-13419191"/>
                   <foreground color="-1"/>
                   <text value="build list from file"/>
                 </properties>
