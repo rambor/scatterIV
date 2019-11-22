@@ -30,7 +30,7 @@ public class DatasetTest {
 
             System.out.println(e.getMessage());
         }
-        weak = new Dataset(temp.allData, temp.allDataError, temp.filebase,0);
+        weak = new Dataset(temp.allData, temp.allDataError, temp.filebase,0, false);
         guinier = new Dataset(temp.allData, temp.allDataError, temp.filebase,0, true);
     }
 
@@ -82,6 +82,7 @@ public class DatasetTest {
 
     @Test
     public void getData() {
+
         int total = weak.getData().getItemCount();
         Assert.assertTrue(total < 2447);
     }
