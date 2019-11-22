@@ -152,13 +152,13 @@ public class SECBuilderTest {
             actualI.add(Double.parseDouble(row[2]));
         }
 
-        for(int i=0; i<buffer.getItemCount(); i++){
-            if (buffer.indexOf(actualQ.get(i)) > -1){
+        for(int i=0; i<actualQ.size(); i++){
+            int indexat = buffer.indexOf(actualQ.get(i));
+            if (indexat > -1){
                 String message = i + " QVAL " + actualQ.get(i);
-                Assert.assertEquals(message, actualI.get(i), buffer.getY(i).doubleValue(), 0.001);
+                Assert.assertEquals(message, actualI.get(i), buffer.getY(indexat).doubleValue(), 0.001);
             }
         }
-
 
     }
 }
