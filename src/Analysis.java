@@ -105,7 +105,7 @@ public class Analysis extends JDialog {
      * make singleton?
      */
     public Analysis(WorkingDirectory wkd, JLabel status, JProgressBar bar) {
-        collectionSelected = Main.collectionSelected;
+        collectionSelected = Scatter.collectionSelected;
         this.status = status;
         this.mainProgressBar = bar;
 
@@ -281,7 +281,7 @@ public class Analysis extends JDialog {
                 }
 
                 GPAPlot gpaPlot = new GPAPlot("SC\u212BTTER \u2263 GUINIER PEAK ANALYSIS ", collectionSelected.getDataset(id), WORKING_DIRECTORY.getWorkingDirectory());
-                gpaPlot.makePlot(Main.analysisTable.getModel());
+                gpaPlot.makePlot(Scatter.analysisTable.getModel());
             }
         });
 
@@ -317,7 +317,7 @@ public class Analysis extends JDialog {
 
                 if (collectionSelected.getTotalSelected() == 1){
                     int id = collectionSelected.getSelected();
-                    VolumePlot tempPlot = new VolumePlot(collectionSelected.getDataset(id), WORKING_DIRECTORY.getWorkingDirectory(), Main.analysisTable.getModel());
+                    VolumePlot tempPlot = new VolumePlot(collectionSelected.getDataset(id), WORKING_DIRECTORY.getWorkingDirectory(), Scatter.analysisTable.getModel());
                     tempPlot.plot();
                 } else if (collectionSelected.getTotalSelected() > 1) {
                     alertTooMany();
@@ -413,7 +413,7 @@ public class Analysis extends JDialog {
                             mainProgressBar.setValue(0);
                             mainProgressBar.setStringPainted(false);
 
-                            ((AnalysisModel)Main.analysisTable.getModel()).fireTableDataChanged();
+                            ((AnalysisModel) Scatter.analysisTable.getModel()).fireTableDataChanged();
                         }
                     }.start();
                 } else {
@@ -571,7 +571,7 @@ public class Analysis extends JDialog {
                     }
 
                     // update
-                    ((AnalysisModel)Main.analysisTable.getModel()).fireTableDataChanged();
+                    ((AnalysisModel) Scatter.analysisTable.getModel()).fireTableDataChanged();
 
                 } else {
                     alertNone();
@@ -618,7 +618,7 @@ public class Analysis extends JDialog {
 
                     if (files.length > 0){
                         WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
-                        Main.updateProp();
+                        Scatter.updateProp();
                         new Thread() {
                             public void run() {
 
@@ -627,10 +627,10 @@ public class Analysis extends JDialog {
                                     ReceivedDroppedFiles rec1 = new ReceivedDroppedFiles(
                                             files,
                                             collectionSelected,
-                                            Main.analysisTable.getModel(),
+                                            Scatter.analysisTable.getModel(),
                                             status,
-                                            Main.convertNmToAngstrom,
-                                            Main.useAutoRg,
+                                            Scatter.convertNmToAngstrom,
+                                            Scatter.useAutoRg,
                                             false,
                                             mainProgressBar,
                                             WORKING_DIRECTORY.getWorkingDirectory());
@@ -647,7 +647,7 @@ public class Analysis extends JDialog {
                         }.start();
                     }
                 }
-                ((AnalysisModel)Main.analysisTable.getModel()).fireTableDataChanged();
+                ((AnalysisModel) Scatter.analysisTable.getModel()).fireTableDataChanged();
             }
         });
 
@@ -705,7 +705,7 @@ public class Analysis extends JDialog {
 
                                     WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
 
-                                    FileObject dataToWrite = new FileObject(fc.getCurrentDirectory(), Main.version);
+                                    FileObject dataToWrite = new FileObject(fc.getCurrentDirectory(), Scatter.version);
 
                                     //close the output stream
                                     collectionSelected.createDataset(tempAverage.getAveraged(), tempAverage.getAveragedError(), cleaned, true);
@@ -722,7 +722,7 @@ public class Analysis extends JDialog {
                                         log10Plot.plot();
                                     }
 
-                                    ((AnalysisModel)Main.analysisTable.getModel()).fireTableDataChanged();
+                                    ((AnalysisModel) Scatter.analysisTable.getModel()).fireTableDataChanged();
                                 }
                             }
 
@@ -764,7 +764,7 @@ public class Analysis extends JDialog {
 
                             WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
 
-                            FileObject dataToWrite = new FileObject(fc.getCurrentDirectory(), Main.version);
+                            FileObject dataToWrite = new FileObject(fc.getCurrentDirectory(), Scatter.version);
 
                             collectionSelected.createDataset(tempAverage.getAveraged(), tempAverage.getAveragedError(), cleaned, true);
                             Dataset tempDataset = collectionSelected.getLast();
@@ -781,7 +781,7 @@ public class Analysis extends JDialog {
                                 log10Plot.plot();
                             }
 
-                            ((AnalysisModel)Main.analysisTable.getModel()).fireTableDataChanged();
+                            ((AnalysisModel) Scatter.analysisTable.getModel()).fireTableDataChanged();
                         }
                     }
 
@@ -882,18 +882,18 @@ public class Analysis extends JDialog {
     public JPanel getDataPanel() { return dataPanel;}
 
     public void setTableModel(){
-        TableColumnModel tcm = Main.analysisTable.getTable().getColumnModel();
+        TableColumnModel tcm = Scatter.analysisTable.getTable().getColumnModel();
         TableColumn tablecolumn = tcm.getColumn(4);
         AnalysisTable.SpinnerEditor temp = (AnalysisTable.SpinnerEditor) tablecolumn.getCellEditor();
         temp.setMiniPlot(analysisMiniPlots);
         temp = (AnalysisTable.SpinnerEditor) tcm.getColumn(5).getCellEditor();
         temp.setMiniPlot(analysisMiniPlots);
 
-        Main.analysisTable.getTable().addMouseListener(new MouseListener() {
+        Scatter.analysisTable.getTable().addMouseListener(new MouseListener() {
             @Override
             public void mouseClicked(MouseEvent e) {
                 // updateMiniPlots
-                updateMiniPlots(Main.analysisTable.getTable().rowAtPoint(e.getPoint()));
+                updateMiniPlots(Scatter.analysisTable.getTable().rowAtPoint(e.getPoint()));
             }
 
             @Override

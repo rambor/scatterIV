@@ -1,9 +1,5 @@
-import FileManager.DataLine;
 import FileManager.FileObject;
 import FileManager.WorkingDirectory;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import version4.*;
 import version4.InverseTransform.RefinePrManager;
 
@@ -15,8 +11,7 @@ import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.*;
-import java.util.Vector;
-import java.util.logging.Level;
+import java.util.regex.Pattern;
 
 public class RealSpacePr {
     private JPanel contentPane;
@@ -55,7 +50,7 @@ public class RealSpacePr {
 
     public RealSpacePr(WorkingDirectory wkd, JProgressBar progressBar, JLabel status, DoubleValue defaultDmax, JComboBox rejectionBox, JComboBox cBox, JComboBox refinmentRoundsBox) {
 
-        collectionSelected = Main.collectionSelected;
+        collectionSelected = Scatter.collectionSelected;
         this.progressBar = progressBar;
         this.status = status;
         cpuCores = Runtime.getRuntime().availableProcessors();
@@ -1012,33 +1007,39 @@ prSplitPane.setPreferredSize(new Dimension(-1,(int)(contentPane.getSize().getHei
             pr.directory(new File(WORKING_DIRECTORY.getWorkingDirectory()));
             Process ps = pr.start();
 
-            BufferedReader input = new BufferedReader(new InputStreamReader(ps.getInputStream()));
-            String line=null;
-            String gnomdmax = "";
-            while((line=input.readLine()) != null) {
+//            BufferedReader input = new BufferedReader(new InputStreamReader(ps.getInputStream()));
+//            String line=null;
+//            String gnomdmax = "";
+//            while((line=input.readLine()) != null) {
+//
+//                System.out.println(line);
+//                String trimmed = line.trim();
+//                String[] row = trimmed.split("[\\s\\t]+"); // CSV files could have a ", "
+//                if (row[0].equals("dmax:") || row[0].equals("dmax")){
+//                    gnomdmax = row[1];
+//                }
+//            }
 
-                System.out.println(line);
-                String trimmed = line.trim();
-                String[] row = trimmed.split("[\\s\\t]+"); // CSV files could have a ", "
-                if (row[0].equals("dmax:") || row[0].equals("dmax")){
-                    gnomdmax = row[1];
-                }
-            }
 
-            String outlabel = (gnomdmax.length() > 1) ? String.format("=> autoGNOM DMAX :: %.2f", Double.parseDouble(gnomdmax)) :  "autoGNOM did not run :: check settings";
             System.out.println("Finished datgnom: file " + base_name[0] + "_dg.out");
 
             File datFile = new File(WORKING_DIRECTORY.getWorkingDirectory() + "/"+base_name[0]+"_dg.out");
             BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(datFile)));
             String strLine;
+            Pattern separator = Pattern.compile("[\\s\\t]+");
+
+            double dmaxGnom = 0;
             while ((strLine = br.readLine()) != null) {
                 String newString = strLine.replaceAll( "[\\s\\t]+", " " );
                 String trimmed = newString.trim();
                 if (trimmed.contains("Maximum") && trimmed.contains("characteristic") && trimmed.contains("size:")){
-                    System.out.println(":: trimmed " + trimmed);
+                    String[] row = separator.split(trimmed);
+                    dmaxGnom = Double.parseDouble(row[3]);
+                    break;
                 }
             }
 
+            String outlabel = (dmaxGnom > 1) ? String.format("=> autoGNOM DMAX :: %.2f", dmaxGnom) :  "autoGNOM did not run :: check settings";
             prStatusLabel.setText(outlabel);
 
             Modeling modeler = Modeling.getInstance();

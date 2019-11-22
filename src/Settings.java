@@ -4,8 +4,6 @@ import version4.DoubleValue;
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.beans.PropertyChangeEvent;
@@ -56,7 +54,7 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
             @Override
             public void actionPerformed(ActionEvent e) {
                 //Set working directory
-                File theCWD = new File(Main.WORKING_DIRECTORY.getWorkingDirectory());
+                File theCWD = new File(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
 
                 JFileChooser chooser = new JFileChooser(theCWD);
                 chooser.setDialogTitle("Select Directory");
@@ -67,14 +65,14 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
                 if (chooser.showOpenDialog(contentPane) == JFileChooser.APPROVE_OPTION){
 
                     if (chooser.getSelectedFile().isDirectory()){
-                        Main.WORKING_DIRECTORY.setWorkingDirectory(chooser.getSelectedFile().toString());
+                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getSelectedFile().toString());
                     } else {
-                        Main.WORKING_DIRECTORY.setWorkingDirectory(chooser.getCurrentDirectory().toString());
+                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getCurrentDirectory().toString());
                     }
 
-                    workingDirLabel.setText(Main.WORKING_DIRECTORY.getWorkingDirectory());
+                    workingDirLabel.setText(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
                     //workingDirLabel.setText(chooser.getSelectedFile().getName()+"/");
-                    Main.updateProp();
+                    Scatter.updateProp();
                 }
             }
         });
@@ -243,7 +241,7 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
             }
         });
 
-        workingDirLabel.setText(Main.WORKING_DIRECTORY.getWorkingDirectory());
+        workingDirLabel.setText(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
 
         atsasDirButton.addActionListener(new ActionListener() {
             @Override
@@ -264,7 +262,7 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
                     }
 
                     atsasDirLabel.setText(atsasDirectory);
-                    Main.updateProp();
+                    Scatter.updateProp();
                 }
             }
         });

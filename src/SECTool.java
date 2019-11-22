@@ -2,14 +2,11 @@ import FileManager.FileListBuilder;
 import FileManager.ReceivedDroppedFiles;
 import net.iharder.dnd.FileDrop;
 import org.jfree.chart.*;
-import org.jfree.chart.axis.AxisLocation;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.entity.ChartEntity;
 import org.jfree.chart.entity.XYItemEntity;
 import org.jfree.chart.labels.XYToolTipGenerator;
 import org.jfree.chart.plot.*;
-import org.jfree.chart.renderer.PaintScale;
-import org.jfree.chart.renderer.xy.XYBlockRenderer;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.chart.renderer.xy.XYSplineRenderer;
 import org.jfree.chart.title.PaintScaleLegend;
@@ -29,23 +26,16 @@ import version4.sasCIF.SasObjectForm;
 import version4.tableModels.SampleBufferElement;
 
 import javax.swing.*;
-import javax.swing.event.ChangeEvent;
-import javax.swing.event.ChangeListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
-import java.beans.PropertyChangeEvent;
-import java.beans.PropertyChangeListener;
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileReader;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.Vector;
 import java.util.concurrent.ExecutionException;
 
 public class SECTool extends JDialog {
@@ -229,7 +219,7 @@ public class SECTool extends JDialog {
                                 } else if (ext.equals("dat")) { // dropping single file that ends in dat
 
                                     try {
-                                        FileListBuilder builder = new FileListBuilder(files[0], Main.WORKING_DIRECTORY.getWorkingDirectory());
+                                        FileListBuilder builder = new FileListBuilder(files[0], Scatter.WORKING_DIRECTORY.getWorkingDirectory());
                                         status.setText("Loading " + builder.getFoundFiles().length + " files, please wait");
                                         rec1 = new ReceivedDroppedFiles(builder.getFoundFiles(),
                                                 collection,
@@ -238,7 +228,7 @@ public class SECTool extends JDialog {
                                                 convertNm1ToCheckBox.isSelected(),
                                                 true,
                                                 progressBar,
-                                                Main.WORKING_DIRECTORY.getWorkingDirectory());
+                                                Scatter.WORKING_DIRECTORY.getWorkingDirectory());
 
                                         saveAsTextField.setText(builder.getBase());
                                     } catch (Exception e) {
@@ -248,7 +238,7 @@ public class SECTool extends JDialog {
                                 }
 
                             } else { // multiple files dropped
-                                rec1 = new ReceivedDroppedFiles(files, collection, sampleFilesModel, status, convertNm1ToCheckBox.isSelected(), true, progressBar, Main.WORKING_DIRECTORY.getWorkingDirectory());
+                                rec1 = new ReceivedDroppedFiles(files, collection, sampleFilesModel, status, convertNm1ToCheckBox.isSelected(), true, progressBar, Scatter.WORKING_DIRECTORY.getWorkingDirectory());
                             }
 
                             rec1.run();
@@ -336,7 +326,7 @@ public class SECTool extends JDialog {
                                 TRACEButton.setEnabled(false);
                                 SetBufferButton.setEnabled(false);
 
-                                SECBuilder secBuilder = new SECBuilder(collection, status, progressBar, saveAsTextField.getText(),  Main.WORKING_DIRECTORY.getWorkingDirectory(), Double.parseDouble(thresholdField.getText()));
+                                SECBuilder secBuilder = new SECBuilder(collection, status, progressBar, saveAsTextField.getText(),  Scatter.WORKING_DIRECTORY.getWorkingDirectory(), Double.parseDouble(thresholdField.getText()));
 
                                 secBuilder.run();
                                 secBuilder.get();
@@ -472,8 +462,8 @@ public class SECTool extends JDialog {
                                  *
                                  *
                                  */
-                                String nameofnew = (saveAsTextField.getText().length() < 3) ? (secFile.getFilebase() + "_"+Main.collectionSelected.getTotalDatasets()) : saveAsTextField.getText().replaceAll("\\W","_");
-                                Main.collectionSelected.createDataset(peakToMerge.getMerged(), peakToMerge.getMergedErrors(), nameofnew, true);
+                                String nameofnew = (saveAsTextField.getText().length() < 3) ? (secFile.getFilebase() + "_"+ Scatter.collectionSelected.getTotalDatasets()) : saveAsTextField.getText().replaceAll("\\W","_");
+                                Scatter.collectionSelected.createDataset(peakToMerge.getMerged(), peakToMerge.getMergedErrors(), nameofnew, true);
                                 // write dataset to file
 
                                 MERGEButton.setEnabled(true);
@@ -531,7 +521,7 @@ public class SECTool extends JDialog {
             @Override
             public void actionPerformed(ActionEvent e) {
                 //Set working directory
-                File theCWD = new File(Main.WORKING_DIRECTORY.getWorkingDirectory());
+                File theCWD = new File(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
 
                 JFileChooser chooser = new JFileChooser(theCWD);
                 chooser.setDialogTitle("Select Directory");
@@ -542,14 +532,22 @@ public class SECTool extends JDialog {
                 if (chooser.showOpenDialog(contentPane) == JFileChooser.APPROVE_OPTION){
 
                     if (chooser.getSelectedFile().isDirectory()){
-                        Main.WORKING_DIRECTORY.setWorkingDirectory(chooser.getSelectedFile().toString());
+                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getSelectedFile().toString());
                     } else {
-                        Main.WORKING_DIRECTORY.setWorkingDirectory(chooser.getCurrentDirectory().toString());
+                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getCurrentDirectory().toString());
                     }
 
                     outputDirLabel.setText(chooser.getSelectedFile().getName()+"/");
-                    Main.updateProp();
+                    Scatter.updateProp();
                 }
+            }
+        });
+
+        // select single file to load
+        loadButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+
             }
         });
     }

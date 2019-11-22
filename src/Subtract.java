@@ -1,6 +1,5 @@
 import FileManager.FileListBuilder;
 import FileManager.ReceivedDroppedFiles;
-import FileManager.WorkingDirectory;
 import net.iharder.dnd.FileDrop;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
@@ -16,11 +15,8 @@ import org.jfree.data.xy.XYDataset;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 import org.jfree.ui.Layer;
-import org.jfree.ui.VerticalAlignment;
 import version4.Collection;
 import version4.Constants;
-import version4.ReportPDF.MergeReport;
-import version4.ReportPDF.SubtractionReport;
 import version4.Subtraction;
 import version4.plots.XYPlot;
 import version4.sasCIF.SasObject;
@@ -29,16 +25,12 @@ import version4.tableModels.DataFileElement;
 import version4.tableModels.SampleBufferElement;
 
 import javax.swing.*;
-import javax.swing.event.DocumentEvent;
-import javax.swing.event.DocumentListener;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.io.File;
-import java.io.IOException;
-import java.nio.Buffer;
 import java.util.ArrayList;
 import java.util.concurrent.ExecutionException;
 
@@ -164,7 +156,7 @@ public class Subtract {
 
                                 if (ext.equals("dat")) { // dropping single file that ends in dat
                                     try {
-                                        FileListBuilder builder = new FileListBuilder(files[0], Main.WORKING_DIRECTORY.getWorkingDirectory());
+                                        FileListBuilder builder = new FileListBuilder(files[0], Scatter.WORKING_DIRECTORY.getWorkingDirectory());
                                         status.setText("Loading " + builder.getFoundFiles().length + " files, please wait");
                                         rec1 = new ReceivedDroppedFiles(builder.getFoundFiles(),
                                                 samplesCollection,
@@ -173,7 +165,7 @@ public class Subtract {
                                                 convertNm1ToCheckBox.isSelected(),
                                                 true,
                                                 progressBar,
-                                                Main.WORKING_DIRECTORY.getWorkingDirectory());
+                                                Scatter.WORKING_DIRECTORY.getWorkingDirectory());
 
                                         saveAsTextField.setText(builder.getBase());
                                     } catch (Exception e) {
@@ -183,7 +175,7 @@ public class Subtract {
                                 }
 
                             } else { // multiple files dropped
-                                rec1 = new ReceivedDroppedFiles(files, samplesCollection, sampleFilesModel, status, convertNm1ToCheckBox.isSelected(), true, progressBar, Main.WORKING_DIRECTORY.getWorkingDirectory());
+                                rec1 = new ReceivedDroppedFiles(files, samplesCollection, sampleFilesModel, status, convertNm1ToCheckBox.isSelected(), true, progressBar, Scatter.WORKING_DIRECTORY.getWorkingDirectory());
                             }
 
                             rec1.run();
@@ -249,7 +241,7 @@ public class Subtract {
                                 if (ext.equals("dat")) { // dropping single file that ends in dat
 
                                     try {
-                                        FileListBuilder builder = new FileListBuilder(files[0], Main.WORKING_DIRECTORY.getWorkingDirectory());
+                                        FileListBuilder builder = new FileListBuilder(files[0], Scatter.WORKING_DIRECTORY.getWorkingDirectory());
                                         status.setText("Loading " + builder.getFoundFiles().length + " files, please wait");
                                         rec1 = new ReceivedDroppedFiles(builder.getFoundFiles(),
                                                 buffersCollection,
@@ -258,7 +250,7 @@ public class Subtract {
                                                 convertNm1ToCheckBox.isSelected(),
                                                 true,
                                                 progressBar,
-                                                Main.WORKING_DIRECTORY.getWorkingDirectory());
+                                                Scatter.WORKING_DIRECTORY.getWorkingDirectory());
 
                                     } catch (Exception e) {
                                         //programInstance.status.setText(" DROP only one file please");
@@ -267,7 +259,7 @@ public class Subtract {
                                 }
 
                             } else { // multiple files dropped
-                                rec1 = new ReceivedDroppedFiles(files, buffersCollection, bufferFilesModel, status, convertNm1ToCheckBox.isSelected(), true, progressBar, Main.WORKING_DIRECTORY.getWorkingDirectory());
+                                rec1 = new ReceivedDroppedFiles(files, buffersCollection, bufferFilesModel, status, convertNm1ToCheckBox.isSelected(), true, progressBar, Scatter.WORKING_DIRECTORY.getWorkingDirectory());
                             }
 
                             rec1.run();
@@ -363,7 +355,7 @@ public class Subtract {
             @Override
             public void actionPerformed(ActionEvent e) {
                 //Set working directory
-                File theCWD = new File(Main.WORKING_DIRECTORY.getWorkingDirectory());
+                File theCWD = new File(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
 
                 JFileChooser chooser = new JFileChooser(theCWD);
                 chooser.setDialogTitle("Select Directory");
@@ -374,13 +366,13 @@ public class Subtract {
                 if (chooser.showOpenDialog(contentPane) == JFileChooser.APPROVE_OPTION){
 
                     if (chooser.getSelectedFile().isDirectory()){
-                        Main.WORKING_DIRECTORY.setWorkingDirectory(chooser.getSelectedFile().toString());
+                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getSelectedFile().toString());
                     } else {
-                        Main.WORKING_DIRECTORY.setWorkingDirectory(chooser.getCurrentDirectory().toString());
+                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getCurrentDirectory().toString());
                     }
 
                     outputDirLabel.setText(chooser.getSelectedFile().getName()+"/");
-                    Main.updateProp();
+                    Scatter.updateProp();
                 }
             }
         });
@@ -612,11 +604,11 @@ public class Subtract {
                             samplesCollection.getDataset(i).setInUse(selectedIndices.get(i));
                         }
 
-                        Subtraction subTemp = new Subtraction(buffersCollection, samplesCollection, finalQmin, finalQmax, mergeByAverage, finalSingles, scaleBefore, cpuCores, Main.useAutoRg, status, progressBar);
+                        Subtraction subTemp = new Subtraction(buffersCollection, samplesCollection, finalQmin, finalQmax, mergeByAverage, finalSingles, scaleBefore, cpuCores, Scatter.useAutoRg, status, progressBar);
 
                         subTemp.setBinsAndCutoff(Double.parseDouble(comboBoxSubtractBins.getSelectedItem().toString()), Double.parseDouble(subtractionCutOff.getSelectedItem().toString()));
-                        subTemp.setNameAndDirectory(saveAsTextField.getText(), Main.WORKING_DIRECTORY.getWorkingDirectory());
-                        subTemp.setCollectionToUpdate(Main.collectionSelected);
+                        subTemp.setNameAndDirectory(saveAsTextField.getText(), Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+                        subTemp.setCollectionToUpdate(Scatter.collectionSelected);
 
                         subTemp.run();
                         try {
@@ -687,14 +679,14 @@ public class Subtract {
 
     private void setupSamplesChartPanel(){
         this.samplesCollection = new Collection("samples");
-        samplesPlot = new XYPlot(samplesCollection, Main.WORKING_DIRECTORY, false);
+        samplesPlot = new XYPlot(samplesCollection, Scatter.WORKING_DIRECTORY, false);
         samplesPlot.setTitle("Samples");
         samplesPlot.setRangeAxisTitle("Intensity");
         samplesPlot.setDomainAxisTitle("q");
         SampleIofQPanel.add(samplesPlot.getChartPanel());
 
         this.buffersCollection = new Collection("buffers");
-        buffersPlot = new XYPlot(buffersCollection, Main.WORKING_DIRECTORY, true);
+        buffersPlot = new XYPlot(buffersCollection, Scatter.WORKING_DIRECTORY, true);
         buffersPlot.setTitle("Buffers");
         buffersPlot.setRangeAxisTitle("Intensity");
         buffersPlot.setDomainAxisTitle("q");

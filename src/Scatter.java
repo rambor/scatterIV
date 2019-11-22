@@ -1,35 +1,21 @@
-import FileManager.FileListBuilder;
-import FileManager.LoadedFile;
 import FileManager.ReceivedDroppedFiles;
 import FileManager.WorkingDirectory;
 import net.iharder.dnd.FileDrop;
-import org.jfree.data.xy.XYSeries;
-import version4.Constants;
-import version4.Dataset;
 import version4.ReportPDF.MergeReport;
-import version4.plots.PlotData;
-import version4.tableModels.AnalysisModel;
 import version4.Collection;
 import version4.tableModels.AnalysisTable;
-import version4.tableModels.SampleBufferElement;
 
 import javax.swing.*;
-import javax.swing.event.*;
 import javax.swing.plaf.basic.BasicProgressBarUI;
-import javax.swing.table.TableColumn;
-import javax.swing.table.TableColumnModel;
 import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.util.ArrayList;
-import java.util.EventObject;
 import java.util.Properties;
 import java.util.Vector;
 import java.util.concurrent.ExecutionException;
-import java.util.logging.FileHandler;
-import java.util.logging.Logger;
 
-public class Main {
+public class Scatter {
     private static String OUTPUT_DIR_SUBTRACTION_NAME="";
     private static String ATSAS_DIRECTORY="";
     private static String THRESHOLD="";
@@ -83,11 +69,9 @@ public class Main {
     private Subtract subtractTab;
     private static int cpuCores;
 
-    public Main(){
+    public Scatter(){
 
         mergeReport = MergeReport.getInstance();
-
-
 
         collectionSelected = new Collection("mainCollection");
         //mainProgressBar.setForeground(Color.white);
@@ -445,7 +429,7 @@ public class Main {
         }
 
         JFrame frame = new JFrame("ScatterIV");
-        frame.setContentPane(new Main().bg);
+        frame.setContentPane(new Scatter().bg);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.pack();
         frame.setVisible(true);

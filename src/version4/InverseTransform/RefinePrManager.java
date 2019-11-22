@@ -115,7 +115,7 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
     protected Void doInBackground() throws Exception {
 
         if (useLabels){
-            statusLabel.setText("Starting median residual " + median);
+            statusLabel.setText(String.format("Starting median residual :: %.5E", median));
         }
 
         //bar.setMaximum(100);
