@@ -20,7 +20,7 @@ public class SECFileTest {
     public void constructorTest() throws IOException {
 
         String currentDirectory = System.getProperty("user.dir");
-        String filename = "src/test/testData/json.txt";
+        String filename = "src/test/testData/BSA_0p6_mg_per_ml_11_comp.sec";
 
         File temp = new File(filename);
 
