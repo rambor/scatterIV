@@ -86,12 +86,15 @@ public class SECFile {
 //            }
 
             /*
-             * convert lines and length to location entries
+             * convert lines and length to location entries in memory mapped file
+             * linesAndLength excludes extra bytes from newLine character
+             * 1 byte in unix and mac os
+             * 2 bytes in windows
              */
             long startIndex=0L;
             for (Map.Entry<Integer, Integer> entry : linesAndLength.entrySet()) {
                 lineNumbers.add(startIndex);
-                startIndex += entry.getValue() + 1;
+                startIndex += entry.getValue() + System.lineSeparator().getBytes().length;
             }
 
 //            for(Integer index : lineNumbers){
@@ -418,7 +421,6 @@ public class SECFile {
 
     public void updateBufferIndices(SortedSet<Integer> newBufferIndices){
 
-
         ArrayList<Integer> yesno = new ArrayList<>(totalFrames);
 
         for(int i=0; i<totalFrames; i++){
@@ -443,8 +445,7 @@ public class SECFile {
         int indexOfContentToBeReplaced = secFormat.getBackground_index(); // line that will be written over
 
         // length is determined by => s.getBytes().length
-
-        if ((outputstring.length-1) != linesAndLength.get(indexOfContentToBeReplaced) ){
+        if ((outputstring.length-System.lineSeparator().getBytes(StandardCharsets.UTF_8).length) != linesAndLength.get(indexOfContentToBeReplaced) ){
             /*
              * inserting into file
              * 1. write contents I want to keep after insertion point to temp file
@@ -478,6 +479,7 @@ public class SECFile {
 
             fileChannel.transferTo(keepAfterHereInBytes, (oldFileSize-keepAfterHereInBytes), tempChannel);
 
+            // should be preceded by newline/carriage return
             long offset = lineNumbers.get(indexOfContentToBeReplaced) ;
             fileChannel.truncate(offset);
             fileChannel.write(outbuff, offset); // write new line
@@ -490,13 +492,14 @@ public class SECFile {
             rtemp.close();
             tfile.delete();
 
-            linesAndLength.replace(indexOfContentToBeReplaced, outbuff.array().length-1); // should be the length of lines without newline character
+            linesAndLength.replace(indexOfContentToBeReplaced, outbuff.array().length - System.lineSeparator().getBytes(StandardCharsets.UTF_8).length); // should be the length of lines without newline character
 
             long startIndex=0L;
             lineNumbers.clear();
             for (Map.Entry<Integer, Integer> entry : linesAndLength.entrySet()) {
                 lineNumbers.add(startIndex);
-                startIndex += entry.getValue() + 1;
+//                startIndex += entry.getValue() + 1;
+                startIndex += entry.getValue() + System.lineSeparator().getBytes(StandardCharsets.UTF_8).length;
             }
 
         } catch (FileNotFoundException e) {
@@ -520,7 +523,7 @@ public class SECFile {
         ByteBuffer outbuff = ByteBuffer.wrap((newMD5HEX + " " + newLine + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
 
         // length is determined by => s.getBytes().length
-        if ((outbuff.array().length-1) != linesAndLength.get(indexOfContentToBeReplaced) ){
+        if ((outbuff.array().length-System.lineSeparator().getBytes(StandardCharsets.UTF_8).length) != linesAndLength.get(indexOfContentToBeReplaced) ){
             insertIntoFile(indexOfContentToBeReplaced, outbuff);
         } else {
             try {
@@ -540,8 +543,11 @@ public class SECFile {
         String newMD5HEX = DigestUtils.md5Hex(newLine).toUpperCase();
         ByteBuffer outbuff = ByteBuffer.wrap((newMD5HEX + " " + newLine + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
 
-        // length is determined by => s.getBytes().length
-        if ((outbuff.array().length-1) > linesAndLength.get(indexOfContentToBeReplaced) ){
+        /*
+         * linesAndLength excludes bytes of carriage return/new line
+         * length of is determined by => s.getBytes().length
+         */
+        if ((outbuff.array().length-System.lineSeparator().getBytes(StandardCharsets.UTF_8).length) != linesAndLength.get(indexOfContentToBeReplaced) ){
             insertIntoFile(indexOfContentToBeReplaced, outbuff);
         } else {
             try {
@@ -560,8 +566,11 @@ public class SECFile {
         String newMD5HEX = DigestUtils.md5Hex(newLine).toUpperCase();
         ByteBuffer outbuff = ByteBuffer.wrap((newMD5HEX + " " + newLine + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
 
-        // length is determined by => s.getBytes().length
-            if ((outbuff.array().length-1) > linesAndLength.get(indexOfContentToBeReplaced) ){
+        /*
+         * linesAndLength excludes bytes of carriage return/new line
+         * length of is determined by => s.getBytes().length
+         */
+            if ((outbuff.array().length-System.lineSeparator().getBytes(StandardCharsets.UTF_8).length) != linesAndLength.get(indexOfContentToBeReplaced) ){
                 insertIntoFile(indexOfContentToBeReplaced, outbuff);
             } else {
                 try {
@@ -580,8 +589,11 @@ public class SECFile {
         String newMD5HEX = DigestUtils.md5Hex(newLine).toUpperCase();
         ByteBuffer outbuff = ByteBuffer.wrap((newMD5HEX + " " + newLine + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
 
-        // length is determined by => s.getBytes().length
-        if ((outbuff.array().length-1) > linesAndLength.get(indexOfContentToBeReplaced) ){
+        /*
+         * linesAndLength excludes bytes of carriage return/new line
+         * length of is determined by => s.getBytes().length
+         */
+        if ((outbuff.array().length-System.lineSeparator().getBytes(StandardCharsets.UTF_8).length) != linesAndLength.get(indexOfContentToBeReplaced) ){
             insertIntoFile(indexOfContentToBeReplaced, outbuff);
         } else {
             try {
@@ -599,9 +611,12 @@ public class SECFile {
         String newMD5HEX = DigestUtils.md5Hex(newSub).toUpperCase();
         byte[] outputstring = (indexOfFrame + " " + newMD5HEX + " " + newSub + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
         ByteBuffer outbuff = ByteBuffer.wrap(outputstring);
-        // length is determined by => s.getBytes().length
 
-        if ((outputstring.length-1) != linesAndLength.get(indexOfContentToBeReplaced) ){
+        /*
+         * linesAndLength excludes bytes of carriage return/new line
+         * length of is determined by => s.getBytes().length
+         */
+        if ((outputstring.length-System.lineSeparator().getBytes(StandardCharsets.UTF_8).length) != linesAndLength.get(indexOfContentToBeReplaced) ){
             insertIntoFile(indexOfContentToBeReplaced, outbuff);
         } else {
             try {
@@ -616,7 +631,7 @@ public class SECFile {
         outputstring = (indexOfFrame + " " + newSubSigmasMD5HEX + " " + newSubSigmas + System.lineSeparator()).getBytes(StandardCharsets.UTF_8);
         outbuff = ByteBuffer.wrap(outputstring);
 
-        if ((outputstring.length-1) != linesAndLength.get(indexOfContentToBeReplaced) ){
+        if ((outputstring.length-System.lineSeparator().getBytes(StandardCharsets.UTF_8).length) != linesAndLength.get(indexOfContentToBeReplaced) ){
             insertIntoFile(indexOfContentToBeReplaced, outbuff);
         } else {
             try {
@@ -635,29 +650,29 @@ public class SECFile {
         ByteBuffer outbuff = ByteBuffer.wrap((avgBufferMD5HEX + " " + newaveragedBuffer + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
 
         // length is determined by => s.getBytes().length
-        if ((outbuff.array().length-1) > linesAndLength.get(indexOfContentToBeReplaced) ){
+//        if ((outbuff.array().length-1) > linesAndLength.get(indexOfContentToBeReplaced) ){
             insertIntoFile(indexOfContentToBeReplaced, outbuff);
-        } else {
-            try {
-                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+//        } else {
+//            try {
+//                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//        }
 
         String avgBuffererrorMD5HEX = DigestUtils.md5Hex(newSigmas).toUpperCase();
         outbuff = ByteBuffer.wrap((avgBuffererrorMD5HEX + " " + newSigmas + System.lineSeparator()).getBytes(StandardCharsets.UTF_8));
         indexOfContentToBeReplaced = secFormat.getAveraged_buffer_error_index();
 
-        if (outbuff.toString().getBytes().length > linesAndLength.get(indexOfContentToBeReplaced) ){
+//        if (outbuff.toString().getBytes().length > linesAndLength.get(indexOfContentToBeReplaced) ){
             insertIntoFile(indexOfContentToBeReplaced, outbuff);
-        } else {
-            try {
-                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+//        } else {
+//            try {
+//                fileChannel.write(outbuff, lineNumbers.get(indexOfContentToBeReplaced));
+//            } catch (IOException e) {
+//                e.printStackTrace();
+//            }
+//        }
 
     }
 
