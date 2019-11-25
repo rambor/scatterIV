@@ -98,7 +98,7 @@
             </constraints>
             <properties>
               <font size="12" style="1"/>
-              <foreground color="-12086017"/>
+              <foreground color="-4999743"/>
             </properties>
           </component>
           <grid id="be078" binding="prButtonPanel" layout-manager="GridLayoutManager" row-count="1" column-count="2" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">

@@ -90,7 +90,7 @@ public class Scatter {
         final DefaultComboBoxModel cpuModel = new DefaultComboBoxModel(comboBoxItemsCPU);
 
         mainProgressBar.setUI(new BasicProgressBarUI() {
-            protected Color getSelectionBackground() { return Color.white; }
+            protected Color getSelectionBackground() { return analysisPane.getBackground(); }
             protected Color getSelectionForeground() { return Color.black; }
             //protected Color getForeground() { return Color.black; }
         });
