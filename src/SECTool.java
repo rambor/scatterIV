@@ -241,8 +241,11 @@ public class SECTool extends JDialog {
                                 rec1 = new ReceivedDroppedFiles(files, collection, sampleFilesModel, status, convertNm1ToCheckBox.isSelected(), true, progressBar, Scatter.WORKING_DIRECTORY.getWorkingDirectory());
                             }
 
-                            rec1.run();
-                            rec1.get();
+                            if (rec1 instanceof Object){
+                                rec1.run();
+                                rec1.get();
+                            }
+
                             samplesList.revalidate();
                             samplesList.repaint();
                             samplesList.validate();
@@ -308,7 +311,7 @@ public class SECTool extends JDialog {
                     /*
                      * update trace plot from SECBuilder
                      */
-                if (saveAsTextField.getText().length() < 3){
+                if (saveAsTextField.getText().length() < 3 && !(secFile instanceof SECFile)){
                     Toolkit.getDefaultToolkit().beep();
                     JOptionPane optionPane = new JOptionPane("Too short, provide a meaningful name",JOptionPane.WARNING_MESSAGE);
                     JDialog dialog = optionPane.createDialog("Warning!");
@@ -352,6 +355,7 @@ public class SECTool extends JDialog {
                                 collection.removeAllDatasets();
                                 secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
 
+                                status.setText("Click TRACE to extract chromatogram");
                             } catch (InterruptedException e1) {
                                 TRACEButton.setEnabled(true);
                                 SetBufferButton.setEnabled(true);
@@ -361,36 +365,80 @@ public class SECTool extends JDialog {
                                 SetBufferButton.setEnabled(true);
                                 e1.printStackTrace();
                             }
-
                         }
                     }.start();
+
                 } else if (setBuffer){
-                    /*
-                     * using newly selected buffers, recalculate
-                     *  average buffer
-                     *  re-subtract background
-                     *  re-calculate signal plot
-                     *  re-do Rg/IZero
-                     */
-                    if (selectedBuffers.size() > 1){
-                        SECRebuilder rebuilt = new SECRebuilder(secFile, selectedBuffers, Double.parseDouble(thresholdField.getText()), Integer.parseInt(excludeComboBox.getSelectedItem().toString()), progressBar, status);
+
+                    if (System.getProperty("os.name").contains("Window") || true){
+
+                        // populate collection
+                        collection.removeAllDatasets();
                         TRACEButton.setEnabled(false);
                         SetBufferButton.setEnabled(false);
                         new Thread() {
                             public void run() {
+                                try {
+                                    SECBuilder secBuilder = new SECBuilder(secFile, selectedBuffers, status, progressBar, Scatter.WORKING_DIRECTORY.getWorkingDirectory(), Double.parseDouble(thresholdField.getText()));
+                                    secFile.closeFile();
+                                    secBuilder.run();
+                                    secBuilder.get();
+                                    // reset secFile
+                                    secFile = new SECFile(new File(secBuilder.getOutputname()));
+                                    updateSignalPlot();
+                                    selectedIndices.clear();
 
-                                rebuilt.run();
-                                updateSignalPlot();
-                                selectedBufferIndicesLabel.setText("Total Buffers :: " + secFile.getBufferCount());
-                                selectedBuffers.clear();
-                                TRACEButton.setEnabled(true);
-                                SetBufferButton.setEnabled(true);
+                                    for(int i=0;i<secFile.getTotalFrames(); i++){
+                                        selectedIndices.add(false);
+                                    }
 
+                                    framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() + " | ");
+                                    selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
+
+                                } catch (InterruptedException e1) {
+                                    TRACEButton.setEnabled(true);
+                                    SetBufferButton.setEnabled(true);
+                                    e1.printStackTrace();
+                                } catch (ExecutionException | IOException e1) {
+                                    TRACEButton.setEnabled(true);
+                                    SetBufferButton.setEnabled(true);
+                                    e1.printStackTrace();
+                                }
+
+                                progressBar.setStringPainted(false);
+                                progressBar.setValue(0);
                             }
                         }.start();
-                    } else if (selectedBuffers.size() == 0) { // only recalculate izero/rg
-                        status.setText("Recalculating auto-Rg");
+
+
+                    } else {
+                        /*
+                         * using newly selected buffers, recalculate
+                         *  average buffer
+                         *  re-subtract background
+                         *  re-calculate signal plot
+                         *  re-do Rg/IZero
+                         */
+                        if (selectedBuffers.size() > 1){
+                            SECRebuilder rebuilt = new SECRebuilder(secFile, selectedBuffers, Double.parseDouble(thresholdField.getText()), Integer.parseInt(excludeComboBox.getSelectedItem().toString()), progressBar, status);
+                            TRACEButton.setEnabled(false);
+                            SetBufferButton.setEnabled(false);
+                            new Thread() {
+                                public void run() {
+                                    rebuilt.run();
+                                    updateSignalPlot();
+                                    selectedBufferIndicesLabel.setText("Total Buffers :: " + secFile.getBufferCount());
+                                    selectedBuffers.clear();
+                                    TRACEButton.setEnabled(true);
+                                    SetBufferButton.setEnabled(true);
+
+                                }
+                            }.start();
+                        } else if (selectedBuffers.size() == 0) { // only recalculate izero/rg
+                            status.setText("Recalculating auto-Rg");
+                        }
                     }
+
                 }
 
                 setBuffer = false;

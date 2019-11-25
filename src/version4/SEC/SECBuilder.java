@@ -28,6 +28,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     private Collection collection;
     private int commonStart=0, commonEnd;
     private boolean isValid = false;
+    private boolean backgroundPresent = false;
     private String notice;
     private ArrayList<Number> qvalues;
     private ArrayList<Signals> signals;
@@ -126,10 +127,68 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
     /**
      * recalculate SECFile from new
+     *
      * @param oldsecfile
      */
-    public SECBuilder(SecFormat oldsecfile, ArrayList<Integer> bufferIndices){
+    public SECBuilder(SECFile oldsecfile, SortedSet<Integer> bufferIndices, JLabel status, JProgressBar bar, String workingDirectoryName, double threshold) throws IOException{
         // build collection
+        collection = new Collection("rebuild");
+        backgroundPresent = true;
+
+        int totalFrames = oldsecfile.getTotalFrames();
+        XYSeries iofq = new XYSeries("");
+        XYSeries eofq = new XYSeries("");
+
+        int totalInFrame = oldsecfile.getQvalues().size();
+        ArrayList<Double> oldqvalues = oldsecfile.getQvalues();
+        ArrayList<Double> frame = oldsecfile.getUnSubtractedFrameAt(0);
+        ArrayList<Double> error = oldsecfile.getUnSubtractedErrorFrameAt(0);
+        qvalues = new ArrayList<>();
+
+        for(int q=0; q<totalInFrame; q++){ // create dataset
+            this.qvalues.add(oldqvalues.get(q));
+        }
+
+        minQvalueInCommon = this.qvalues.get(0);
+        maxQvalueInCommon = this.qvalues.get(qvalues.size()-1);
+
+        for(int i=0; i<totalInFrame; i++){
+            // create datase
+            Double qvalue = qvalues.get(i).doubleValue();
+            iofq.add(qvalue, frame.get(i));
+            eofq.add(qvalue, error.get(i));
+        }
+
+        collection.createDataset(iofq, eofq);
+
+        for(int i=1; i<totalFrames; i++){
+            frame = oldsecfile.getUnSubtractedFrameAt(i);
+            error = oldsecfile.getUnSubtractedErrorFrameAt(i);
+            // create dataset
+            for(int q=0; q<totalInFrame; q++){
+                // create dataset
+                iofq.updateByIndex(q, frame.get(q));
+                eofq.updateByIndex(q, error.get(q));
+            }
+            collection.createDataset(iofq, eofq);
+        }
+
+        this.threshold = threshold;
+        this.status = status;
+        this.progressBar = bar;
+
+        int total = collection.getTotalDatasets();
+        totalSelected = 0;
+        for(int i=0; i < total; i++){
+            if (collection.getDataset(i).getInUse()){
+                totalSelected++;
+            }
+        }
+
+        workingDirectory = workingDirectoryName;
+        outputname = oldsecfile.getFilebase();
+        setBackgroundFrames(bufferIndices);
+        System.out.println("Finished");
     }
 
     @Override
@@ -137,7 +196,10 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
         status.setText("Estimating background frames, please wait");
         progressBar.setVisible(true);
-        this.estimateBackgroundFrames();
+        if (!backgroundPresent){
+            this.estimateBackgroundFrames();
+        }
+
         /*
          * calculate ::
          * 1. signal plot
@@ -193,7 +255,6 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         minQvalueInCommon = qvalues.get(0);
         maxQvalueInCommon = qvalues.get(qvalues.size()-1);
 
-
         return true;
     }
 
@@ -208,7 +269,6 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         secFormat.setThreshold(threshold);
         secFormat.setTotal_frames(totalDataSetsInCollection);
         secFormat.setTotal_momentum_transfer_vectors(qvalues.size());
-
 
         for(int i=0; i<totalDataSetsInCollection; i++){
             Dataset data = collection.getDataset(i);
@@ -646,6 +706,60 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         return false;
     }
 
+    /**
+     * update background based on prior selection
+     * find large continuous sets of frames to be background
+     * Signal will have a I(qmin)
+     */
+    private void setBackgroundFrames(SortedSet<Integer> bufferIndices) {
+        progressBar.setIndeterminate(true);
+        progressBar.setStringPainted(false);
+        status.setText("estimating background frames");
+
+        int total = collection.getTotalDatasets();
+        int totalN = qvalues.size();
+
+        earlyUpperQmaxLimit = maxQvalueInCommon.doubleValue();
+        noSignal = (maxQvalueInCommon.doubleValue() - minQvalueInCommon.doubleValue())*(totalN+1)/(double)totalN;
+        // set window
+        int window = 37;
+        //
+        //TreeSet<Integer> keepers = new TreeSet<Integer>();
+        bufferRejects = new TreeSet<>();
+        keptBuffers = new TreeSet<>();
+        keptBufferIndices = new ArrayList();
+
+        ArrayList<XYSeries> keptData = new ArrayList<>();
+        ArrayList<XYSeries> keptErrors = new ArrayList<>();
+
+        for(Integer kept : bufferIndices){
+            keptBufferIndices.add(kept);
+            keptBuffers.add(kept);
+            Dataset tempDataset = collection.getDataset(kept);
+            keptData.add(tempDataset.getAllData());
+            keptErrors.add(tempDataset.getAllDataError());
+        }
+
+        for (int m=0; m < total; m++){
+            Dataset dd = collection.getDataset(m);
+            if (dd.getInUse() && !keptBuffers.contains(dd.getId())){
+                bufferRejects.add(dd.getId());
+            }
+        }
+
+        status.setText("Averaging background frames :: " + keptBufferIndices.size());
+        buffer = new XYSeries("averaged buffer");
+        bufferError = new XYSeries("averaged buffer errors");
+        this.averageWithoutScaling(keptData, keptErrors, buffer, bufferError);
+
+        /*
+         * could refine at this point, take the average set of choosen frames and do ratio
+         */
+        // create trace using averagedEstimatedBackground
+        progressBar.setIndeterminate(false);
+        progressBar.setStringPainted(false);
+        status.setText("Finished averaging buffer");
+    }
 
     /**
      * estimate frames to be used as background and set

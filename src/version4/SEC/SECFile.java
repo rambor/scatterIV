@@ -64,7 +64,6 @@ public class SECFile {
             this.file = new RandomAccessFile(file, "rw");
             fileChannel = this.file.getChannel();
             this.file.seek(0); // measured in bytes
-
 //            long currentPos = this.file.getFilePointer();
 //            byte[] bytes = new byte[5];
 //            this.file.read(bytes);
@@ -467,46 +466,56 @@ public class SECFile {
 
     private void insertIntoFile(int indexOfContentToBeReplaced, ByteBuffer outbuff) {
 
-        try {
-            int keepAfter = indexOfContentToBeReplaced + 1;
-            long oldFileSize = this.file.length();
-            long keepAfterHereInBytes = lineNumbers.get(keepAfter);
+        System.out.println("System:: " + System.getProperty("os.name"));
+        if (System.getProperty("os.name").contains("Windows") || System.getProperty("os.name").contains("Windows")){
+            // write new file
+            // delete old file
 
-            File tfile = new File(filename+"~");
+        } else {
+            try {
+                int keepAfter = indexOfContentToBeReplaced + 1;
+                long oldFileSize = this.file.length();
+                long keepAfterHereInBytes = lineNumbers.get(keepAfter);
 
-            RandomAccessFile rtemp = new RandomAccessFile(tfile, "rw");
-            FileChannel tempChannel = rtemp.getChannel();
+                File tfile = new File(filename+"~");
 
-            fileChannel.transferTo(keepAfterHereInBytes, (oldFileSize-keepAfterHereInBytes), tempChannel);
+                RandomAccessFile rtemp = new RandomAccessFile(tfile, "rw");
+                FileChannel tempChannel = rtemp.getChannel();
 
-            // should be preceded by newline/carriage return
-            long offset = lineNumbers.get(indexOfContentToBeReplaced) ;
-            fileChannel.truncate(offset);
-            fileChannel.write(outbuff, offset); // write new line
+                fileChannel.transferTo(keepAfterHereInBytes, (oldFileSize-keepAfterHereInBytes), tempChannel);
+                tempChannel.close();
+                rtemp.close();
+                // should be preceded by newline/carriage return
+                long offset = lineNumbers.get(indexOfContentToBeReplaced) ;
+                fileChannel.truncate(offset);
+                fileChannel.write(outbuff, offset); // write new line
+                rtemp = new RandomAccessFile(tfile, "r");
+                tempChannel = rtemp.getChannel();
+                long newOffset = offset + (outbuff.array().length); // length of outbuff includes the new line character
+                tempChannel.position(0L);
+                fileChannel.transferFrom(tempChannel, newOffset, (oldFileSize-keepAfterHereInBytes));
 
-            long newOffset = offset + (outbuff.array().length); // length of outbuff includes the new line character
-            tempChannel.position(0L);
-            fileChannel.transferFrom(tempChannel, newOffset, (oldFileSize-keepAfterHereInBytes));
+                tempChannel.close();
+                rtemp.close();
+                tfile.delete();
 
-            tempChannel.close();
-            rtemp.close();
-            tfile.delete();
+                linesAndLength.replace(indexOfContentToBeReplaced, outbuff.array().length - System.lineSeparator().getBytes(StandardCharsets.UTF_8).length); // should be the length of lines without newline character
 
-            linesAndLength.replace(indexOfContentToBeReplaced, outbuff.array().length - System.lineSeparator().getBytes(StandardCharsets.UTF_8).length); // should be the length of lines without newline character
-
-            long startIndex=0L;
-            lineNumbers.clear();
-            for (Map.Entry<Integer, Integer> entry : linesAndLength.entrySet()) {
-                lineNumbers.add(startIndex);
+                long startIndex=0L;
+                lineNumbers.clear();
+                for (Map.Entry<Integer, Integer> entry : linesAndLength.entrySet()) {
+                    lineNumbers.add(startIndex);
 //                startIndex += entry.getValue() + 1;
-                startIndex += entry.getValue() + System.lineSeparator().getBytes(StandardCharsets.UTF_8).length;
-            }
+                    startIndex += entry.getValue() + System.lineSeparator().getBytes(StandardCharsets.UTF_8).length;
+                }
 
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        } catch (IOException e) {
-            e.printStackTrace();
+            } catch (FileNotFoundException e) {
+                e.printStackTrace();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
+
     }
 
 
@@ -593,7 +602,7 @@ public class SECFile {
          * linesAndLength excludes bytes of carriage return/new line
          * length of is determined by => s.getBytes().length
          */
-        if ((outbuff.array().length-System.lineSeparator().getBytes(StandardCharsets.UTF_8).length) != linesAndLength.get(indexOfContentToBeReplaced) ){
+        if ((outbuff.array().length - System.lineSeparator().getBytes(StandardCharsets.UTF_8).length) != linesAndLength.get(indexOfContentToBeReplaced) ){
             insertIntoFile(indexOfContentToBeReplaced, outbuff);
         } else {
             try {
@@ -721,5 +730,14 @@ public class SECFile {
 
     public String getFilebase() {
         return filebase;
+    }
+
+    public void closeFile(){
+        try {
+            fileChannel.close();
+            file.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 }

@@ -107,7 +107,34 @@ public class Dataset {
 
     protected Vector propChangeListeners = new Vector();
 
+    public Dataset(XYSeries dat, XYSeries err, int id){
+        totalCountInAllData = dat.getItemCount();
+        totalCountInPositiveData = 0;
+        filename = "noname";
+        String tempName = filename + "-" + id;
+        originalFilename = filename;
+        scaleFactor=1.000;
+        this.id = id;
+        color = Color.black;
+        inUse = true;
+        experimentalNotes ="";
+        experimentalNoteTitle="";
+        bufferComposition ="";
 
+        allData = new XYSeries(tempName);
+        allDataError = new XYSeries(tempName);
+        originalPositiveOnlyData = new XYSeries(tempName);
+        originalPositiveOnlyError = new XYSeries(tempName);
+
+        for(int i=0; i<totalCountInAllData; i++) {
+            XYDataItem tempXY = dat.getDataItem(i);
+            XYDataItem tempError = err.getDataItem(i);
+            allData.add(tempXY);
+            allDataError.add(tempError);
+        }
+
+        guinierObject = new Guinier(0,0,0,0,0);
+    }
 
 
     /**
@@ -222,16 +249,6 @@ public class Dataset {
             qIqData.add(q, q*tempXY.getYValue());      // should not be modified
 
             allDataYError.add(tempXY.getXValue(), tempXY.getYValue(), tempXY.getYValue()-tempError.getYValue(), tempXY.getYValue()+tempError.getYValue());
-
-//            if (tempXY.getYValue() > 0) {// Positive only Data that is pared down based on sparse
-//                //powerLawData.add(Math.log10(q), Math.log10(tempXY.getYValue()));
-//                double log10y = Math.log10(tempXY.getYValue());
-//                originalLog10Data.add(tempXY.getX(), log10y);
-//                plottedData.add(tempXY.getX(), log10y);
-//                double logy = Math.log(tempXY.getYValue());
-//                powerLawData.add(Math.log(q), logy );
-//                guinierData.add(q2, logy);
-//            }
         }
 
         for(int i=0; i<originalPositiveOnlyData.getItemCount();i++){
@@ -240,7 +257,6 @@ public class Dataset {
             double q2 = q*q;
             double log10y = Math.log10(tempXY.getYValue());
             originalLog10Data.add(tempXY.getX(), log10y);
-//            plottedData.add(tempXY.getX(), log10y);
             double logy = Math.log(tempXY.getYValue());
             powerLawData.add(Math.log(q), logy );
             guinierData.add(q2, logy);
