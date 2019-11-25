@@ -147,7 +147,7 @@ public class LoadedFile {
         } catch (FileNotFoundException ex) {
             validFile=false;
             //System.err.println("Error: " + ex.getMessage());
-            LogIt.log(Level.WARNING, ex.getMessage());
+            //LogIt.log(Level.WARNING, ex.getMessage());
         }
     }
 
