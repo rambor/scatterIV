@@ -26,6 +26,9 @@ import version4.sasCIF.SasObjectForm;
 import version4.tableModels.SampleBufferElement;
 
 import javax.swing.*;
+import javax.swing.border.Border;
+import javax.swing.border.CompoundBorder;
+import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.*;
 import java.awt.geom.Ellipse2D;
@@ -100,6 +103,8 @@ public class SECTool extends JDialog {
     private JComboBox excludeComboBox;
     private JLabel secFileLabel;
     private JLabel outputDirLabel;
+    private JLabel qmaxLabel;
+    private JLabel qminLabel;
     private ChartPanel signalChartPanel;
     private ChartPanel intensityChartPanel;
     private ChartPanel selectedRegionsChartPanel;
@@ -161,6 +166,13 @@ public class SECTool extends JDialog {
 
         dataScrollPane.setViewportView(samplesList);
         selectedIndices=new ArrayList<>();
+
+        Border border = traceDirlabel.getBorder();
+        Border margin = new EmptyBorder(0,0,0,6);
+        traceDirlabel.setBorder(new CompoundBorder(border, margin));
+        reslectDirLabel.setBorder(new CompoundBorder(border, margin));
+        qminLabel.setBorder(new CompoundBorder(border, margin));
+        qmaxLabel.setBorder(new CompoundBorder(border, margin));
 
         selectedBuffers = new TreeSet<>();
 //        contentPane.setBackground(Main.background);
@@ -244,6 +256,7 @@ public class SECTool extends JDialog {
                             if (rec1 instanceof Object){
                                 rec1.run();
                                 rec1.get();
+                                status.setText("Click TRACE to extract chromatogram");
                             }
 
                             samplesList.revalidate();
@@ -355,7 +368,7 @@ public class SECTool extends JDialog {
                                 collection.removeAllDatasets();
                                 secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
 
-                                status.setText("Click TRACE to extract chromatogram");
+
                             } catch (InterruptedException e1) {
                                 TRACEButton.setEnabled(true);
                                 SetBufferButton.setEnabled(true);
