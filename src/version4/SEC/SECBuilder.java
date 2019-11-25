@@ -289,7 +289,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         FileWriter fw = null;
 
         try {
-            outputname = outputname+".sec";
+            outputname = workingDirectory +"/" +outputname+".sec";
             fw = new FileWriter( outputname);
             BufferedWriter out = new BufferedWriter(fw);
 
@@ -508,9 +508,9 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             String sasObjectString = mapper.writeValueAsString(sasObject);
 
             out.write(sasObjectString + System.lineSeparator());
-            out.write("# REMARK " + System.lineSeparator());
-            out.write("# REMARK " + System.lineSeparator());
-            out.write("# REMARK " + System.lineSeparator());
+            out.write("# REMARK" + System.lineSeparator());
+            out.write("# REMARK" + System.lineSeparator());
+            out.write("# REMARK" + System.lineSeparator());
             out.write(fLineMD5HEX + " " + fLine.toString() + System.lineSeparator());
             out.write(signaLineMD5HEX + " " + signalLine.toString() + System.lineSeparator());
             out.write(total_qIqLineMD5HEX + " " + total_qIqLine.toString() + System.lineSeparator());
