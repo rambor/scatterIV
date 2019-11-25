@@ -370,7 +370,7 @@ public class SECTool extends JDialog {
 
                 } else if (setBuffer){
 
-                    if (System.getProperty("os.name").contains("Window") || true){
+                    if (selectedBuffers.size() > 1){
 
                         // populate collection
                         collection.removeAllDatasets();
@@ -410,7 +410,6 @@ public class SECTool extends JDialog {
                             }
                         }.start();
 
-
                     } else {
                         /*
                          * using newly selected buffers, recalculate
@@ -434,8 +433,6 @@ public class SECTool extends JDialog {
 
                                 }
                             }.start();
-                        } else if (selectedBuffers.size() == 0) { // only recalculate izero/rg
-                            status.setText("Recalculating auto-Rg");
                         }
                     }
 
