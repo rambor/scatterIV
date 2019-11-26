@@ -265,7 +265,7 @@ public class PDBFile {
             System.out.println("QMAX : " + qmax + " del_r => " + delta_r);
 
             double ns_dmax = pr_bins*delta_r; // dmax corresponding to number of Shannon Bins
-            System.out.println("DMAX : " + dmax + " NS DMAX : " + ns_dmax);
+            System.out.println("DMAX : " + dmax + " NS DMAX : " + ns_dmax + " QMAX " + qmax);
 
             //long total = ((long)totalAtoms*(totalAtoms-1))/2;
             //distances = new double[ (totalAtoms*(totalAtoms-1))/2 ] ;

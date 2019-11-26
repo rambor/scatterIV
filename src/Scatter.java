@@ -142,7 +142,8 @@ public class Scatter {
                             ReceivedDroppedFiles rec1 = new ReceivedDroppedFiles(files, collectionSelected, analysisTable.getModel(), status, convertNmToAngstromCheckBox.isSelected(), autoRgCheckBox.isSelected(), false, mainProgressBar, WORKING_DIRECTORY.getWorkingDirectory());
 //                        // add other attributes and then run
 //                        rec1.setModels(analysisModel, resultsModel, dataFilesModel, dataFilesList);
-//                        rec1.setPDBParams(excludeWatersFromInputCheckBox.isSelected(), Double.parseDouble(qmaxForPDBText.getText()));
+                            rec1.setPDBParams(true, Settings.getInstance().getQmaxForPDB());
+
                             rec1.run();
                             rec1.get();
                         } catch (InterruptedException e1) {
