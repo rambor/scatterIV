@@ -122,7 +122,14 @@ public class Analysis extends JDialog {
         }
 
         qIqLabel.setText("q\u2022I(q) Plot");
-        rcLabel.setText("R\u1D6A Analysis");
+
+        if (System.getProperty("os.name").toLowerCase().contains("indows") ){
+            rcLabel.setText("Rc Analysis");
+        } else {
+            rcLabel.setText("R\u1D6A Analysis");
+        }
+
+
 
         normalizedKratkyPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, Color.WHITE));
         vcPanel.setBorder(BorderFactory.createMatteBorder(1, 0, 1, 0, Color.WHITE));
