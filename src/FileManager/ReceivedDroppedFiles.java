@@ -122,7 +122,6 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
                 for (int j=0; j < tempFiles.length; j++){
                     //temp = loadDroppedFile(tempFiles[j], targetCollection.getDatasetCount());
                     addToCollection(loadDroppedFile(tempFiles[j], targetCollection.getTotalDatasets()));
-
                 }
 
             } else {

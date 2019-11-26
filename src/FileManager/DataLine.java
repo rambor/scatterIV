@@ -119,7 +119,7 @@ public class DataLine {
                 dataFormat.matcher(row[0]).matches() &&
                 dataFormat.matcher(row[1]).matches() &&
                 !isZero(row[0]) &&                               // no zero q values
-                !isZero(row[1]) &&                               // no zero I(q) values
+//                !isZero(row[1]) &&                               // no zero I(q) values
                 isNumeric(row[0]) &&                             // check that value can be parsed as Double
                 isNumeric(row[1])                                // check that value can be parsed as Double
         )) {

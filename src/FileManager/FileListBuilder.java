@@ -25,6 +25,14 @@ public class FileListBuilder {
     /** File type GZIP compressed Data */
     public static final int GZFILE = 0x1f8b0000;
 
+    /**
+     * Build a list of files from directory based on a single file
+     * Used for loading SEC files that incremenet either leading or lagging in base name
+     *
+     * @param file single file that is representative of the list
+     * @param dir directory location to look in
+     * @throws Exception
+     */
     public FileListBuilder(File file, String dir) throws Exception {
         // get directory
         // split

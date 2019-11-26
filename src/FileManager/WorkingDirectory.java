@@ -26,7 +26,6 @@ public class WorkingDirectory {
     }
 
     public void setWorkingDirectory(String temp){
-        System.out.println("Temp " + temp);
         this.workingDirectory = temp;
         this.notifyDirectoryChange();
     }
