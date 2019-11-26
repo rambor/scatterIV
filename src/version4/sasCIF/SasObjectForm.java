@@ -26,7 +26,7 @@ public class SasObjectForm extends JDialog{
     private JCheckBox absoluteCheckBox;
     private JTextField sas_scan_type;
     private JTextField sas_scan_measurement_date;
-    private JTextField textField12;
+    private JTextField sas_sample_sec_column;
     private JTextField sas_sample_sec_flow_rate;
     private JPanel SECPanel;
     private JTextField sas_beam_wavelength_units;
@@ -47,7 +47,7 @@ public class SasObjectForm extends JDialog{
     private JTextField sas_scan_exposure_time;
     private JTextField sas_scan_filename;
     private JLabel bufferDetailsLabel;
-    private JLabel sas_sample_sec_column;
+    private JLabel sas_sample_sec_columnLabel;
     private JTextField sas_detc_name;
     private JTextField sas_detc_dead_time;
     private String sas_beam_radiation_type;
@@ -417,7 +417,7 @@ public class SasObjectForm extends JDialog{
         /*
          SAS Beam tab
          */
-        sasObject.getSasBeam().setInstrument_name(sas_beam_instrument_name.getText());
+        sasObject.getSasBeam().setInstrument_name(sas_beam_instrument_name.getText().replaceAll("(?:\\n|\\r)", "").trim());
         sasObject.getSasBeam().setType_of_source(sas_beam_sourceBox.getSelectedItem().toString().toLowerCase());
 
         if (neutronsCheckBox.isSelected()){
@@ -456,7 +456,7 @@ public class SasObjectForm extends JDialog{
 
         }
 
-        sasObject.getSasDetc().setName(sas_detc_name.getText());
+        sasObject.getSasDetc().setName(sas_detc_name.getText().replaceAll("(?:\\n|\\r)", "").trim());
 
         try{
             float stod = Float.parseFloat(sas_detc_dead_time.getText());
@@ -471,7 +471,7 @@ public class SasObjectForm extends JDialog{
          update SAS Details
          */
         SasSample sasSample = sasObject.getSasSample();
-        sasSample.setDetails(sas_sample_details_text.getText());
+        sasSample.setDetails(sas_sample_details_text.getText().replaceAll("(?:\\n|\\r)", " ").trim());
         try{
             sasSample.setThickness(Float.parseFloat(sas_sample_thickness.getText()));
         } catch (NumberFormatException ee) {
@@ -479,7 +479,7 @@ public class SasObjectForm extends JDialog{
         }
 
         sasSample.setCell_temperature(Float.parseFloat(sas_sample_temperature.getText()));
-        sasSample.setCalibration_details(sas_sample_calibration_details.getText());
+        sasSample.setCalibration_details(sas_sample_calibration_details.getText().replaceAll("(?:\\n|\\r)", " ").trim());
 
         /*
          update SAS Buffer
@@ -491,10 +491,10 @@ public class SasObjectForm extends JDialog{
 
         }
 
-        sasBuffer.setName(sas_buffer_name.getText());
-        sasBuffer.setComment(sas_buffer_comment.getText());
+        sasBuffer.setName(sas_buffer_name.getText().replaceAll("(?:\\n|\\r)", "").trim());
+        sasBuffer.setComment(sas_buffer_comment.getText().replaceAll("(?:\\n|\\r)", " ").trim());
         sasBuffer.setSalt(sas_buffer_salt.getText());
-        sasBuffer.setOther(sas_buffer_other.getText());
+        sasBuffer.setOther(sas_buffer_other.getText().replaceAll("(?:\\n|\\r)", " ").trim());
 
         /*
          * update SAS details
@@ -522,8 +522,19 @@ public class SasObjectForm extends JDialog{
         }
 
         if (isSEC){
-            sasSample.setSec_flow_rate(Float.parseFloat(sas_sample_sec_flow_rate.getText()));
-            sasSample.setSec_column(sas_sample_sec_column.getText());
+            try{
+                sasSample.setSec_flow_rate(Float.parseFloat(sas_sample_sec_flow_rate.getText()));
+            } catch (NumberFormatException ee) {
+                warningLabel.setText("SEC flow rate must be a number");
+            }
+
+            try{
+                if (sas_sample_sec_column.getText().length() > 1){
+                    sasSample.setSec_column(sas_sample_sec_column.getText().replaceAll("(?:\\n|\\r)", "").trim());
+                }
+            } catch (NullPointerException ee){
+                System.out.println("SAS SAMPLE NULL " + ee.getMessage());
+            }
         }
 
         dispose();

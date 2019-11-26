@@ -830,7 +830,7 @@
                               <text value="flow rate"/>
                             </properties>
                           </component>
-                          <component id="abdcc" class="javax.swing.JLabel" binding="sas_sample_sec_column">
+                          <component id="abdcc" class="javax.swing.JLabel" binding="sas_sample_sec_columnLabel">
                             <constraints>
                               <grid row="2" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="4" fill="0" indent="0" use-parent-layout="false"/>
                             </constraints>
@@ -846,7 +846,7 @@
                             <properties/>
                             <border type="none"/>
                             <children>
-                              <component id="16d2a" class="javax.swing.JTextField" binding="textField12" default-binding="true">
+                              <component id="16d2a" class="javax.swing.JTextField" binding="sas_sample_sec_column">
                                 <constraints>
                                   <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="6" anchor="8" fill="1" indent="0" use-parent-layout="false">
                                     <preferred-size width="150" height="-1"/>

@@ -11,7 +11,7 @@ public class SasSample implements Hidable{
     // optional attributes below
     private String sec_column;
     private Float sec_flow_rate;
-    private String sec_flow_rate_units = "ml per minutes";
+    private String sec_flow_rate_units = "ml per minute";
 
     public SasSample(){
         cell_temperature = 273.0f + 25.0f;
