@@ -1,7 +1,10 @@
 package version4.SEC;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.*;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 import org.apache.commons.codec.digest.DigestUtils;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
@@ -26,7 +29,7 @@ import static java.nio.file.Files.newInputStream;
 public class SECFile {
     private static long LINES_TO_READ = 10_000_000;
 
-    private String filename, filebase;
+    private String filename, filebase, absolutePath, parentPath;
     private RandomAccessFile file;
     private ArrayList<Long> lineNumbers; // location of where lines start based on byte length
     private ArrayList<Double> qvalues;
@@ -53,6 +56,8 @@ public class SECFile {
 
     public SECFile(File file) throws IOException {
         this.filename = file.getName();
+        this.absolutePath = file.getAbsolutePath();
+        this.parentPath = (file.getParent() == null) ? " " : file.getParent();
 
         String[] fileElements = file.getName().split("\\.(?=[^\\.]+$)");
         filebase = fileElements[0];
@@ -377,6 +382,7 @@ public class SECFile {
 
         CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
         String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
+
 
         if (index != Integer.parseInt(values[0])){
             System.out.println("major error " + index + " " + values[0]);
@@ -739,5 +745,46 @@ public class SECFile {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public String getSasObjectJSON(){
+        /*
+         * assemble the JSON string
+         */
+        ObjectMapper mapper = new ObjectMapper();
+
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
+        mapper.registerModule(new SimpleModule() {
+            @Override
+            public void setupModule(SetupContext context) {
+                super.setupModule(context);
+                context.addBeanSerializerModifier(new BeanSerializerModifier() {
+                    @Override
+                    public JsonSerializer<?> modifySerializer(
+                            SerializationConfig config, BeanDescription desc, JsonSerializer<?> serializer) {
+                        if (Hidable.class.isAssignableFrom(desc.getBeanClass())) {
+                            return new HidableSerializer((JsonSerializer<Object>) serializer);
+                        }
+                        return serializer;
+                    }
+                });
+            }
+        });
+
+        String sasObjectString = null;
+        try {
+            sasObjectString = mapper.writeValueAsString(sasObject);
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return sasObjectString;
+    }
+
+    public String getAbsolutePath() {
+        return absolutePath;
+    }
+
+    public String getParentPath() {
+        return parentPath;
     }
 }

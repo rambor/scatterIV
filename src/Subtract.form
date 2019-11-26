@@ -269,7 +269,7 @@
                 <properties>
                   <background color="-13419191"/>
                   <foreground color="-1"/>
-                  <selected value="true"/>
+                  <selected value="false"/>
                   <text value="Scale then Merge"/>
                 </properties>
               </component>

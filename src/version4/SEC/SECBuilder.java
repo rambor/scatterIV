@@ -521,16 +521,16 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
 
             for(String line : unsubtractedOutput){
-                out.write(line + " " + System.lineSeparator());
+                out.write(line + System.lineSeparator());
             }
             for(String line : unsubtractedErrorsOutput){
-                out.write(line + " " + System.lineSeparator());
+                out.write(line + System.lineSeparator());
             }
             for(String line : subtractedOutput){
-                out.write(line + " " + System.lineSeparator());
+                out.write(line + System.lineSeparator());
             }
             for(String line : subtractedErrorsOutput){
-                out.write(line + " " + System.lineSeparator());
+                out.write(line + System.lineSeparator());
             }
 
             // Append the averaged buffer

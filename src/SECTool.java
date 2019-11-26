@@ -1,6 +1,8 @@
 import FileManager.FileListBuilder;
 import FileManager.ReceivedDroppedFiles;
+import FileManager.WorkingDirectory;
 import net.iharder.dnd.FileDrop;
+import org.apache.commons.io.FilenameUtils;
 import org.jfree.chart.*;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.entity.ChartEntity;
@@ -23,6 +25,7 @@ import version4.SEC.SECRebuilder;
 import version4.Scaler.ScaleManagerSAS;
 import version4.plots.DWSimilarityPlot;
 import version4.sasCIF.SasObjectForm;
+import version4.tableModels.AnalysisModel;
 import version4.tableModels.SampleBufferElement;
 
 import javax.swing.*;
@@ -34,12 +37,15 @@ import java.awt.event.*;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
-import java.io.File;
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.concurrent.ExecutionException;
+
+import static java.nio.file.Files.newInputStream;
 
 public class SECTool extends JDialog {
     private JFreeChart chart;
@@ -223,6 +229,7 @@ public class SECTool extends JDialog {
 
                                         secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
                                         secFileLabel.setForeground(Color.cyan);
+                                        TRACEButton.setText("UPDATE");
 
                                     } catch (IOException e) {
                                         e.printStackTrace();
@@ -311,6 +318,7 @@ public class SECTool extends JDialog {
                     SasObjectForm editForm = new SasObjectForm(secFile.getSasObject(), true);
                     editForm.pack();
                     editForm.setVisible(true);
+                    status.setText("Must UPDATE sec file by clicking TRACE/UPDATE button after editing DETAILS");
                 } else {
 
                 }
@@ -363,11 +371,11 @@ public class SECTool extends JDialog {
 
                                 TRACEButton.setEnabled(true);
                                 SetBufferButton.setEnabled(true);
+                                TRACEButton.setText("UPDATE");
 
                                 sampleFilesModel.removeAllElements();
                                 collection.removeAllDatasets();
                                 secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
-
 
                             } catch (InterruptedException e1) {
                                 TRACEButton.setEnabled(true);
@@ -407,7 +415,8 @@ public class SECTool extends JDialog {
 
                                     framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() + " | ");
                                     selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
-
+                                    TRACEButton.setEnabled(true);
+                                    SetBufferButton.setEnabled(true);
                                 } catch (InterruptedException e1) {
                                     TRACEButton.setEnabled(true);
                                     SetBufferButton.setEnabled(true);
@@ -423,7 +432,7 @@ public class SECTool extends JDialog {
                             }
                         }.start();
 
-                    } else {
+                    } else { // not most efficient approach, has many reads and writes
                         /*
                          * using newly selected buffers, recalculate
                          *  average buffer
@@ -443,9 +452,52 @@ public class SECTool extends JDialog {
                                     selectedBuffers.clear();
                                     TRACEButton.setEnabled(true);
                                     SetBufferButton.setEnabled(true);
-
                                 }
                             }.start();
+                        }
+                    }
+                } else {
+                    // just update details
+                    if (secFile instanceof SECFile){
+                        String secfilename = secFile.getAbsolutePath();
+                        String sasObjectString = secFile.getSasObjectJSON() + System.lineSeparator();
+                        String parentPath = secFile.getParentPath();
+                        secFile.closeFile();
+
+                        try {
+
+                            int size = 8192 * 16;
+
+                            System.out.println( System.getProperty("user.dir"));
+                            BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(secfilename)), size);
+                            br.readLine();
+                            BufferedWriter bw = new BufferedWriter(new FileWriter(parentPath+"/temp.sec"));
+                            bw.write(sasObjectString);
+
+                            int is;
+                            do {
+                                is = br.read();
+                                if (is != -1) {
+                                        bw.write((char) is);
+                                }
+                            } while (is != -1);
+                            bw.close();
+                            br.close();
+
+                            File f1 = new File(parentPath+"/temp.sec");
+                            File f2 = new File(secfilename);
+                            f1.renameTo(f2);
+
+                        } catch (FileNotFoundException ex) {
+                            ex.printStackTrace();
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
+                        }
+
+                        try {
+                            secFile = new SECFile(new File(secfilename));
+                        } catch (IOException ex) {
+                            ex.printStackTrace();
                         }
                     }
 
@@ -571,6 +623,9 @@ public class SECTool extends JDialog {
                 rangeSetLabel.setText("- : -");
                 framesLabel.setText("TOTAL frames :: - | ");
                 selectedBufferIndicesLabel.setText("buffers :: -");
+                TRACEButton.setEnabled(true);
+                SetBufferButton.setEnabled(true);
+                TRACEButton.setText("TRACE");
             }
         });
 
@@ -605,6 +660,128 @@ public class SECTool extends JDialog {
         loadButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+
+                JFileChooser fc = new JFileChooser(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+                fc.setMultiSelectionEnabled(true);
+                int option = fc.showOpenDialog(contentPane);
+
+                if(option == JFileChooser.CANCEL_OPTION) {
+                    status.setText("Nothing selected");
+                    return;
+                }
+
+                if(option == JFileChooser.APPROVE_OPTION){
+                    File[] files = fc.getSelectedFiles();
+                    String[] filename = files[0].getName().split("\\.(?=[^\\.]+$)");
+                    String ext = filename[1];
+
+                    status.setText("Selected file(s) :: " + files.length);
+
+                    if (files.length == 1){
+
+                            if (ext.equals("sec")){
+                                /*
+                                 * validate file
+                                 * grab JSON
+                                 * load signals and associated graphs
+                                 */
+                                try {
+                                    secFile = new SECFile(files[0]);
+                                    sampleFilesModel.removeAllElements();
+                                    collection.removeAllDatasets();
+
+                                    secFileLabel.setText("Using SEC FILE :: " + secFile.getFilename());
+                                    updateSignalPlot();
+                                    selectedIndices.clear();
+
+                                    for(int i=0;i<secFile.getTotalFrames(); i++){
+                                        selectedIndices.add(false);
+                                    }
+
+                                    framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() + " | ");
+                                    selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
+
+                                    secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
+                                    secFileLabel.setForeground(Color.cyan);
+
+                                } catch (IOException ee) {
+                                    ee.printStackTrace();
+                                }
+
+                            } else if (ext.equals("dat")) { // dropping single file that ends in dat
+
+                                new Thread() {
+                                    public void run() {
+                                        FileListBuilder builder = null;
+                                        try {
+                                            builder = new FileListBuilder(files[0], Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+                                            status.setText("Loading " + builder.getFoundFiles().length + " files, please wait");
+
+                                            ReceivedDroppedFiles rec1 = new ReceivedDroppedFiles(builder.getFoundFiles(),
+                                                    collection,
+                                                    sampleFilesModel,
+                                                    status,
+                                                    convertNm1ToCheckBox.isSelected(),
+                                                    true,
+                                                    progressBar,
+                                                    Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+
+                                            saveAsTextField.setText(builder.getBase());
+                                            rec1.run();
+                                            rec1.get();
+
+                                        } catch (Exception ex) {
+                                            ex.printStackTrace();
+                                        }
+
+                                        status.setText("Click TRACE to extract chromatogram");
+                                        samplesList.revalidate();
+                                        samplesList.repaint();
+                                        samplesList.validate();
+                                        samplesList.updateUI();
+                                        progressBar.setStringPainted(false);
+                                        progressBar.setValue(0);
+                                    }
+                                }.start();
+                            }
+
+                    } else if (files.length > 0 && ext.equals("dat")) {
+
+                            new Thread() {
+                                public void run() {
+
+                                    try {
+
+                                        status.setText("Loading " + files.length + " files, please wait");
+                                        ReceivedDroppedFiles rec1 = new ReceivedDroppedFiles(files,
+                                                collection,
+                                                sampleFilesModel,
+                                                status,
+                                                convertNm1ToCheckBox.isSelected(),
+                                                true,
+                                                progressBar,
+                                                Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+
+                                        String basenamefilename = FilenameUtils.removeExtension(files[0].getName());
+                                        saveAsTextField.setText(basenamefilename);
+
+                                        rec1.run();
+                                        rec1.get();
+                                    } catch (InterruptedException e1) {
+                                        e1.printStackTrace();
+                                    } catch (ExecutionException e1) {
+                                        e1.printStackTrace();
+                                    } catch (Exception ex) {
+                                        ex.printStackTrace();
+                                    }
+                                }
+                            }.start();
+                    }
+
+                    Scatter.WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
+                    Scatter.updateProp();
+
+                }
 
             }
         });

@@ -286,11 +286,10 @@ public class Subtract {
                             progressBar.setStringPainted(false);
                             progressBar.setValue(0);
 
-                            // convert Collection to a SECFile using SECBuilder
                             // load plots
                             if (buffersCollection.getTotalDatasets() > 0){
                                 updateBuffersPlot();
-                                updateBuffersSimPlot();
+                               // updateBuffersSimPlot();
                                 selectedBufferStart = 0;
                                 selectedBufferEnd = buffersCollection.getTotalDatasets()-1;
                                 bufferStartField.setText(Integer.toString(selectedBufferStart));
@@ -641,7 +640,171 @@ public class Subtract {
                 }
             }
         });
+
+
+
+        loadSamplesButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+
+                JFileChooser fc = new JFileChooser(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+                fc.setMultiSelectionEnabled(true);
+                int option = fc.showOpenDialog(contentPane);
+
+                if(option == JFileChooser.CANCEL_OPTION) {
+                    status.setText("Nothing selected");
+                    return;
+                }
+
+                if(option == JFileChooser.APPROVE_OPTION) {
+                    File[] files = fc.getSelectedFiles();
+                    String[] filename = files[0].getName().split("\\.(?=[^\\.]+$)");
+                    String ext = filename[1];
+
+                    if (!ext.equals("dat")) {
+                        status.setText("Please select suitable dat file ");
+                        return;
+                    }
+                    status.setText("Selected file(s) :: " + files.length);
+                    sampleFilesModel.clear();
+
+                    new Thread(){
+                        public void run(){
+
+                            ReceivedDroppedFiles rec1 = new ReceivedDroppedFiles(files, samplesCollection, sampleFilesModel, status, convertNm1ToCheckBox.isSelected(), true, progressBar, Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+
+                            rec1.run();
+
+                            try {
+                                rec1.get();
+                                int totalIn = samplesCollection.getTotalDatasets();
+                                if (samplesCollection.getTotalDatasets() > 0){
+                                    // reset colors
+                                    float inv = 1.0f/255.0f;
+                                    selectedIndices.clear();
+                                    for(int i=0; i<totalIn; i++){
+                                        // end 15 108 255 (dark blue)
+                                        // start 242 214 245
+                                        int r = interpolate(104, 255, i, totalIn);
+                                        int g = interpolate(166, 93, i, totalIn);
+                                        int b = interpolate(255, 135, i, totalIn);
+                                        samplesCollection.getDataset(i).setColor(new Color(r*inv,g*inv,b*inv, 0.25f));
+                                        sampleFilesModel.get(i).setColor(new Color(r,g,b));
+                                        selectedIndices.add(true);
+                                    }
+                                }
+
+                                samplesList.repaint();
+                                samplesList.updateUI();
+
+                                progressBar.setStringPainted(false);
+                                progressBar.setValue(0);
+
+                                // load plots
+                                if (samplesCollection.getTotalDatasets() > 0){
+                                    updateSamplesPlot();
+                                }
+
+                            } catch (InterruptedException ex) {
+                                ex.printStackTrace();
+                            } catch (ExecutionException ex) {
+                                ex.printStackTrace();
+                            }
+
+                        }
+                    }.start();
+                }
+            }
+        });
+
+        loadBuffersButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+
+                JFileChooser fc = new JFileChooser(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+                fc.setMultiSelectionEnabled(true);
+                int option = fc.showOpenDialog(contentPane);
+
+                if(option == JFileChooser.CANCEL_OPTION) {
+                    status.setText("Nothing selected");
+                    return;
+                }
+
+                if(option == JFileChooser.APPROVE_OPTION) {
+                    File[] files = fc.getSelectedFiles();
+                    String[] filename = files[0].getName().split("\\.(?=[^\\.]+$)");
+                    String ext = filename[1];
+
+                    if (!ext.equals("dat")) {
+                        status.setText("Please select suitable dat file ");
+                        return;
+                    }
+                    status.setText("Selected file(s) :: " + files.length);
+                    bufferFilesModel.clear();
+
+                    new Thread(){
+                        public void run(){
+
+                            ReceivedDroppedFiles rec1 = new ReceivedDroppedFiles(files, buffersCollection, bufferFilesModel, status, convertNm1ToCheckBox.isSelected(), true, progressBar, Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+
+                            rec1.run();
+
+                            try {
+                                rec1.get();
+                                int totalIn = buffersCollection.getTotalDatasets();
+                                if (buffersCollection.getTotalDatasets() > 0){
+                                    // reset colors
+                                    float inv = 1.0f/255.0f;
+                                    selectedIndices.clear();
+                                    for(int i=0; i<totalIn; i++){
+                                        // end 15 108 255 (dark blue)
+                                        // start 242 214 245
+                                        int r = interpolate(104, 255, i, totalIn);
+                                        int g = interpolate(166, 93, i, totalIn);
+                                        int b = interpolate(255, 135, i, totalIn);
+                                        buffersCollection.getDataset(i).setColor(new Color(r*inv,g*inv,b*inv, 0.25f));
+                                        bufferFilesModel.get(i).setColor(new Color(r,g,b));
+                                        selectedIndices.add(true);
+                                    }
+                                }
+
+                                buffersList.repaint();
+                                buffersList.updateUI();
+
+                                progressBar.setStringPainted(false);
+                                progressBar.setValue(0);
+
+                                // load plots
+                                if (buffersCollection.getTotalDatasets() > 0){
+                                    updateBuffersPlot();
+                                   // updateBuffersSimPlot();
+                                    selectedBufferStart = 0;
+                                    selectedBufferEnd = buffersCollection.getTotalDatasets()-1;
+                                    bufferStartField.setText(Integer.toString(selectedBufferStart));
+                                    bufferEndField.setText(Integer.toString(selectedBufferEnd));
+
+                                    selectedBufferIndices.clear();
+
+                                    for(int i=0; i<buffersCollection.getTotalDatasets(); i++){
+                                        selectedBufferIndices.add(true);
+                                    }
+                                }
+
+
+                            } catch (InterruptedException ex) {
+                                ex.printStackTrace();
+                            } catch (ExecutionException ex) {
+                                ex.printStackTrace();
+                            }
+
+                        }
+                    }.start();
+                }
+            }
+        });
     }
+
+
 
     /*
      * check if file is proper format for SEC, if single dat file, then search directory and build list
