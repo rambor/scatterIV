@@ -17,8 +17,8 @@ public class AutoRg {
 
     private XYSeries inputData;
 
-    private double rg;
-    private double i_zero;
+    private double rg=0;
+    private double i_zero=0;
     private double i_zero_error;  //Izero Error
     private double rg_error;  //Rg Error
     private double correlation_coefficient;
@@ -222,7 +222,7 @@ public class AutoRg {
             for (int i = 0; i < endAt; i++) { // get the indices of the data items to keep
                 dataItem = qSquaredData.getDataItem(i);
                 //if (Math.abs((dataItem.getYValue() - (keptSlope * dataItem.getXValue() + keptIntercept))) * inv_sigma < 2.5) {
-                if (Math.abs((dataItem.getYValue() - (keptSlope * dataItem.getXValue() + keptIntercept))) * inv_s_o < 2.0) {
+                if (Math.abs((dataItem.getYValue() - (keptSlope * dataItem.getXValue() + keptIntercept))) * inv_s_o < 2.5) {
                     // decide which ln[I(q)] values to keep
                     keepers.add(i);
                     count++;
@@ -252,11 +252,20 @@ public class AutoRg {
             intercept = param3[1];
             errorSlope = param3[2];
             errorIntercept = param3[3];
-            rg = Math.sqrt(-3.0 * slope);
-            i_zero = Math.exp(intercept);
-            i_zero_error=i_zero* errorIntercept;  //Izero Error
-            rg_error=1.5* errorSlope *Math.sqrt(1/3.0*1/rg);  //Rg Error
-            correlation_coefficient = Math.abs(count*sumXY - sumX*sumY)/(Math.sqrt((count*sumXX-sumX*sumX)*(count*sumYY-sumY*sumY)));
+
+            if (slope < 0){
+                rg = Math.sqrt(-3.0 * slope);
+                i_zero = Math.exp(intercept);
+                i_zero_error=i_zero* errorIntercept;  //Izero Error
+                rg_error=1.5* errorSlope *Math.sqrt(1/3.0*1/rg);  //Rg Error
+                correlation_coefficient = Math.abs(count*sumXY - sumX*sumY)/(Math.sqrt((count*sumXX-sumX*sumX)*(count*sumYY-sumY*sumY)));
+            } else {
+                rg = 0;
+                i_zero = 0;
+                i_zero_error = 0;
+                rg_error = 0;
+                correlation_coefficient = 0;
+            }
 
             double startLowq = Math.sqrt(final_x[0]);
             for(int i=0; i<inputData.getItemCount(); i++){
