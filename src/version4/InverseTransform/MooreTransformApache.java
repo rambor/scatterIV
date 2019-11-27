@@ -392,7 +392,7 @@ public class MooreTransformApache extends IndirectFT implements Cloneable {
         // double two_inv_pi_pi_d = TWO_INV_PI*pi_d;
 
         if (!includeBackground){ // no constant background
-            System.out.println("no background ");
+            //System.out.println("no background ");
             for(int row=0; row < rows; row++){ //rows, length is size of data
                 XYDataItem tempData = datasetInuse.getDataItem(row);
                 qd = tempData.getXValue()*dmax;
