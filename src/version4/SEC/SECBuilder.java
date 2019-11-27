@@ -26,7 +26,6 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
     private SecFormat secFormat;
     private Collection collection;
-    private int commonStart=0, commonEnd;
     private boolean isValid = false;
     private boolean backgroundPresent = false;
     private String notice;
@@ -36,8 +35,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     private JProgressBar progressBar;
     private int totalSelected;
 
-    private double noSignal=0.2;
-    private double threshold, earlyUpperQmaxLimit=0.25;
+    private double noSignal;
+    private double threshold, background_spread=0.192, min_spread = 10;
 
     private Number minQvalueInCommon = 0;
     private Number maxQvalueInCommon = 0;
@@ -198,6 +197,9 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         progressBar.setVisible(true);
         if (!backgroundPresent){
             this.estimateBackgroundFrames();
+            /*
+             * estimating background frames also sets noSignal limit
+             */
         }
 
         /*
@@ -252,6 +254,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             notice = " too few values in common ";
             return false;
         }
+
         minQvalueInCommon = qvalues.get(0);
         maxQvalueInCommon = qvalues.get(qvalues.size()-1);
 
@@ -593,7 +596,6 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                         isSignal = true;
                     }
 
-
                     // if number of points is less than 100, skip
                         // integrate
                         area = Functions.trapezoid_integrate(ratio);
@@ -611,7 +613,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                         }
                         signalsCount++;
 
-                        if (bufferRejects.contains(row)){
+                        if (bufferRejects.contains(row)){ // if not a buffer set to false
                             signals.get(signalsCount-1).setIsBuffer(false);
                         }
                         // add qIq integration
@@ -652,7 +654,6 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     private boolean calculateAverageAndVarianceOfDWInWindow( ArrayList<XYSeries> collection, int lowerIndex, int upperIndex){
 
         int windowSize = collection.size();
-        //        double[] values = new double [windowSize*(windowSize-1)/2];
         double[] values = new double[windowSize-1];
         int foundIndex;
 
@@ -698,8 +699,13 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         double max = StatUtils.max(values);
         double min = StatUtils.min(values);
         double spread = max - min;
+//        System.out.println("Max : min " + max + " " + min + " " + spread + " < :: " + background_spread);
 
-        if (spread < 0.2 ){
+        if (spread < min_spread){
+            min_spread = spread;
+        }
+
+        if (spread < background_spread ){
             return true;
         }
 
@@ -719,7 +725,6 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         int total = collection.getTotalDatasets();
         int totalN = qvalues.size();
 
-        earlyUpperQmaxLimit = maxQvalueInCommon.doubleValue();
         noSignal = (maxQvalueInCommon.doubleValue() - minQvalueInCommon.doubleValue())*(totalN+1)/(double)totalN;
         // set window
         int window = 37;
@@ -771,7 +776,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         progressBar.setStringPainted(false);
         status.setText("estimating background frames");
 
-        int total = collection.getTotalDatasets();
+        final int total = collection.getTotalDatasets();
 
 //        if (!this.is0p3qmaxPossible()){
 //            this.findMaximumCommonQvalue();
@@ -782,10 +787,10 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         final int upperIndex = collection.getDataset(0).getAllData().indexOf(maxQvalueInCommon);
 
         int totalN = qvalues.size();
-        earlyUpperQmaxLimit = maxQvalueInCommon.doubleValue();
+
         noSignal = (maxQvalueInCommon.doubleValue() - minQvalueInCommon.doubleValue())*(totalN+1)/(double)totalN;
         // set window
-        int window = 37;
+        final int window = 37;
         //
         //TreeSet<Integer> keepers = new TreeSet<Integer>();
         bufferRejects = new TreeSet<>();
@@ -822,6 +827,47 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                     Dataset dd = collection.getDataset(m);
                     if (dd.getInUse() && !keptBuffers.contains(dd.getId())){
                         bufferRejects.add(dd.getId());
+                    }
+                }
+            }
+        }
+
+        if (keptBuffers.size() == 0){
+            background_spread=min_spread;
+            System.out.println(bufferRejects.size() + " >  " + keptBuffers.size());
+        }
+
+        while (keptBuffers.size() < 6){
+            background_spread += 0.3*min_spread;
+            bufferRejects.clear();
+            keptBuffers.clear();
+            status.setText(String.format("Estimating background...kept buffers is nil, adjusting tolerance :: %.4f", background_spread));
+            for (int w=window; w < (total - window); w++){
+                ArrayList<XYSeries> collectionWindow = new ArrayList<>();
+
+                for (int m=(w - window); m < w; m++){
+                    Dataset dd = collection.getDataset(m);
+                    if (dd.getInUse()){
+                        collectionWindow.add(dd.getAllData());
+                    }
+                }
+                // average frames in window?  Or take median?
+                // baseline will produce the lowest signal
+                // calculate minimum ratio value using this window
+                if (calculateAverageAndVarianceOfDWInWindow(collectionWindow, lowerIndex, upperIndex)){
+                    for (int m=(w-window); m < w; m++){
+                        Dataset dd = collection.getDataset(m);
+                        if (dd.getInUse() && !bufferRejects.contains(dd.getId())){
+                            //  keepers.add(dd.getId());
+                            keptBuffers.add(dd.getId());
+                        }
+                    }
+                } else {
+                    for (int m=(w-window); m < w; m++){
+                        Dataset dd = collection.getDataset(m);
+                        if (dd.getInUse() && !keptBuffers.contains(dd.getId())){
+                            bufferRejects.add(dd.getId());
+                        }
                     }
                 }
             }
@@ -985,6 +1031,9 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             this.signal = signal;
             this.izero = izero;
             this.rg = rg;
+            if (Double.isNaN(rg)){
+                System.out.println(id + " NAN " + rg + " " + izero + " " + signal);
+            }
         }
         public void setTotal_qIq(double qid){ this.total_qIq = qid;}
 

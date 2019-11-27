@@ -1,4 +1,5 @@
 import FileManager.FileListBuilder;
+import FileManager.FileObject;
 import FileManager.ReceivedDroppedFiles;
 import FileManager.WorkingDirectory;
 import net.iharder.dnd.FileDrop;
@@ -70,7 +71,6 @@ public class SECTool extends JDialog {
     private JTextField qmaxSECField;
     private JCheckBox averageCheckBox;
     private JComboBox comboBoxSubtractBins;
-    private JComboBox subtractionCutOff;
     private JTextField thresholdField;
     private JLabel rangeSetLabel;
     private JScrollPane dataScrollPane;
@@ -165,6 +165,13 @@ public class SECTool extends JDialog {
         samplesList = new JList();
         convertNm1ToCheckBox = convert;
 
+//        String[] rejections ={"1.0", "1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "4.5"};
+//        for (String i:rejections){
+//            subtractionCutOff.addItem(i);
+//        }
+//
+//        subtractionCutOff.setSelectedIndex(3);
+
         sampleFilesModel = new DefaultListModel<SampleBufferElement>();
         samplesList.setModel(sampleFilesModel);
         samplesList.setCellRenderer(new SampleBufferListRenderer());
@@ -215,8 +222,13 @@ public class SECTool extends JDialog {
                                      * load signals and associated graphs
                                      */
                                     try {
+
                                         secFile = new SECFile(files[0]);
+                                        status.setText("Please wait... loading " + secFile.getFilename());
                                         secFileLabel.setText("Using SEC FILE :: " + secFile.getFilename());
+                                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(secFile.getParentPath());
+                                        updateOutputDirLabel(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+
                                         updateSignalPlot();
                                         selectedIndices.clear();
 
@@ -224,13 +236,13 @@ public class SECTool extends JDialog {
                                             selectedIndices.add(false);
                                         }
 
-                                        framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() + " | ");
+                                        framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
                                         selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
 
                                         secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
                                         secFileLabel.setForeground(Color.cyan);
                                         TRACEButton.setText("UPDATE");
-
+                                        status.setText("");
                                     } catch (IOException e) {
                                         e.printStackTrace();
                                     }
@@ -366,7 +378,7 @@ public class SECTool extends JDialog {
                                     selectedIndices.add(false);
                                 }
 
-                                framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() + " | ");
+                                framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
                                 selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
 
                                 TRACEButton.setEnabled(true);
@@ -413,7 +425,7 @@ public class SECTool extends JDialog {
                                         selectedIndices.add(false);
                                     }
 
-                                    framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() + " | ");
+                                    framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
                                     selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
                                     TRACEButton.setEnabled(true);
                                     SetBufferButton.setEnabled(true);
@@ -569,12 +581,12 @@ public class SECTool extends JDialog {
                                 peakToMerge.get();
                                 /*
                                  * create new dataset from averaged and load into Analysis
-                                 *
-                                 *
                                  */
                                 String nameofnew = (saveAsTextField.getText().length() < 3) ? (secFile.getFilebase() + "_"+ Scatter.collectionSelected.getTotalDatasets()) : saveAsTextField.getText().replaceAll("\\W","_");
                                 Scatter.collectionSelected.createDataset(peakToMerge.getMerged(), peakToMerge.getMergedErrors(), nameofnew, true);
                                 // write dataset to file
+                                FileObject dataToWrite = new FileObject(new File(secFile.getParentPath()), Scatter.version);
+                                dataToWrite.writeSAXSFile(nameofnew, Scatter.collectionSelected.getLast());
 
                                 MERGEButton.setEnabled(true);
                             } catch (InterruptedException ex) {
@@ -590,6 +602,34 @@ public class SECTool extends JDialog {
                     }.start();
 
                 } else if (frameToMergeEnd > frameToMergeStart) { // write out selected frames
+
+                    ArrayList<Double> qvalues = secFile.getQvalues();
+                    int totalIn = qvalues.size();
+
+                    for(int i=frameToMergeStart; i<=frameToMergeEnd; i++){
+
+                        ArrayList<Double> iofq = secFile.getSubtractedFrameAt(i);
+                        ArrayList<Double> eofq = secFile.getUnSubtractedErrorFrameAt(i);
+
+                        XYSeries one = new XYSeries("iofq");
+                        XYSeries two = new XYSeries("eofq");
+
+                        double qvalue;
+                        for(int q=0; q<totalIn; q++){
+                            qvalue=qvalues.get(q);
+                            one.add(qvalue, iofq.get(q));
+                            two.add(qvalue, eofq.get(q));
+                        }
+
+                        FileObject dataToWrite = new FileObject(new File(secFile.getParentPath()), Scatter.version);
+
+                        String nameofnew = secFile.getFilebase() +"_frame_"+i;
+                        Scatter.collectionSelected.createDataset(one, two, nameofnew, true);
+
+                        dataToWrite.writeSAXSFile(nameofnew, Scatter.collectionSelected.getLast());
+                    }
+
+
 
                 }
 
@@ -650,7 +690,8 @@ public class SECTool extends JDialog {
                         Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getCurrentDirectory().toString());
                     }
 
-                    outputDirLabel.setText(chooser.getSelectedFile().getName()+"/");
+                    updateOutputDirLabel(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+//                    outputDirLabel.setText(chooser.getSelectedFile().getName()+"/");
                     Scatter.updateProp();
                 }
             }
@@ -698,7 +739,7 @@ public class SECTool extends JDialog {
                                         selectedIndices.add(false);
                                     }
 
-                                    framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() + " | ");
+                                    framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
                                     selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
 
                                     secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
@@ -1425,7 +1466,7 @@ plot.setRangeGridlinesVisible(false);
         upperPlot.addDomainMarker(selectedDatasetMarker);
         frameToMergeStart = startValue.intValue();
         frameToMergeEnd = endValue.intValue();
-        rangeSetLabel.setText(startValue.intValue() + " : " + endValue.intValue());
+        rangeSetLabel.setText("SELECTED :: "+startValue.intValue() + " : " + endValue.intValue());
         updateSASPlot( (int)(startValue + (int)Math.ceil(endValue-startValue)/2) + 1 );
     }
 
@@ -1469,6 +1510,14 @@ plot.setRangeGridlinesVisible(false);
         }
     }
 
+    private void updateOutputDirLabel(String text){
+        if (text.length() > 23){
+            int length = text.length();
+            outputDirLabel.setText("/..."+text.substring(length - 23,length-1));
+        } else {
+            outputDirLabel.setText(text);
+        }
+    }
 
 
 }
