@@ -94,6 +94,26 @@ public class RealSpacePr {
         this.rejectionCutOffBox = rejectionBox;
         this.cBox = cBox;
 
+        // file chooser for loading files into collection
+        final JPopupMenu popupMenu = new JPopupMenu();
+        JMenuItem menuItem = new JMenuItem("Find DMAX");
+        menuItem.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                int index = prTable.getSelectedRow();
+
+                if (index > -1){
+                    // set qmax from spinner
+                    PrModel prmodel = (PrModel)prTable.getModel();
+                    Dataset tempDataset = collectionSelected.getDataset(prmodel.getDataset(index).getId());
+                    double qmax = tempDataset.getAllData().getX(tempDataset.getEnd()-1).doubleValue();
+                    new FindDmax(collectionSelected.getDataset(index).getRealSpaceModel(), qmax, WORKING_DIRECTORY);
+                }
+            }
+        });
+        popupMenu.add(menuItem);
+        prTable.setComponentPopupMenu(popupMenu);
+
         l1NormCheckBox.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {

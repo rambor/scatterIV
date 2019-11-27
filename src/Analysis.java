@@ -653,6 +653,50 @@ public class Analysis extends JDialog {
             }
         });
 
+
+        saveFilePanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                super.mouseClicked(e);
+
+                if (collectionSelected.getTotalSelected() > 1){
+                    status.setText("Select only one file!");
+                    return;
+                }
+
+                Dataset tempData = collectionSelected.getDataset(collectionSelected.getSelected());
+
+                JFileChooser fc = new JFileChooser(WORKING_DIRECTORY.getWorkingDirectory());
+                int option = fc.showSaveDialog(contentPane);
+                //set directory to default directory from Settings tab
+
+                if(option == JFileChooser.CANCEL_OPTION) {
+                    return;
+                }
+
+                if(option == JFileChooser.APPROVE_OPTION){
+                    // remove dataset and write to file
+                    // make merged data show on top of other datasets
+                    File theFileToSave = fc.getSelectedFile();
+
+                    String cleaned = cleanUpFileName(fc.getSelectedFile().getName());
+
+                    if(fc.getSelectedFile()!=null){
+
+                        WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
+                        FileObject dataToWrite = new FileObject(fc.getCurrentDirectory(), Scatter.version);
+                        dataToWrite.writeSingleSAXSFile(cleaned, tempData);
+
+                        //close the output stream
+                        status.setText(cleaned + ".dat written to " + fc.getCurrentDirectory());
+
+                        //Logger.getLogger(Scatter.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+
+            }
+        });
+
         scaleMergePanel.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
