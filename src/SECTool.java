@@ -1514,7 +1514,7 @@ plot.setRangeGridlinesVisible(false);
     private void updateOutputDirLabel(String text){
         if (text.length() > 23){
             int length = text.length();
-            outputDirLabel.setText("/..."+text.substring(length - 23,length-1));
+            outputDirLabel.setText("/..."+text.substring(length - 23,length));
         } else {
             outputDirLabel.setText(text);
         }
