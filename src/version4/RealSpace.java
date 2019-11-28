@@ -285,7 +285,7 @@ public class RealSpace {
 //        totalScore = (Math.log10((0.93*aic + 39.1d*kurtosis + 37.0d*scoreIt)));
             totalScore = (Math.log10(0.1*aic + (4.0d*kurtosis + scoreIt)));
         } catch (java.lang.NullPointerException exception){
-            System.out.println("PR NULL Exception :: possible pdb :: " + exception.getMessage());
+           // System.out.println("PR NULL Exception :: possible pdb :: " + exception.getMessage());
             totalScore = 1;
         }
 

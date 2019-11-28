@@ -63,6 +63,7 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
         int total = endIndex - startIndex;
 
         DMatrixRMaj data = new DMatrixRMaj(total, totalq);
+        DMatrixRMaj errors = new DMatrixRMaj(total, totalq);
 
         // populate matrix
         progressBar.setIndeterminate(true);
@@ -72,24 +73,26 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
         int row=0;
         for(int i=startIndex; i<endIndex; i++){
             ArrayList<Double> frame = secfile.getSubtractedFrameAt(i);
-            int count=0;
+            ArrayList<Double> eframe = secfile.getSubtractedErrorAtFrame(i);
+            int column=0;
             for(int r=startqAt; r<endqAt; r++){
-                data.add(row, count,frame.get(r)); // row major, row is the entire frame between q-min and q-max
-                count++;
+                data.add(row, column, frame.get(r)); // row major, row is the entire frame between q-min and q-max
+                errors.add(row, column, eframe.get(r)); // row major, row is the entire frame between q-min and q-max
+                column++;
             }
             row++;
         }
 
         /*
          * calculate residuals
-         *
          */
         status.setText("Calculating Durbin-Watson score");
         DMatrixRMaj ref = new DMatrixRMaj(1,totalq);
         DMatrixRMaj tar = new DMatrixRMaj(1,totalq);
+        DMatrixRMaj tarE = new DMatrixRMaj(1,totalq);
         DMatrixRMaj residual = new DMatrixRMaj(1,totalq);
 
-        double dw;
+        double dw,valueE, tarI, invE;
         residualDataset = new DefaultXYZDataset();
 
         for(int i=0; i<totalDatasetsInUse; i++){
@@ -103,9 +106,24 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
 
             CommonOps_DDRM.extractRow(data, i, ref);
 
+
             int next=i+1;
             for(int j=next; j<totalDatasetsInUse; j++){ // calculate residual
                 CommonOps_DDRM.extractRow(data, j, tar);
+                /*
+                 * need to scale to reference
+                 */
+                CommonOps_DDRM.extractRow(data, j, tarE);
+                double scale_numerator=0, scale_denominator=0;
+                for(int q=0; q<totalq; q++){
+                    valueE = 1.0/(tarE.get(0,q));
+                    invE = valueE*valueE;
+                    tarI = tar.get(0,q);
+                    scale_numerator += tarI*ref.get(0,q)*invE;
+                    scale_denominator += tarI*tarI*invE;
+                }
+                double scaleFactor = scale_numerator/scale_denominator;
+                CommonOps_DDRM.scale(scaleFactor, tar);
                 CommonOps_DDRM.subtract(ref, tar, residual);
                 // calculate DW statistic
                 dw = calculateDurbinWatson(residual);
@@ -113,7 +131,6 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
             }
             residualDataset.addSeries("Series_" + i, dataset);
         }
-
 
         progressBar.setIndeterminate(false);
         progressBar.setStringPainted(false);
@@ -148,7 +165,7 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
         if ((value > 1.9 && value < 2.1)){
             value = 0;
         } else {
-            value = (Math.abs(value-2.0));
+            value = Math.abs(value-2.0);
         }
 
         return value + 2;
@@ -176,7 +193,6 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
             }
         }
 
-        System.out.println("Inside create plot " + residualDataset.getSeriesCount() + " " + minZ);
         XYPlot plot = new XYPlot(residualDataset, xAxis, yAxis, null);
         XYBlockRenderer rlockRenderer = new XYBlockRenderer();
 
@@ -217,7 +233,6 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
     }
 
     public static class SpectrumPaintScale implements PaintScale {
-
 //        private static final float H1 = 0f;
 //        private static final float H2 = 1f;
         private final double lowerBound;
@@ -226,7 +241,6 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
         public SpectrumPaintScale(double lowerBound, double upperBound) {
             this.lowerBound = lowerBound;
             this.upperBound = upperBound;
-
             // 2/2 should be red => HSB(0,1,1)
             // 0/2 should be blue => HSB(200,1,1)
         }
@@ -248,6 +262,7 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
 
             // float scaledH = H1 + scaledValue * (H2 - H1);
             float scaledH =  (float)(value/getUpperBound());
+            //float scaledH =  (float)((value-getLowerBound())/(getUpperBound()-getLowerBound()));
 
             // HSB white is s: 0, b: 1
             if (value == getLowerBound() || value == getUpperBound()){

@@ -23,6 +23,7 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
     private  JTextField qmaxLimitField;
     private  JTextField qminLimitField;
     private  JTextField qmaxForPDBText;
+    private double qmaxForPDB = 0.4d;
     private  JCheckBox excludeWatersFromInputCheckBox;
     private  JComboBox refinementRoundsBox;
     private  JComboBox rejectionCutOffBox;
@@ -82,19 +83,6 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
         setModal(true);
 
 
-        qmaxForPDBText.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                super.focusLost(e);
-                double x = 0;
-                try {
-                    x = Double.parseDouble(qmaxForPDBText.getText());
-                } catch (NumberFormatException ee) {
-                    status.setForeground(Color.RED);
-                    qmaxForPDBText.setText("0.38");
-                }
-            }
-        });
 
         qminLimitField.addFocusListener(new FocusAdapter() {
             @Override
@@ -207,10 +195,11 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
                         status.setText("q-max too large!");
                     }
 
-                    dmaxSearchMaxValue.setValue(x);
+                    qmaxForPDB = x;
 
                 } catch (NumberFormatException ee) {
                     qmaxForPDBText.setText(String.format("%.1f", 0.4));
+                    qmaxForPDB = 0.4;
                 }
 
             }
@@ -345,5 +334,11 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
         } else {
             status.setText("ATSAS Directory does not exists");
         }
+    }
+
+
+
+    public double getQmaxForPDB() {
+        return qmaxForPDB;
     }
 }

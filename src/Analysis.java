@@ -75,6 +75,8 @@ public class Analysis extends JDialog {
     private JLabel pdfLabel;
     private JLabel svdLabel;
     private JPanel SVDPanel;
+    private JPanel clearPanel;
+    private JLabel clearLabel;
     private JButton buttonOK;
     private JLabel status;
 
@@ -170,7 +172,7 @@ public class Analysis extends JDialog {
         buttons.add(new Button(scaleMergePanel, scaleMergeLabel,16, highlight4));
         buttons.add(new Button(averagePanel, averageLabel,17, highlight4));
         buttons.add(new Button(medianPanel, medianLabel,18, highlight4));
-
+        buttons.add(new Button(clearPanel, clearLabel,23, highlight4));
 
         buttons.add(new Button(LoadFilePanel, loadFileLabel,19, highlight5));
         buttons.add(new Button(saveFilePanel, saveFileLabel,20, highlight5));
@@ -541,6 +543,26 @@ public class Analysis extends JDialog {
             }
         });
 
+        clearPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                super.mouseClicked(e);
+                if (collectionSelected.getTotalDatasets() > 0){
+
+                    collectionSelected.removeAllDatasets();
+                    RealSpacePr.prModel.clear();
+
+                    Scatter.analysisTable.getTable().removeAll();
+                    ((AnalysisModel) Scatter.analysisTable.getModel()).clear();
+                    ((AnalysisModel) Scatter.analysisTable.getModel()).fireTableDataChanged();
+                    analysisMiniPlots.clearMiniPlots();
+                    status.setText("Cleared");
+                } else {
+                    alertNone();
+                }
+            }
+        });
+
 
         scaleToIzero.addMouseListener(new MouseAdapter() {
             @Override
@@ -642,6 +664,8 @@ public class Analysis extends JDialog {
                                             mainProgressBar,
                                             WORKING_DIRECTORY.getWorkingDirectory());
 
+                                    rec1.setPDBParams(true, Settings.getInstance().getQmaxForPDB());
+
                                     rec1.run();
                                     rec1.get();
                                 } catch (InterruptedException e1) {
@@ -655,6 +679,50 @@ public class Analysis extends JDialog {
                     }
                 }
                 ((AnalysisModel) Scatter.analysisTable.getModel()).fireTableDataChanged();
+            }
+        });
+
+
+        saveFilePanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                super.mouseClicked(e);
+
+                if (collectionSelected.getTotalSelected() > 1){
+                    status.setText("Select only one file!");
+                    return;
+                }
+
+                Dataset tempData = collectionSelected.getDataset(collectionSelected.getSelected());
+
+                JFileChooser fc = new JFileChooser(WORKING_DIRECTORY.getWorkingDirectory());
+                int option = fc.showSaveDialog(contentPane);
+                //set directory to default directory from Settings tab
+
+                if(option == JFileChooser.CANCEL_OPTION) {
+                    return;
+                }
+
+                if(option == JFileChooser.APPROVE_OPTION){
+                    // remove dataset and write to file
+                    // make merged data show on top of other datasets
+                    File theFileToSave = fc.getSelectedFile();
+
+                    String cleaned = cleanUpFileName(fc.getSelectedFile().getName());
+
+                    if(fc.getSelectedFile()!=null){
+
+                        WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
+                        FileObject dataToWrite = new FileObject(fc.getCurrentDirectory(), Scatter.version);
+                        dataToWrite.writeSingleSAXSFile(cleaned, tempData);
+
+                        //close the output stream
+                        status.setText(cleaned + ".dat written to " + fc.getCurrentDirectory());
+
+                        //Logger.getLogger(Scatter.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+
             }
         });
 

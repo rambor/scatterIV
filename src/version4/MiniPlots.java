@@ -92,13 +92,9 @@ public class MiniPlots {
             plotLog10Collection.getSeries(0).add(dataset.getData().getDataItem(i));
         }
 
-        //Color tempColor = dataset.getColor();
-
         qIqPlot.getRenderer(0).setSeriesPaint(0, dataset.getColor());
         kratkyPlot.getRenderer(0).setSeriesPaint(0, dataset.getColor());
         log10Plot.getRenderer(0).setSeriesPaint(0, dataset.getColor());
-//        qIqPlot.getRenderer(0).setSeriesPaint(0, new Color(105,105,105, 85));
-//        kratkyPlot.getRenderer(0).setSeriesPaint(0, new Color(105,105,105, 85));
 
         // if Rg is set do dimensionless kratky plot?
     }

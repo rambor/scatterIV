@@ -259,6 +259,8 @@ public class AnalysisTable {
             }
         }));
 
+
+
         analysisTable.setComponentPopupMenu(popupMenu);
 
     }

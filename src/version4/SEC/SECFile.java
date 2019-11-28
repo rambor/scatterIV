@@ -309,7 +309,12 @@ public class SECFile {
         String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
         rgvalues = new ArrayList<>();
         for(int i=1; i<values.length; i++){
-            rgvalues.add(Double.valueOf(values[i]));
+            try{
+                double value = Double.valueOf(values[i]);
+                rgvalues.add(value);
+            } catch (NumberFormatException ee) {
+                rgvalues.add(0.0);
+            }
         }
     }
 
