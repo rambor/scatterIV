@@ -75,6 +75,8 @@ public class Analysis extends JDialog {
     private JLabel pdfLabel;
     private JLabel svdLabel;
     private JPanel SVDPanel;
+    private JPanel clearPanel;
+    private JLabel clearLabel;
     private JButton buttonOK;
     private JLabel status;
 
@@ -163,7 +165,7 @@ public class Analysis extends JDialog {
         buttons.add(new Button(scaleMergePanel, scaleMergeLabel,16, highlight4));
         buttons.add(new Button(averagePanel, averageLabel,17, highlight4));
         buttons.add(new Button(medianPanel, medianLabel,18, highlight4));
-
+        buttons.add(new Button(clearPanel, clearLabel,23, highlight4));
 
         buttons.add(new Button(LoadFilePanel, loadFileLabel,19, highlight5));
         buttons.add(new Button(saveFilePanel, saveFileLabel,20, highlight5));
@@ -528,6 +530,26 @@ public class Analysis extends JDialog {
 
                     new ComplexPlot(collectionSelected, WORKING_DIRECTORY.getWorkingDirectory(), status);
 
+                } else {
+                    alertNone();
+                }
+            }
+        });
+
+        clearPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                super.mouseClicked(e);
+                if (collectionSelected.getTotalDatasets() > 0){
+
+                    collectionSelected.removeAllDatasets();
+                    RealSpacePr.prModel.clear();
+
+                    Scatter.analysisTable.getTable().removeAll();
+                    ((AnalysisModel) Scatter.analysisTable.getModel()).clear();
+                    ((AnalysisModel) Scatter.analysisTable.getModel()).fireTableDataChanged();
+                    analysisMiniPlots.clearMiniPlots();
+                    status.setText("Cleared");
                 } else {
                     alertNone();
                 }

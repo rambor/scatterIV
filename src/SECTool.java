@@ -1121,7 +1121,6 @@ plot.setRangeGridlinesVisible(false);
         rangeAxis.setLabelFont(new Font("Times", Font.BOLD, 16));
         rangeAxis.setRange(selectedRegionCollection.getRangeLowerBound(true) - 0.001*selectedRegionCollection.getRangeLowerBound(true), selectedRegionCollection.getRangeUpperBound(true) + 0.005*selectedRegionCollection.getRangeUpperBound(true));
         selectedRegionChart.getXYPlot().setRangeAxis(0, rangeAxis);
-
         NumberAxis domainAxis = new NumberAxis("frame");
         domainAxis.setRange(selectedStart, selectedEnd);
         domainAxis.setAutoRangeIncludesZero(false);
@@ -1129,20 +1128,17 @@ plot.setRangeGridlinesVisible(false);
         combinedPlot.setDomainAxis(domainAxis);
 
         // create residual dataset
-        new Thread() {
+        Thread dwplotting = new Thread() {
             public void run() {
 
                 try {
                     DWSimilarityPlot dw = new DWSimilarityPlot(selectedStart, selectedEnd, Double.parseDouble(qminSECField.getText()), Double.parseDouble(qmaxSECField.getText()), secFile, status, progressBar);
                     dw.run();
                     dw.get();
-
                     if (dw.isDone()){
-
                         combinedPlot.remove(lowerPlot);
                         lowerPlot = dw.createPlot();
                         combinedPlot.add(lowerPlot, 1);
-
                     }
                     //combinedPlot.add(dw.createPlot(), 1);
                 } catch (InterruptedException e) {
@@ -1152,7 +1148,13 @@ plot.setRangeGridlinesVisible(false);
                 }
 
             }
-        }.start();
+        };
+        dwplotting.start();
+        try {
+            dwplotting.join();
+        } catch (InterruptedException e) {
+            e.printStackTrace();
+        }
 
 //        selectedRegionsChartPanel.getChart().getXYPlot().getRenderer(0).setBaseToolTipGenerator(new XYToolTipGenerator() {
 //            @Override
@@ -1236,7 +1238,6 @@ plot.setRangeGridlinesVisible(false);
         combChart = new JFreeChart("", JFreeChart.DEFAULT_TITLE_FONT, combinedPlot, true);
         combChart.removeLegend();
         combChart.setBackgroundPaint(Color.WHITE);
-
 
         ChartFrame chartframe = new ChartFrame("", combChart); // chartpanel exists in frame
         //selectedRegionPanel

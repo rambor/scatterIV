@@ -193,7 +193,6 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
             }
         }
 
-        System.out.println("Inside create plot " + residualDataset.getSeriesCount() + " " + minZ);
         XYPlot plot = new XYPlot(residualDataset, xAxis, yAxis, null);
         XYBlockRenderer rlockRenderer = new XYBlockRenderer();
 

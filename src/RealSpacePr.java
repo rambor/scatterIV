@@ -506,7 +506,7 @@ public class RealSpacePr {
         //System.out.println("ContentPane " + contentPane.getSize().getWidth() + " x " + contentPane.getSize().getHeight());
 
 //        plotsPanel.setSize(new Dimension(-1,(int)(contentPane.getSize().getHeight()*2.0/3.0)));
-prSplitPane.setPreferredSize(new Dimension(-1,(int)(contentPane.getSize().getHeight()*2.0/3.0)));
+        prSplitPane.setPreferredSize(new Dimension(-1,(int)(contentPane.getSize().getHeight()*2.0/3.0)));
         IofQPofRPlot iofqPofRplot = IofQPofRPlot.getInstance();
         iofqPofRplot.clear();
         iofqPofRplot.plot(collectionSelected, WORKING_DIRECTORY, prIntensity, qIQCheckBox.isSelected());

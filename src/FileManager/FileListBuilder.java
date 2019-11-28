@@ -54,7 +54,15 @@ public class FileListBuilder {
         } else {
 
             indexOfDroppedFile = this.getFileIndex(file);
+            long count = file.getName().chars().filter(ch -> ch == '.').count();
+
             filename = FilenameUtils.removeExtension(file.getName());
+            //System.out.println("filename " + filename);
+
+            if (filename.contains(".") && count > 1){ // need to split again
+                filename = filename.split("\\.")[0];
+            }
+//            System.out.println("filename " + filename + " count " + count);
             String[] parts = filename.split("[-_]+");
 
 //            for(int i=0; i<parts.length; i++){
