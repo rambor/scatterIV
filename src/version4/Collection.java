@@ -80,6 +80,17 @@ public class Collection {
         return selected;
     }
 
+    public int getTotalNotSelected(){
+        int notSelected=0;
+
+        for(int i=0; i< datasets.size(); i++){
+            if (!(datasets.get(i).getInUse())){
+                notSelected++;
+            }
+        }
+        return notSelected;
+    }
+
     public void createDataset(XYSeries intensities, XYSeries errors){
         int newIndex = datasets.size();
         datasets.add(new Dataset(
@@ -213,7 +224,7 @@ public class Collection {
      * @param index Index of a Dataset to be removed
      */
     public void removeDataset(int index) {
-        datasets.remove(index);
+        datasets.remove(datasets.get(index));
         /*
          * renumber datasets
          */

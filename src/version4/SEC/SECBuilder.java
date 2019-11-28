@@ -36,7 +36,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     private int totalSelected;
 
     private double noSignal;
-    private double threshold, background_spread=0.192, min_spread = 10;
+    private double threshold, background_spread=0.2, min_spread = 10;
 
     private Number minQvalueInCommon = 0;
     private Number maxQvalueInCommon = 0;
@@ -558,8 +558,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
         XYSeries ratio = new XYSeries("ratio"), tempData;
 
-        int total = collection.getTotalDatasets();
-        progressBar.setMaximum(total);
+        int totalInCollection = collection.getTotalDatasets();
+        progressBar.setMaximum(totalInCollection);
         progressBar.setStringPainted(true);
         progressBar.setValue(0);
         status.setText("Estimating signal and performing subtraction... please wait");
@@ -572,7 +572,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         subtractedSets = new ArrayList<>();
         subtractedSetsErrors = new ArrayList<>();
 
-        for(int i=0; i < total; i++){ // iterate over all frames
+        for(int i=0; i < totalInCollection; i++){ // iterate over all frames
                 tempDataset = collection.getDataset(i);
                 subtractedSets.add(new XYSeries("set_" + Integer.toString(i)));
                 subtractedSetsErrors.add(new XYSeries("set_"+ Integer.toString(i)));
@@ -776,7 +776,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         progressBar.setStringPainted(false);
         status.setText("estimating background frames");
 
-        final int total = collection.getTotalDatasets();
+        final int totalInCollection = collection.getTotalDatasets();
 
 //        if (!this.is0p3qmaxPossible()){
 //            this.findMaximumCommonQvalue();
@@ -802,7 +802,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
          *
          * could be multi-threaded
          */
-        for (int w=window; w < (total - window); w++){
+        for (int w=window; w < (totalInCollection - window); w++){
             ArrayList<XYSeries> collectionWindow = new ArrayList<>();
 
             for (int m=(w - window); m < w; m++){
@@ -842,7 +842,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             bufferRejects.clear();
             keptBuffers.clear();
             status.setText(String.format("Estimating background...kept buffers is nil, adjusting tolerance :: %.4f", background_spread));
-            for (int w=window; w < (total - window); w++){
+            for (int w=window; w < (totalInCollection - window); w++){
                 ArrayList<XYSeries> collectionWindow = new ArrayList<>();
 
                 for (int m=(w - window); m < w; m++){

@@ -250,7 +250,7 @@ public class SECFile {
                 last.add(Double.parseDouble(fIndex), Double.parseDouble(signals[i]));
                 signalSeries.add(last.getDataItem(0));
 
-                if (Integer.parseInt(bckgrnd[i]) > 0){
+                if (Double.parseDouble(bckgrnd[i]) > 0){
                     selectedBuffers.add(last.getDataItem(0));
                 }
             }

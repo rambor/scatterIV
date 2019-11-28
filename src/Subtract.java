@@ -705,6 +705,9 @@ public class Subtract {
                                     updateSamplesPlot();
                                 }
 
+                                Scatter.WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
+                                Scatter.updateProp();
+
                             } catch (InterruptedException ex) {
                                 ex.printStackTrace();
                             } catch (ExecutionException ex) {
@@ -790,6 +793,8 @@ public class Subtract {
                                     }
                                 }
 
+                                Scatter.WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
+                                Scatter.updateProp();
 
                             } catch (InterruptedException ex) {
                                 ex.printStackTrace();

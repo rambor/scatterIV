@@ -27,6 +27,7 @@ import version4.Scaler.ScaleManagerSAS;
 import version4.plots.DWSimilarityPlot;
 import version4.sasCIF.SasObjectForm;
 import version4.tableModels.AnalysisModel;
+import version4.tableModels.DataFileElement;
 import version4.tableModels.SampleBufferElement;
 
 import javax.swing.*;
@@ -176,6 +177,25 @@ public class SECTool extends JDialog {
         samplesList.setModel(sampleFilesModel);
         samplesList.setCellRenderer(new SampleBufferListRenderer());
         samplesList.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
+
+        samplesList.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent event) {
+                super.mouseClicked(event);
+                JList list = (JList) event.getSource();
+                // Get index of clicked item
+                int index = list.locationToIndex(event.getPoint());
+                // Toggle selected state
+                if (index > -1){
+                    DataFileElement item = (DataFileElement) list.getModel().getElementAt(index);
+                    // Repaint cell
+                    item.setSelected(!item.isSelected());
+                    list.repaint(list.getCellBounds(index, index));
+                    collection.getDataset(index).setInUse(item.isSelected);
+                    System.out.println("index " + index + " " + collection.getDataset(index).getInUse());
+                }
+            }
+        });
 
         dataScrollPane.setViewportView(samplesList);
         selectedIndices=new ArrayList<>();
@@ -362,6 +382,20 @@ public class SECTool extends JDialog {
                                 TRACEButton.setEnabled(false);
                                 SetBufferButton.setEnabled(false);
 
+                                int totalNotSelected = collection.getTotalNotSelected();
+                                while(totalNotSelected > 0){
+                                    System.out.println("TOTAL NOT SELECED " + collection.getTotalNotSelected());
+                                    for(int i=0; i<collection.getTotalDatasets(); i++){
+                                        if (!collection.getDataset(i).getInUse()){
+                                            collection.removeDataset(i);
+                                            //samplesList.remove(i);
+                                            sampleFilesModel.remove(i);
+                                            break;
+                                        }
+                                    }
+                                    totalNotSelected = collection.getTotalNotSelected();
+                                }
+
                                 SECBuilder secBuilder = new SECBuilder(collection, status, progressBar, saveAsTextField.getText(),  Scatter.WORKING_DIRECTORY.getWorkingDirectory(), Double.parseDouble(thresholdField.getText()));
 
                                 secBuilder.run();
@@ -388,6 +422,7 @@ public class SECTool extends JDialog {
                                 sampleFilesModel.removeAllElements();
                                 collection.removeAllDatasets();
                                 secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
+                                status.setText("Using *.sec file now clearing samples list");
 
                             } catch (InterruptedException e1) {
                                 TRACEButton.setEnabled(true);
@@ -417,6 +452,9 @@ public class SECTool extends JDialog {
                                     secBuilder.run();
                                     secBuilder.get();
                                     // reset secFile
+                                    progressBar.setStringPainted(false);
+                                    progressBar.setIndeterminate(true);
+                                    status.setText("Loading updated SEC file");
                                     secFile = new SECFile(new File(secBuilder.getOutputname()));
                                     updateSignalPlot();
                                     selectedIndices.clear();
@@ -429,6 +467,7 @@ public class SECTool extends JDialog {
                                     selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
                                     TRACEButton.setEnabled(true);
                                     SetBufferButton.setEnabled(true);
+                                    status.setText("Finished loading SEC file");
                                 } catch (InterruptedException e1) {
                                     TRACEButton.setEnabled(true);
                                     SetBufferButton.setEnabled(true);
@@ -438,7 +477,8 @@ public class SECTool extends JDialog {
                                     SetBufferButton.setEnabled(true);
                                     e1.printStackTrace();
                                 }
-
+                                status.setText("Finished");
+                                progressBar.setIndeterminate(false);
                                 progressBar.setStringPainted(false);
                                 progressBar.setValue(0);
                             }

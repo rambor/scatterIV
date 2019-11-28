@@ -349,7 +349,7 @@
                                   </grid>
                                 </constraints>
                                 <properties>
-                                  <text value="1.005"/>
+                                  <text value="1.01"/>
                                 </properties>
                               </component>
                             </children>
