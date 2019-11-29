@@ -75,15 +75,15 @@ public class LoadedFile {
         double tempQValue;
 
         try {
-
-            BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
-            //BufferedReader br = new BufferedReader(new FileReader(file));
+//            BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
+            BufferedReader br = new BufferedReader(new FileReader(file));
             long filesize = file.length();
 
             if ( filesize > 0 && (ext.equals("dat") || ext.equals("int") || ext.equals("txt") || ext.equals("csv") || ext.equals("fit")) ) { //regular 3 column file space or tab delimited
                 String strLine;
                 //Read file line-by-line
                 try {
+
                     DataLine dataPoints;
                     while ((strLine = br.readLine()) != null) {
                         try {
