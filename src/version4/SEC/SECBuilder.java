@@ -837,7 +837,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             //System.out.println(bufferRejects.size() + " >  " + keptBuffers.size());
         }
 
-        while (keptBuffers.size() < 6){
+        while (keptBuffers.size() < 6 && background_spread < 10){
             background_spread += 0.3*min_spread;
             bufferRejects.clear();
             keptBuffers.clear();
@@ -872,6 +872,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                 }
             }
         }
+
+       // throw an exception if background spread exceeds limit
 
         keptBufferIndices = new ArrayList();
 

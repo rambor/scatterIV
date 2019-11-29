@@ -99,13 +99,12 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
             double[][] dataset = new double[3][totalDatasetsInUse];
             int currentIndex = startIndex + i;
             for (int j = 0; j < totalDatasetsInUse; j++) { // column
-                dataset[0][j] = currentIndex*1.0d;
-                dataset[1][j] = (startIndex + j)*1.0d;
-                dataset[2][j] = 0;
+                dataset[0][j] = currentIndex*1.0d;     // x-coordinate
+                dataset[1][j] = (startIndex + j)*1.0d; // y-coordinate
+                dataset[2][j] = 0; // this is what adds color (scale)
             }
 
             CommonOps_DDRM.extractRow(data, i, ref);
-
 
             int next=i+1;
             for(int j=next; j<totalDatasetsInUse; j++){ // calculate residual
@@ -113,7 +112,7 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
                 /*
                  * need to scale to reference
                  */
-                CommonOps_DDRM.extractRow(data, j, tarE);
+                CommonOps_DDRM.extractRow(errors, j, tarE);
                 double scale_numerator=0, scale_denominator=0;
                 for(int q=0; q<totalq; q++){
                     valueE = 1.0/(tarE.get(0,q));
@@ -122,9 +121,10 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
                     scale_numerator += tarI*ref.get(0,q)*invE;
                     scale_denominator += tarI*tarI*invE;
                 }
+
                 double scaleFactor = scale_numerator/scale_denominator;
                 CommonOps_DDRM.scale(scaleFactor, tar);
-                CommonOps_DDRM.subtract(ref, tar, residual);
+                CommonOps_DDRM.subtract(ref, tar, residual); // make residual
                 // calculate DW statistic
                 dw = calculateDurbinWatson(residual);
                 dataset[2][j] = dw;
