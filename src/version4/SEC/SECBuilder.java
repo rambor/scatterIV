@@ -834,7 +834,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
         if (keptBuffers.size() == 0){
             background_spread=min_spread;
-            System.out.println(bufferRejects.size() + " >  " + keptBuffers.size());
+            //System.out.println(bufferRejects.size() + " >  " + keptBuffers.size());
         }
 
         while (keptBuffers.size() < 6){
