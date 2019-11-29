@@ -873,6 +873,22 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             }
         }
 
+        // incase it all fails, load/use the first set of frames as background
+        if (background_spread >= 10 && keptBuffers.size() < 6){
+            bufferRejects.clear();
+            keptBuffers.clear();
+            int tenPercent = (int)(totalInCollection*0.1)+1;
+            for (int i=0; i<tenPercent; i++){
+                Dataset dd = collection.getDataset(i);
+                keptBuffers.add(dd.getId());
+            }
+
+            for (int i=tenPercent; i<totalInCollection; i++){
+                Dataset dd = collection.getDataset(i);
+                bufferRejects.add(dd.getId());
+            }
+        }
+
        // throw an exception if background spread exceeds limit
 
         keptBufferIndices = new ArrayList();

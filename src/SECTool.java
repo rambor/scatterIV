@@ -383,8 +383,7 @@ public class SECTool extends JDialog {
                                 SetBufferButton.setEnabled(false);
 
                                 int totalNotSelected = collection.getTotalNotSelected();
-                                while(totalNotSelected > 0){
-                                    System.out.println("TOTAL NOT SELECED " + collection.getTotalNotSelected());
+                                while(totalNotSelected > 0){ // remove unused datasets from collection
                                     for(int i=0; i<collection.getTotalDatasets(); i++){
                                         if (!collection.getDataset(i).getInUse()){
                                             collection.removeDataset(i);

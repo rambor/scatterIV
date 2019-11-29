@@ -229,6 +229,9 @@ public class Collection {
          * renumber datasets
          */
         this.totalDatasets = datasets.size();
+        for(int i=index; i<totalDatasets; i++){
+            datasets.get(i).setId(i);
+        }
     }
 
     public void removeAllDatasets(){
