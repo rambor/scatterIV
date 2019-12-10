@@ -549,7 +549,11 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     }
 
     /**
-     * creates XYSeries collections used for plotting
+     * for each dat file in assembled collection
+     * perform :
+     * 1. background subtraction
+     * 2. signal calculation
+     * 3. auto-Rg
      */
     private void makeSamples(){
 
@@ -576,6 +580,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                 tempDataset = collection.getDataset(i);
                 subtractedSets.add(new XYSeries("set_" + Integer.toString(i)));
                 subtractedSetsErrors.add(new XYSeries("set_"+ Integer.toString(i)));
+
                 if (tempDataset.getInUse()){ // if dataset in use, calculate ratio and then do subtraction
                     ratio.clear();
                     tempData = tempDataset.getAllData();
@@ -635,6 +640,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                         e.printStackTrace();
                     }
                 }
+
             publish(i);
         }
 

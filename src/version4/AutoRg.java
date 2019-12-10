@@ -67,7 +67,7 @@ public class AutoRg {
     private void autoRg() {
 
         //int last = data.getItemCount()-1;
-        double temp_resi, tempMedian, median = 100000;
+        double temp_resi, tempMedian, median = Double.POSITIVE_INFINITY;
         double tempRg;
 
         XYDataItem lastItem, item;
@@ -75,13 +75,12 @@ public class AutoRg {
         ArrayList<Double> rgList = new ArrayList<>();
 
         // calculate line between first and last points
-        int lastAtLimit = 0;
+
         double lowerqlimitSquared = 0.15*0.15; // q2
         double qRgUp = 1.31*1.31;
 
         // find the index of the upper q-value that is less than lowerqlimit
-        //int totalsquared = qSquaredData.getItemCount();
-
+        int lastAtLimit = 0;
         while(qSquaredData.getX(lastAtLimit).doubleValue() < lowerqlimitSquared){
             lastAtLimit++;
         }
@@ -93,9 +92,10 @@ public class AutoRg {
         XYDataItem tempDataItem = qSquaredData.getDataItem(first);
         double slope;
         double intercept;
-        while( tempDataItem.getXValue() < lowerqlimitSquared && first < (lastAtLimit-10)){  // minimum line is defined by 7 points
+        // calculate a progressively shrinking line using only first and last point
+        while( tempDataItem.getXValue() < lowerqlimitSquared && first < (lastAtLimit-19)){  // minimum line is defined by 7 points
             // fit line to first and last point, calculate Rg, determine gRg limit
-            while (last > first+7) {
+            while (last > first+19) {
                 lastItem = qSquaredData.getDataItem(last);
                 // calculate line using only first and last points
                 slope = (lastItem.getYValue() - tempDataItem.getYValue())/(lastItem.getXValue() - tempDataItem.getXValue());
@@ -133,19 +133,16 @@ public class AutoRg {
 
         double c0, c1;
 
-        double minResidual = 10000000000.0;
+        double minResidual = Double.POSITIVE_INFINITY;
         double[] x_range;
         double[] y_range;
-        //double[] w_range;
-        double r2_coeff = 0.0;
-
         double[] residuals3;
         //rg = Math.sqrt(-3.0*slope);
         double rg2 = tempRg*tempRg;
 
         int endAt = 0;
         int startAtLimit = 0;
-        double qRgLow = 0.2*0.2;
+
         // how many points are within upperlimit?
         int itemCount = qSquaredData.getItemCount();
         for(int i=0; i < itemCount; i++){
@@ -165,8 +162,9 @@ public class AutoRg {
 
         double errorIntercept;
         double errorSlope;
+
         if (sizeOfArray > 5){ // using a window of fixed size (13 data points), fit repeated lines
-            int window = 13;
+            int window = 31;
             x_range = new double[window];
             y_range = new double[window];
             // double[] keptResiduals = new double[0];
