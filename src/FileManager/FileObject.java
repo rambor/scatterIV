@@ -431,7 +431,7 @@ public class FileObject {
 //        newLines += String.format("REMARK 265    Porod Volume Mass (d 1.37) : %d (Angstroms^3) REAL %n", dataset.getPorodVolumeRealMass1p37());
         newLines += String.format("REMARK 265          POROD EXPONENT (P_E) : %.3f %n", dataset.getPorodExponent());
         newLines += String.format("REMARK 265                      REAL <r> : %.3f (Angstroms)%n", dataset.getAverageR());
-        newLines += String.format("REMARK 265                          DMAX : %d (Angstroms) %n", (int)dataset.getDmax());
+        newLines += String.format("REMARK 265                          DMAX : %.1f (Angstroms) %n", dataset.getDmax());
         newLines += String.format("REMARK 265   RESOLUTION LIMIT       QMAX : %.6E (Angstroms^-1) %n", dataset.getRealSpaceModel().getfittedqIq().getMaxX());
         newLines += String.format("REMARK 265   RESOLUTION LIMIT (d-SPACING): %.1f (Angstroms) %n", (2*Math.PI/dataset.getRealSpaceModel().getfittedqIq().getMaxX()));
         newLines += String.format("REMARK 265   RESOLUTION LIMIT  BIN WIDTH : %.1f (Angstroms) %n", (Math.PI/dataset.getRealSpaceModel().getfittedqIq().getMaxX()));
