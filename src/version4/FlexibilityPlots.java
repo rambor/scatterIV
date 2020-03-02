@@ -67,7 +67,7 @@ public class FlexibilityPlots implements ChangeListener {
         int count = 0;
         delta_q = 0.0;
         double q, q2, q3, q4, i_of_q, q4_i_of_q;
-        double delta_q_sum;
+        double delta_q_sum, maxq = Double.NEGATIVE_INFINITY;
         delta_q_sum = 0.0;
 
         Random spot = new Random();
@@ -99,6 +99,10 @@ public class FlexibilityPlots implements ChangeListener {
                     kratkyDebyeSeries.getSeries(count).add(q2,q2*i_of_q);
                     sibylsSeries.getSeries(count).add(q3, q3*i_of_q);
                 }
+
+                if (temp.getData().getMaxX() > maxq){
+                    maxq = temp.getData().getMaxX();
+                }
                 // delta_q
                 // randomly pick three or four locations in the series
                 // calculate delta q and then average
@@ -116,7 +120,8 @@ public class FlexibilityPlots implements ChangeListener {
         }
 
         delta_q = delta_q_sum*(1.0/count);
-        int maxValue = (int)(collection.getMaxq()/delta_q)+1;
+        int maxValue = (int)(maxq/delta_q)+1;
+        //int maxValue = (int)(collection.getMaxq()/delta_q)+1;
         //zoomSlider = new JSlider(JSlider.HORIZONTAL, 0, 15, 10);
         zoomSlider.setMaximum(maxValue);
         zoomSlider.setValue(maxValue);
