@@ -20,7 +20,7 @@ public class Scatter {
     private static String ATSAS_DIRECTORY="";
     private static String THRESHOLD="";
 
-    public static String version = "IV.a";
+    public static String version = "IV.b";
     public static WorkingDirectory WORKING_DIRECTORY;
 
     public MergeReport mergeReport; //singleton
@@ -379,6 +379,8 @@ public class Scatter {
                 convertNmToAngstrom = convertNmToAngstromCheckBox.isSelected();
             }
         });
+
+        status.setText("version " + version);
     }
 
     public static void main(String[] args) {
