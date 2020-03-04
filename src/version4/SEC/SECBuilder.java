@@ -1,6 +1,7 @@
 package version4.SEC;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.*;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
@@ -17,16 +18,18 @@ import version4.sasCIF.HidableSerializer;
 import version4.sasCIF.SasObject;
 
 import javax.swing.*;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 public class SECBuilder extends SwingWorker<Void, Integer> {
 
     private SecFormat secFormat;
+    private SasObject sasObject;
+    private String secfilename;
+    private String parentPath;
     private Collection collection;
     private boolean isValid = false;
+    private boolean updateOnly = false;
     private boolean backgroundPresent = false;
     private String notice;
     private ArrayList<Number> qvalues;
@@ -34,6 +37,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     private JLabel status;
     private JProgressBar progressBar;
     private int totalSelected;
+    private int rgLineIndex, rgErrorLineIndex, izeroLineIndex, izeroErrorLineIndex;
+    private int excludePoints = 13;
 
     private double noSignal;
     private double threshold, background_spread=0.2, min_spread = 10;
@@ -190,16 +195,120 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         System.out.println("Finished");
     }
 
+    /**
+     * recalculate SEC File updating only Rg and Izero as threshold or excluded points were adjusted
+     *
+     * @param oldsecfile
+     * @param status
+     * @param bar
+     * @param workingDirectoryName
+     * @param threshold
+     * @throws IOException
+     */
+    public SECBuilder(SECFile oldsecfile, JLabel status, JProgressBar bar, String workingDirectoryName, double threshold, int excludePoints) throws IOException{
+        // build collection
+        secfilename = oldsecfile.getAbsolutePath();
+        parentPath = oldsecfile.getParentPath();
+
+        sasObject = new SasObject(oldsecfile.getSasObject());
+        sasObject.getSecFormat().setThreshold(threshold);
+
+        this.excludePoints = excludePoints;
+        collection = new Collection("rebuild");
+        backgroundPresent = true; // not relevant, using background subtracted frames
+        updateOnly = true;
+
+        /*
+         * need the lines of the things to update so make secFormat object
+         */
+        int totalFrames = oldsecfile.getTotalFrames();
+        XYSeries signalSeries = oldsecfile.getSignalSeries();
+        if (totalFrames != signalSeries.getItemCount()){
+                // throw exceptioon
+        }
+        /*
+         * format of file is :
+         * JSON string describing data
+         *  0 LINE 0 JSON STRING -> needs updating with new threshold
+         *  1 # REMARK
+         *  2 # REMARK
+         *  3 # REMARK
+         *  4 Frame indices
+         *  5 SIGNAL
+         *  6 integrated qIq
+         *  7 Rg    -> needs updating with new values
+         *  8 Izero -> needs updating with new values
+         *  9 buffer
+         * 10 qvalues
+         * 11 unsubtracted
+         * 12 .
+         * 13 .
+         *  . unsubtracted errors
+         *  + subtracted
+         *  + subtracted errors
+         *  +
+         *  +
+         */
+
+        XYSeries iofq = new XYSeries("");
+        XYSeries eofq = new XYSeries("");
+
+        int totalInFrame = oldsecfile.getQvalues().size();
+        ArrayList<Double> oldqvalues = oldsecfile.getQvalues();
+        ArrayList<Double> frame, error;
+
+        qvalues = new ArrayList<>();
+
+        for(int q=0; q<totalInFrame; q++){ // create dataset
+            this.qvalues.add(oldqvalues.get(q));
+        }
+
+        minQvalueInCommon = this.qvalues.get(0);
+        maxQvalueInCommon = this.qvalues.get(qvalues.size()-1);
+
+        for(int i=0; i<totalInFrame; i++){
+            // create dataset
+            double qvalue = qvalues.get(i).doubleValue();
+            iofq.add(qvalue, 0.0d);
+            eofq.add(qvalue, 0.0d);
+        }
+
+        for(int i=0; i<totalFrames; i++){
+            if (signalSeries.getY(i).doubleValue() >= threshold){
+                frame = oldsecfile.getSubtractedFrameAt(i);
+                error = oldsecfile.getSubtractedErrorAtFrame(i);
+
+                for(int q=0; q<totalInFrame; q++){
+                    // create dataset
+                    iofq.updateByIndex(q, frame.get(q));
+                    eofq.updateByIndex(q, error.get(q));
+                }
+                collection.createDataset(iofq, eofq, i);
+            }
+        }
+
+        this.threshold = threshold;
+        this.status = status;
+        this.progressBar = bar;
+
+        totalSelected = sasObject.getSecFormat().getTotal_frames();
+
+        workingDirectory = workingDirectoryName;
+        outputname = oldsecfile.getFilebase();
+    }
+
+
+
     @Override
     protected Void doInBackground() throws Exception {
 
         status.setText("Estimating background frames, please wait");
         progressBar.setVisible(true);
         if (!backgroundPresent){
-            this.estimateBackgroundFrames();
             /*
              * estimating background frames also sets noSignal limit
              */
+            this.estimateBackgroundFrames();
         }
 
         /*
@@ -211,10 +320,13 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
          */
         signals = new ArrayList<>();
         //
-        this.makeSamples();
-        // write file
-
-        this.writeToSECFile();
+        if (updateOnly){
+            this.updateRgIzero();
+        } else {
+            this.makeSamples();
+            // write file
+            this.writeToSECFile();
+        }
 
         return null;
     }
@@ -268,10 +380,10 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
          */
         int totalDataSetsInCollection = collection.getTotalDatasets();
         SasObject sasObject = null ;
-        secFormat = new SecFormat();
-        secFormat.setThreshold(threshold);
-        secFormat.setTotal_frames(totalDataSetsInCollection);
-        secFormat.setTotal_momentum_transfer_vectors(qvalues.size());
+//        secFormat = new SecFormat();
+//        secFormat.setThreshold(threshold);
+//        secFormat.setTotal_frames(totalDataSetsInCollection);
+//        secFormat.setTotal_momentum_transfer_vectors(qvalues.size());
 
         for(int i=0; i<totalDataSetsInCollection; i++){
             Dataset data = collection.getDataset(i);
@@ -296,10 +408,16 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             fw = new FileWriter( outputname);
             BufferedWriter out = new BufferedWriter(fw);
 
+            // set initial capacity of of each line, however, capacity will be increased if exceeded
             StringBuilder fLine = new StringBuilder(totalDataSetsInCollection*3); // total number of frames, indexes from one to max
             StringBuilder signalLine = new StringBuilder(totalDataSetsInCollection*11);
             StringBuilder izeroLine = new StringBuilder(totalDataSetsInCollection*11);
+
             StringBuilder rgLine = new StringBuilder(totalDataSetsInCollection*9);
+
+            StringBuilder rgErrorLine = new StringBuilder(totalDataSetsInCollection*9);
+            StringBuilder izeroErrorLine = new StringBuilder(totalDataSetsInCollection*9);
+
             StringBuilder total_qIqLine = new StringBuilder(totalDataSetsInCollection*11);
             StringBuilder bufferLine = new StringBuilder(totalDataSetsInCollection*2);
 
@@ -314,6 +432,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                         signalLine.append(convertSignalToString(signal.getSignal()));
                         izeroLine.append(convertDoubleTo3EString(signal.getIzero()));
                         rgLine.append(convertDoubleTo3EString(signal.getRg()));
+                        rgErrorLine.append(convertDoubleTo3EString(signal.getRgError()));
+                        izeroErrorLine.append(convertDoubleTo3EString(signal.getIzeroError()));
                         total_qIqLine.append(convertqIqToString(signal.getTotal_qIq()));
                         bufferLine.append(convertSingleBinaryToString(signal.getIsBuffer()));
                         notFound = false;
@@ -325,6 +445,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                     signalLine.append(convertSignalToString(1.0d));
                     izeroLine.append(convertDoubleTo3EString(0.0d));
                     rgLine.append(convertDoubleTo3EString(0.0d));
+                    rgErrorLine.append(convertDoubleTo3EString(0.0d));
+                    izeroErrorLine.append(convertDoubleTo3EString(0.0d));
                     total_qIqLine.append(convertqIqToString(0.0d));
                     bufferLine.append(convertSingleBinaryToString(1));
                 }
@@ -336,6 +458,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             String signaLineMD5HEX = DigestUtils.md5Hex(signalLine.toString()).toUpperCase();
             String izeroLineMD5HEX = DigestUtils.md5Hex(izeroLine.toString()).toUpperCase();
             String rgLineMD5HEX = DigestUtils.md5Hex(rgLine.toString()).toUpperCase();
+            String izeroErrorLineMD5HEX = DigestUtils.md5Hex(izeroErrorLine.toString()).toUpperCase();
+            String rgLineErrorMD5HEX = DigestUtils.md5Hex(rgErrorLine.toString()).toUpperCase();
             String total_qIqLineMD5HEX = DigestUtils.md5Hex(total_qIqLine.toString()).toUpperCase();
             String bufferLineMD5HEX = DigestUtils.md5Hex(bufferLine.toString()).toUpperCase();
 
@@ -351,7 +475,6 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
              * assemble datalines for each frame
              * ignored frames are excluded ???
              */
-
             int totalq = qvalues.size();
             int digitsum = 0;
             for(Number qval : qvalues){
@@ -441,7 +564,6 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             String avgBufferMD5HEX = DigestUtils.md5Hex(tempOutAvgBuff.toString()).toUpperCase();
             String avgBuffererrorMD5HEX = DigestUtils.md5Hex(tempOutAvgBuffError.toString()).toUpperCase();
 
-
             /*
              * format of file is :
              * JSON string describing data
@@ -456,9 +578,9 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
              *  8 Izero
              *  9 buffer
              * 10 qvalues
-             * 11 unsubtracted
-             * 12 .
-             * 13 .
+             * 11 rg error
+             * 12 izero error
+             * 13 unsubtracted
              *  . unsubtracted errors
              *  + subtracted
              *  + subtracted errors
@@ -466,6 +588,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
              *  +
              */
             secFormat = new SecFormat(totalSelected);
+            secFormat.setThreshold(threshold);
             secFormat.setTotal_momentum_transfer_vectors(qvalues.size());
             secFormat.setFrame_index(4);
             secFormat.setSignal_index(5);
@@ -475,20 +598,24 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             secFormat.setBackground_index(9);
             secFormat.setMomentum_transfer_vector_index(10);
 
+            secFormat.setRg_error_index(11);
+            secFormat.setIzero_error_index(12);
+
+            int startLastLine = 12 + 1;
+
             int totalUnSub = unsubtractedOutput.size();
             int totalSub = subtractedOutput.size();
-            secFormat.setUnsubtracted_intensities_index(11);
-            secFormat.setUnsubtracted_intensities_error_index(11+totalUnSub);
-            secFormat.setSubtracted_intensities_index(11+2*totalUnSub);
-            secFormat.setSubtracted_intensities_error_index(11+2*totalUnSub+totalSub);
-            secFormat.setAveraged_buffer_index(11+2*totalUnSub+2*totalSub);
-            secFormat.setAveraged_buffer_error_index(11+2*totalUnSub+2*totalSub+1);
+            secFormat.setUnsubtracted_intensities_index(startLastLine);
+            secFormat.setUnsubtracted_intensities_error_index(startLastLine+totalUnSub);
+            secFormat.setSubtracted_intensities_index(startLastLine+2*totalUnSub);
+            secFormat.setSubtracted_intensities_error_index(startLastLine+2*totalUnSub+totalSub);
+            secFormat.setAveraged_buffer_index(startLastLine+2*totalUnSub+2*totalSub);
+            secFormat.setAveraged_buffer_error_index(startLastLine+2*totalUnSub+2*totalSub+1);
 
             /*
              * assemble the JSON string
              */
             ObjectMapper mapper = new ObjectMapper();
-
             mapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
             mapper.registerModule(new SimpleModule() {
                 @Override
@@ -510,18 +637,19 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             sasObject.setSecFormat(secFormat);
             String sasObjectString = mapper.writeValueAsString(sasObject);
 
-            out.write(sasObjectString + System.lineSeparator());
-            out.write("# REMARK" + System.lineSeparator());
-            out.write("# REMARK" + System.lineSeparator());
-            out.write("# REMARK" + System.lineSeparator());
-            out.write(fLineMD5HEX + " " + fLine.toString() + System.lineSeparator());
-            out.write(signaLineMD5HEX + " " + signalLine.toString() + System.lineSeparator());
-            out.write(total_qIqLineMD5HEX + " " + total_qIqLine.toString() + System.lineSeparator());
-            out.write(rgLineMD5HEX + " " + rgLine.toString() + System.lineSeparator());
-            out.write(izeroLineMD5HEX + " " + izeroLine.toString() + System.lineSeparator());
-            out.write(bufferLineMD5HEX + " " + bufferLine.toString() + System.lineSeparator());
-            out.write(qlineMD5HEX + " " + qline.toString() + System.lineSeparator());
-
+            out.write(sasObjectString + System.lineSeparator());   // line 0
+            out.write("# REMARK" + System.lineSeparator());        // line 1
+            out.write("# REMARK" + System.lineSeparator());        // line 2
+            out.write("# REMARK" + System.lineSeparator());        // line 3
+            out.write(fLineMD5HEX + " " + fLine.toString() + System.lineSeparator());                  // line 4
+            out.write(signaLineMD5HEX + " " + signalLine.toString() + System.lineSeparator());         // line 5
+            out.write(total_qIqLineMD5HEX + " " + total_qIqLine.toString() + System.lineSeparator());  // line 6
+            out.write(rgLineMD5HEX + " " + rgLine.toString() + System.lineSeparator());                // line 7
+            out.write(izeroLineMD5HEX + " " + izeroLine.toString() + System.lineSeparator());          // line 8
+            out.write(bufferLineMD5HEX + " " + bufferLine.toString() + System.lineSeparator());        // line 9
+            out.write(qlineMD5HEX + " " + qline.toString() + System.lineSeparator());                  // line 10
+            out.write(rgLineErrorMD5HEX + " " + rgErrorLine.toString() + System.lineSeparator());      // line 11
+            out.write(izeroErrorLineMD5HEX + " " + izeroErrorLine.toString() + System.lineSeparator());// line 12
 
             for(String line : unsubtractedOutput){
                 out.write(line + System.lineSeparator());
@@ -545,7 +673,74 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
 
+
+    private void updateRgIzero(){ // only calculate Rg/Izero for frames above threshold
+        int totalFrames = sasObject.getSecFormat().getTotal_frames();
+        for(int i=0; i<totalFrames; i++){
+            signals.add(new Signals(i, 0, 0,0,0,0));
+        }
+
+        for(int i=0; i<collection.getTotalDatasets(); i++){
+            Dataset tempData = collection.getDataset(i);
+            AutoRg temp = new AutoRg(tempData.getAllData(), excludePoints);
+            signals.set(tempData.getId(), new Signals(tempData.getId(), 0, temp.getI_zero(), temp.getRg(), temp.getI_zero_error(), temp.getRg_error()));
+        }
+
+        // prepare lines to write to file
+        StringBuilder izeroLine = new StringBuilder(totalFrames*11);
+        StringBuilder rgLine = new StringBuilder(totalFrames*9);
+        StringBuilder rgErrorLine = new StringBuilder(totalFrames*9);
+        StringBuilder izeroErrorLine = new StringBuilder(totalFrames*9);
+
+        for (Signals signal : signals) {
+                izeroLine.append(convertDoubleTo3EString(signal.getIzero()));
+                rgLine.append(convertDoubleTo3EString(signal.getRg()));
+                rgErrorLine.append(convertDoubleTo3EString(signal.getRgError()));
+                izeroErrorLine.append(convertDoubleTo3EString(signal.getIzeroError()));
+        }
+
+        String izeroLineMD5HEX = DigestUtils.md5Hex(izeroLine.toString()).toUpperCase();
+        String rgLineMD5HEX = DigestUtils.md5Hex(rgLine.toString()).toUpperCase();
+        String izeroErrorLineMD5HEX = DigestUtils.md5Hex(izeroErrorLine.toString()).toUpperCase();
+        String rgLineErrorMD5HEX = DigestUtils.md5Hex(rgErrorLine.toString()).toUpperCase();
+
+        /*
+         * assemble the JSON string
+         */
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
+        mapper.registerModule(new SimpleModule() {
+            @Override
+            public void setupModule(SetupContext context) {
+                super.setupModule(context);
+                context.addBeanSerializerModifier(new BeanSerializerModifier() {
+                    @Override
+                    public JsonSerializer<?> modifySerializer(
+                            SerializationConfig config, BeanDescription desc, JsonSerializer<?> serializer) {
+                        if (Hidable.class.isAssignableFrom(desc.getBeanClass())) {
+                            return new HidableSerializer((JsonSerializer<Object>) serializer);
+                        }
+                        return serializer;
+                    }
+                });
+            }
+        });
+
+        secFormat = sasObject.getSecFormat();
+
+        try {
+            String sasObjectString = mapper.writeValueAsString(sasObject);
+            updateLineInSECFile(0, sasObjectString + System.lineSeparator());
+            updateLineInSECFile(secFormat.getRg_index(), rgLineMD5HEX + " " + rgLine.toString() + System.lineSeparator());                // line 7
+            updateLineInSECFile(secFormat.getIzero_index(), izeroLineMD5HEX + " " + izeroLine.toString() + System.lineSeparator());          // line 8
+            updateLineInSECFile(secFormat.getRg_error_index(), rgLineErrorMD5HEX + " " + rgErrorLine.toString() + System.lineSeparator());      // line 11
+            updateLineInSECFile(secFormat.getIzero_error_index(), izeroErrorLineMD5HEX + " " + izeroErrorLine.toString() + System.lineSeparator());// line 12
+
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
     }
 
     /**
@@ -611,10 +806,10 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                         ArrayList<XYSeries> subtraction = subtract(tempDataset.getAllData(), tempDataset.getAllDataError(), buffer, bufferError);
                         XYSeries subtracted = subtraction.get(0);
                         if (isSignal && area/noSignal > threshold){
-                            AutoRg temp = new AutoRg(subtracted, 13);
-                            signals.add(new Signals(row, area/noSignal, temp.getI_zero(), temp.getRg()));
+                            AutoRg temp = new AutoRg(subtracted, excludePoints);
+                            signals.add(new Signals(row, area/noSignal, temp.getI_zero(), temp.getRg(), temp.getI_zero_error(), temp.getRg_error()));
                         } else {
-                            signals.add(new Signals(row, area/noSignal, 0, 0));
+                            signals.add(new Signals(row, area/noSignal, 0, 0, 0, 0));
                         }
                         signalsCount++;
 
@@ -1042,51 +1237,58 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         return returnMe;
     }
 
-    public class Signals{
-        private final int id;
-        private final double signal;
-        private final double izero;
-        private final double rg;
-        private double total_qIq;
-        private int isBuffer=1;
-
-        public Signals(int id, double signal, double izero, double rg){
-            this.id = id;
-            this.signal = signal;
-            this.izero = izero;
-            this.rg = rg;
-            if (Double.isNaN(rg)){
-                System.out.println(id + " NAN " + rg + " " + izero + " " + signal);
-            }
-        }
-        public void setTotal_qIq(double qid){ this.total_qIq = qid;}
-
-        public int getId() {
-            return id;
-        }
-
-        public double getSignal() {
-            return signal;
-        }
-
-        public double getIzero() {
-            return izero;
-        }
-
-        public double getRg() {
-            return rg;
-        }
-
-        public double getTotal_qIq() {
-            return total_qIq;
-        }
-
-        public void setIsBuffer(boolean value){ isBuffer = value ? 1 : 0; }
-
-        public int getIsBuffer() {
-            return isBuffer;
-        }
-    }
+//    public class Signals{
+//        private final int id;
+//        private final double signal;
+//        private final double izero;
+//        private final double rg;
+//        private final double rgError;
+//        private final double izeroError;
+//        private double total_qIq;
+//        private int isBuffer=1;
+//
+//        public Signals(int id, double signal, double izero, double rg, double izeroerror, double rgerror){
+//            this.id = id;
+//            this.signal = signal;
+//            this.izero = izero;
+//            this.rg = rg;
+//            if (Double.isNaN(rg)){
+//                System.out.println(id + " NAN " + rg + " " + izero + " " + signal);
+//            }
+//            this.izeroError = izeroerror;
+//            this.rgError = rgerror;
+//        }
+//        public void setTotal_qIq(double qid){ this.total_qIq = qid;}
+//
+//        public int getId() {
+//            return id;
+//        }
+//
+//        public double getSignal() {
+//            return signal;
+//        }
+//
+//        public double getIzero() {
+//            return izero;
+//        }
+//        public double getIzeroError(){ return izeroError;}
+//        public double getRg() {
+//            return rg;
+//        }
+//        public double getRgError() {
+//            return rgError;
+//        }
+//
+//        public double getTotal_qIq() {
+//            return total_qIq;
+//        }
+//
+//        public void setIsBuffer(boolean value){ isBuffer = value ? 1 : 0; }
+//
+//        public int getIsBuffer() {
+//            return isBuffer;
+//        }
+//    }
 
     public int getTotalQValues(){return qvalues.size();}
 
@@ -1197,6 +1399,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         return outputname;
     }
 
+    public void setExcludePoints(int value){ this.excludePoints = value; }
     /**
      *
      * @param value
@@ -1230,5 +1433,41 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
     public static String convertIntensityToString(double value){
         return String.format(Locale.US, "%.4E ", value);
+    }
+
+
+    private void updateLineInSECFile(int lineToUpdate, String stringToWrite){
+        try {
+            int size = 8192 * 16;
+            // only replacing first line (sasObjectString)
+            BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(secfilename)), size);
+            BufferedWriter bw = new BufferedWriter(new FileWriter(parentPath+"/temp.sec"));
+
+            int is;
+            for(int i=0; i<lineToUpdate; i++){ // readline() removes the terminator
+                    bw.write(br.readLine() + System.lineSeparator());
+            }
+            bw.write(stringToWrite);
+            br.readLine(); // read past the old line
+
+            do {
+                is = br.read();
+                if (is != -1) {
+                    bw.write((char) is);
+                }
+            } while (is != -1);
+
+            bw.close();
+            br.close();
+            // overwrite original file
+            File f1 = new File(parentPath+"/temp.sec");
+            File f2 = new File(secfilename);
+            f1.renameTo(f2);
+
+        } catch (FileNotFoundException ex) {
+            ex.printStackTrace();
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
     }
 }

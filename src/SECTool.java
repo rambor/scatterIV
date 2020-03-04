@@ -20,6 +20,7 @@ import org.jfree.data.xy.XYSeriesCollection;
 import org.jfree.ui.*;
 import version4.Collection;
 import version4.Constants;
+import version4.ReportPDF.SECReport;
 import version4.SEC.SECBuilder;
 import version4.SEC.SECFile;
 import version4.SEC.SECRebuilder;
@@ -68,8 +69,8 @@ public class SECTool extends JDialog {
     private JPanel parametersPanel;
     private JPanel subGraphsPanel;
     private JCheckBox convertNm1ToCheckBox;
-    private JTextField qminSECField;
-    private JTextField qmaxSECField;
+    private JTextField qminSECField; // for calculating similarity plot only
+    private JTextField qmaxSECField; // for calculating similarity plot only
     private JCheckBox averageCheckBox;
     private JComboBox comboBoxSubtractBins;
     private JTextField thresholdField;
@@ -373,8 +374,8 @@ public class SECTool extends JDialog {
                     return;
                 }
 
+                if (collection.getTotalDatasets() > 2 && !(secFile instanceof SECFile)){ // make new SEC FILE
 
-                if (collection.getTotalDatasets() > 2 && !(secFile instanceof SECFile)){
                     new Thread() {
                         public void run() {
 
@@ -396,6 +397,7 @@ public class SECTool extends JDialog {
                                 }
 
                                 SECBuilder secBuilder = new SECBuilder(collection, status, progressBar, saveAsTextField.getText(),  Scatter.WORKING_DIRECTORY.getWorkingDirectory(), Double.parseDouble(thresholdField.getText()));
+                                secBuilder.setExcludePoints(Integer.parseInt(excludeComboBox.getSelectedItem().toString()));
 
                                 secBuilder.run();
                                 secBuilder.get();
@@ -435,7 +437,7 @@ public class SECTool extends JDialog {
                         }
                     }.start();
 
-                } else if (setBuffer){
+                } else if (setBuffer){ // if new buffer is region is set
 
                     if (selectedBuffers.size() > 1){
 
@@ -447,6 +449,8 @@ public class SECTool extends JDialog {
                             public void run() {
                                 try {
                                     SECBuilder secBuilder = new SECBuilder(secFile, selectedBuffers, status, progressBar, Scatter.WORKING_DIRECTORY.getWorkingDirectory(), Double.parseDouble(thresholdField.getText()));
+                                    secBuilder.setExcludePoints(Integer.parseInt(excludeComboBox.getSelectedItem().toString()));
+
                                     secFile.closeFile();
                                     secBuilder.run();
                                     secBuilder.get();
@@ -482,73 +486,107 @@ public class SECTool extends JDialog {
                                 progressBar.setValue(0);
                             }
                         }.start();
-
-                    } else { // not most efficient approach, has many reads and writes
-                        /*
-                         * using newly selected buffers, recalculate
-                         *  average buffer
-                         *  re-subtract background
-                         *  re-calculate signal plot
-                         *  re-do Rg/IZero
-                         */
-                        if (selectedBuffers.size() > 1){
-                            SECRebuilder rebuilt = new SECRebuilder(secFile, selectedBuffers, Double.parseDouble(thresholdField.getText()), Integer.parseInt(excludeComboBox.getSelectedItem().toString()), progressBar, status);
-                            TRACEButton.setEnabled(false);
-                            SetBufferButton.setEnabled(false);
-                            new Thread() {
-                                public void run() {
-                                    rebuilt.run();
-                                    updateSignalPlot();
-                                    selectedBufferIndicesLabel.setText("Total Buffers :: " + secFile.getBufferCount());
-                                    selectedBuffers.clear();
-                                    TRACEButton.setEnabled(true);
-                                    SetBufferButton.setEnabled(true);
-                                }
-                            }.start();
-                        }
                     }
+
                 } else {
                     // just update details
                     if (secFile instanceof SECFile){
+                        // if threhold value change, recalculate Rg and Izero
                         String secfilename = secFile.getAbsolutePath();
-                        String sasObjectString = secFile.getSasObjectJSON() + System.lineSeparator();
-                        String parentPath = secFile.getParentPath();
-                        secFile.closeFile();
+                        double tval = Double.parseDouble(thresholdField.getText());
+                        if (Math.abs(tval - secFile.getThreshold()) > 0.001){
 
-                        try {
+                            TRACEButton.setEnabled(false);
+                            SetBufferButton.setEnabled(false);
 
-                            int size = 8192 * 16;
+                            SECBuilder secBuilder = null;
+                            try {// SECFile oldsecfile, JLabel status, JProgressBar bar, String workingDirectoryName, double threshold, int excludePoints
+                                secBuilder = new SECBuilder(
+                                        secFile,
+                                        status,
+                                        progressBar,
+                                        Scatter.WORKING_DIRECTORY.getWorkingDirectory(),
+                                        Double.parseDouble(thresholdField.getText()),
+                                        Integer.parseInt(excludeComboBox.getSelectedItem().toString()));
+                                secFile.closeFile();
+                                secBuilder.run();
+                                secBuilder.get();
 
-                            System.out.println( System.getProperty("user.dir"));
-                            BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(secfilename)), size);
-                            br.readLine();
-                            BufferedWriter bw = new BufferedWriter(new FileWriter(parentPath+"/temp.sec"));
-                            bw.write(sasObjectString);
-
-                            int is;
-                            do {
-                                is = br.read();
-                                if (is != -1) {
-                                        bw.write((char) is);
+                                // reset secFile
+                                status.setText("Loading updated SEC file");
+//                                secFile = new SECFile(new File(secBuilder.getOutputname()));
+//                                updateSignalPlot();
+//                                selectedIndices.clear();
+//
+//                                for(int i=0;i<secFile.getTotalFrames(); i++){
+//                                    selectedIndices.add(false);
+//                                }
+                                try {
+                                    secFile = new SECFile(new File(secfilename));
+                                } catch (IOException ex) {
+                                    ex.printStackTrace();
                                 }
-                            } while (is != -1);
-                            bw.close();
-                            br.close();
 
-                            File f1 = new File(parentPath+"/temp.sec");
-                            File f2 = new File(secfilename);
-                            f1.renameTo(f2);
+                                framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
+                                selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
+                                status.setText("Finished loading SEC file");
 
-                        } catch (FileNotFoundException ex) {
-                            ex.printStackTrace();
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
-                        }
+                            } catch (IOException ex) {
+                                ex.printStackTrace();
+                            } catch (InterruptedException ex) {
+                                ex.printStackTrace();
+                            } catch (ExecutionException ex) {
+                                ex.printStackTrace();
+                            }
+                            TRACEButton.setEnabled(true);
+                            SetBufferButton.setEnabled(true);
+                            // reopen file and set reference
+//                            try {
+//                                secFile = new SECFile(new File(secfilename));
+//                            } catch (IOException ex) {
+//                                ex.printStackTrace();
+//                            }
 
-                        try {
-                            secFile = new SECFile(new File(secfilename));
-                        } catch (IOException ex) {
-                            ex.printStackTrace();
+                        } else {
+
+                            String sasObjectString = secFile.getSasObjectJSON() + System.lineSeparator();
+                            String parentPath = secFile.getParentPath();
+                            secFile.closeFile();
+
+                            try {
+                                int size = 8192 * 16;
+                                // only replacing first line (sasObjectString)
+                                System.out.println( System.getProperty("user.dir"));
+                                BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(secfilename)), size);
+                                br.readLine();
+                                BufferedWriter bw = new BufferedWriter(new FileWriter(parentPath+"/temp.sec"));
+                                bw.write(sasObjectString);
+
+                                int is;
+                                do {
+                                    is = br.read();
+                                    if (is != -1) {
+                                        bw.write((char) is);
+                                    }
+                                } while (is != -1);
+                                bw.close();
+                                br.close();
+                                // overwrite original file
+                                File f1 = new File(parentPath+"/temp.sec");
+                                File f2 = new File(secfilename);
+                                f1.renameTo(f2);
+
+                            } catch (FileNotFoundException ex) {
+                                ex.printStackTrace();
+                            } catch (IOException ex) {
+                                ex.printStackTrace();
+                            }
+
+                            try {
+                                secFile = new SECFile(new File(secfilename));
+                            } catch (IOException ex) {
+                                ex.printStackTrace();
+                            }
                         }
                     }
 
@@ -557,9 +595,6 @@ public class SECTool extends JDialog {
                 setBuffer = false;
             }
         });
-
-
-
 
 
         SetBufferButton.addActionListener(new ActionListener() {
@@ -579,6 +614,7 @@ public class SECTool extends JDialog {
                             break;
                         }
                     }
+
                     //update buffers plot
                     XYSeries buff = signalPlot.getSeries(0);
                     buff.clear();
@@ -608,11 +644,14 @@ public class SECTool extends JDialog {
             @Override
             public void actionPerformed(ActionEvent e) {
 
+                // create report using SEC File
+                SECReport report = new SECReport(frameToMergeStart, frameToMergeEnd, secFile, Scatter.WORKING_DIRECTORY.getWorkingDirectory(), averageCheckBox.isSelected());
+
                 if (averageCheckBox.isSelected() && (frameToMergeEnd- frameToMergeStart) > 2){
 
                     ScaleManagerSAS peakToMerge = new ScaleManagerSAS(frameToMergeStart, frameToMergeEnd, secFile, progressBar, status, true);
 
-                    new Thread() {
+                    Thread mergeIt = new Thread() {
                         public void run() {
                             MERGEButton.setEnabled(false);
                             peakToMerge.run();
@@ -638,7 +677,15 @@ public class SECTool extends JDialog {
                             progressBar.setStringPainted(false);
                             progressBar.setValue(0);
                         }
-                    }.start();
+                    };
+                    mergeIt.start();
+                    try {
+                        mergeIt.join();
+                    } catch (Exception ex) {
+                        System.out.println(ex);
+                    }
+                    // wait here to finish
+                    //report.setScaleFactors(peakToMerge.getScaleFactors());
 
                 } else if (frameToMergeEnd > frameToMergeStart) { // write out selected frames
 
@@ -667,10 +714,9 @@ public class SECTool extends JDialog {
 
                         dataToWrite.writeSAXSFile(nameofnew, Scatter.collectionSelected.getLast());
                     }
-
-
-
                 }
+
+
 
             }
         });
@@ -926,7 +972,7 @@ public class SECTool extends JDialog {
 //
 //        Color fillColor = new Color(255, 140, 0, 70);
 //        Color outlineColor = new Color(255, 127, 80, 100);
-        Color fillColor = new Color(0, 170, 255, 70);
+        Color fillColor = new Color(0, 170, 255, 70); //cyan
 
         signalRenderer = (XYLineAndShapeRenderer)plot.getRenderer();
         signalRenderer.setBaseShapesVisible(true);
@@ -968,7 +1014,6 @@ public class SECTool extends JDialog {
         signalRenderer.setSeriesOutlineStroke(0, new BasicStroke(1.0f));
 
         //plot.mapDatasetToRangeAxis(0, 0);//1st dataset to 1st y-axis
-
         chart.setNotify(true);
     }
 
@@ -1558,6 +1603,4 @@ plot.setRangeGridlinesVisible(false);
             outputDirLabel.setText(text);
         }
     }
-
-
 }

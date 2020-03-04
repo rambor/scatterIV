@@ -22,10 +22,10 @@ public class SecFormat {
     private int rg_index;
     private int izero_index;
     private int integrated_qIq_index;
+    private int rg_error_index;
+    private int izero_error_index;
 
     private int background_index;
-
-
     private int momentum_transfer_vector_index;
     private Integer momentum_transfer_vector_error_index;
     private int unsubtracted_intensities_index;
@@ -42,6 +42,28 @@ public class SecFormat {
 
     public SecFormat(int frames){
         this.total_frames = frames;
+    }
+
+    public SecFormat(SecFormat old){
+        this.total_momentum_transfer_vectors = old.total_momentum_transfer_vectors;
+        this.total_frames = old.total_frames;
+        this.frame_index = old.frame_index;
+        this.signal_index = old.signal_index;
+        this.rg_index = old.rg_index;
+        this.izero_index = old.izero_index;
+        this.integrated_qIq_index = old.integrated_qIq_index;
+        this.rg_error_index = old.rg_error_index;
+        this.izero_error_index = old.izero_error_index;
+        this.background_index = old.background_index;
+        this.momentum_transfer_vector_index = old.momentum_transfer_vector_index;
+        this.momentum_transfer_vector_error_index = old.momentum_transfer_vector_error_index;
+        this.unsubtracted_intensities_index = old.unsubtracted_intensities_index;
+        this.unsubtracted_intensities_error_index = old.unsubtracted_intensities_error_index;
+        this.subtracted_intensities_index = old.subtracted_intensities_index;
+        this.subtracted_intensities_error_index = old.subtracted_intensities_error_index;
+        this.averaged_buffer_index = old.averaged_buffer_index;
+        this.averaged_buffer_error_index = old.averaged_buffer_error_index;
+        this.threshold = old.threshold;
     }
 
     public int getTotal_momentum_transfer_vectors() {
@@ -138,6 +160,12 @@ public class SecFormat {
         this.rg_index = rg_index;
     }
 
+    public int getRg_error_index(){ return rg_error_index;}
+
+    public void setRg_error_index(int index) {
+        this.rg_error_index = index;
+    }
+
     public int getIzero_index() {
         return izero_index;
     }
@@ -145,6 +173,13 @@ public class SecFormat {
     public void setIzero_index(int izero_index) {
         this.izero_index = izero_index;
     }
+
+    public int getIzero_error_index(){ return izero_error_index;}
+
+    public void setIzero_error_index(int index) {
+        this.izero_error_index = index;
+    }
+
 
     public int getIntegrated_qIq_index() {
         return integrated_qIq_index;
@@ -187,6 +222,9 @@ public class SecFormat {
     }
 
 
+    /*
+     * convert null or 0 values to "." for writing to file
+     */
     public static class CustomIntegerSerializer extends StdSerializer<Integer> {
 
         public CustomIntegerSerializer() {

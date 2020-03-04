@@ -41,30 +41,35 @@ public class SECFile {
 
     SecFormat secFormat;
     private ArrayList<Double> rgvalues;
+    private ArrayList<Double> iZerovalues;
     private ArrayList<Integer> frame_indices;
 
     private SasObject sasObject;
 
     private XYSeries selectedBuffers;
     private XYSeriesCollection signalCollection;
-    private XYSeries signalSeries;
+    private XYSeries signalSeries; // calculated signal (integrated ratio of curve to background - total is number of frames
     private XYSeries frame;
 
     private int start_index_intensity;
 
     private final int totalFrames;
 
+    /*
+     * what if SECFile contains only q-values and unsubtracted intensities?
+     */
     public SECFile(File file) throws IOException {
         this.filename = file.getName();
         this.absolutePath = file.getAbsolutePath();
         this.parentPath = (file.getParent() == null) ? " " : file.getParent();
 
-        String[] fileElements = file.getName().split("\\.(?=[^\\.]+$)");
-        filebase = fileElements[0];
+//        String[] fileElements = file.getName().split("\\.(?=[^\\.]+$)")[0];
+        filebase = file.getName().split("\\.(?=[^\\.]+$)")[0];
 
         this.lineNumbers = new ArrayList<>();
         this.streamWithLargeBuffer(file);
 
+        // get first element of the file, should be JSON string
         try {
             this.file = new RandomAccessFile(file, "rw");
             fileChannel = this.file.getChannel();
@@ -109,7 +114,7 @@ public class SECFile {
             long startTime = System.currentTimeMillis();
             fileChannel = this.file.getChannel();
             System.out.println("FileChannel size " + fileChannel.size());
-            CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
+            //CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
             //Get direct byte buffer access using channel.map() operation
             //buffer.position(lineNumbers.get(4));
             MappedByteBuffer buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(9), linesAndLength.get(9));
@@ -268,6 +273,7 @@ public class SECFile {
         }
     }
 
+
     public ArrayList<Double> getUnSubtractedErrorFrameAt(int index){
         int lookAt = secFormat.getUnsubtracted_intensities_error_index() + index;
 
@@ -296,6 +302,7 @@ public class SECFile {
         return (intensities);
     }
 
+
     private void extractRgValues(){
         int rgAt = secFormat.getRg_index();
         MappedByteBuffer buffer = null;
@@ -314,6 +321,28 @@ public class SECFile {
                 rgvalues.add(value);
             } catch (NumberFormatException ee) {
                 rgvalues.add(0.0);
+            }
+        }
+    }
+
+    private void extractIzeroValues(){
+        int izeroAt = secFormat.getIzero_index();
+        MappedByteBuffer buffer = null;
+        try {
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(izeroAt), linesAndLength.get(izeroAt));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
+        iZerovalues = new ArrayList<>();
+        for(int i=1; i<values.length; i++){
+            try{
+                double value = Double.valueOf(values[i]);
+                iZerovalues.add(value);
+            } catch (NumberFormatException ee) {
+                iZerovalues.add(0.0);
             }
         }
     }
@@ -338,7 +367,6 @@ public class SECFile {
             throw new IllegalArgumentException(message);
         }
 
-
         ArrayList<Double> intensities = new ArrayList<>();
         for(int i=2; i<values.length; i++){
             intensities.add(Double.valueOf(values[i]));
@@ -347,6 +375,11 @@ public class SECFile {
         return (intensities);
     }
 
+    /**
+     *
+     * @param index
+     * @return
+     */
     public ArrayList<Double> getSubtractedErrorAtFrame(int index){
         int lookAt = secFormat.getSubtracted_intensities_error_index() + index;
 
@@ -365,7 +398,6 @@ public class SECFile {
             String message = "Indices do not match - file corruption do checksum validation ";
             throw new IllegalArgumentException(message);
         }
-
 
         ArrayList<Double> errors = new ArrayList<>();
         for(int i=2; i<values.length; i++){
@@ -395,7 +427,6 @@ public class SECFile {
             throw new IllegalArgumentException(message);
         }
 
-
         ArrayList<Double> intensities = new ArrayList<>();
         for(int i=2; i<values.length; i++){
             intensities.add(Double.parseDouble(values[i]));
@@ -409,6 +440,8 @@ public class SECFile {
     }
 
     public int getTotalFrames(){ return secFormat.getTotal_frames();}
+
+    public double getThreshold(){ return secFormat.getThreshold();}
 
     public int getClosestIndex(double qvalue){
 
