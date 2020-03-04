@@ -120,6 +120,34 @@ public class Collection {
         this.notifyDataSetsChange();
     }
 
+    public void createDataset(XYSeries intensities, XYSeries errors, int id){
+
+        datasets.add(new Dataset(
+                intensities,       //data
+                errors,  //original
+                id));
+
+        totalDatasets = datasets.size();
+
+        Dataset dat = datasets.get(totalDatasets-1);
+        // reset max and min values for collection
+
+        if (dat.getMaxI() > this.maxI ) {
+            this.maxI = dat.getMaxI();
+        }
+
+        if (dat.getMinI() < this.minI ) {
+            this.minI = dat.getMinI();
+        }
+        if (dat.getMaxq() > this.maxq ) {
+            this.maxq = dat.getMaxq();
+        }
+        if (dat.getMinq() < this.minq ) {
+            this.minq = dat.getMinq();
+        }
+
+        this.notifyDataSetsChange();
+    }
 
     public void createDataset(XYSeries intensities, XYSeries errors, String filename, boolean guinier){
         int newIndex = datasets.size();
