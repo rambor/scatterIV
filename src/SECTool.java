@@ -23,7 +23,6 @@ import version4.Constants;
 import version4.ReportPDF.SECReport;
 import version4.SEC.SECBuilder;
 import version4.SEC.SECFile;
-import version4.SEC.SECRebuilder;
 import version4.Scaler.ScaleManagerSAS;
 import version4.plots.DWSimilarityPlot;
 import version4.sasCIF.SasObjectForm;
