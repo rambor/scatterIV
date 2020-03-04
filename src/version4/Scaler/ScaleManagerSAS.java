@@ -64,7 +64,6 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
         progressBar.setValue(0);
         progressBar.setMaximum(endIndex - startIndex + 1);
 
-
         refIndex = startIndex;
         double maxIt=0;
         /*
@@ -143,8 +142,8 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
         return null;
     }
 
-    private void merge(){
 
+    private void merge(){
         merged = new XYSeries("merged");
         mergedErrors = new XYSeries("errors");
         ArrayList<Double> qvalues = secFile.getQvalues();
@@ -217,16 +216,11 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
 
 
     private double scaleToRef(int totalQ, ArrayList<Double> ref, ArrayList<Double> target){
-        int samplingLimit, minToUse = (int)Math.round(totalQ*0.045);   //minimum points 6.5% of total
-        int[] randomNumbers;
-
+        int samplingLimit, getIndex;   //minimum points 6.5% of total
         // scale to peak
-        int getIndex;
-
         SimpleMatrix tempRef = new SimpleMatrix(totalQ,1);
         SimpleMatrix tempTarget =new SimpleMatrix(totalQ,1);
-//        SimpleMatrix calcRef = new SimpleMatrix(totalQ,1);
-//        SimpleMatrix calcTarget =new SimpleMatrix(totalQ,1);
+
         SimpleMatrix residualsVector;
         ArrayList<Double> residualsFromVector = new ArrayList<Double>();
 
@@ -240,38 +234,23 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
             indices.add(getIndex);
         }
 
-
         double tempScale, medianValue=0, scaleFactor = 1.0;
 
         for (int round = 0; round < samplingRounds; round++) {
             samplingLimit = 7;//minToUse + (int)(Math.random()*((totalQ*0.5 - minToUse) + 1));
             Collections.shuffle(indices);
 
-//            calcRef.reshape(samplingLimit, 1);
-//            calcTarget.reshape(samplingLimit, 1);
-
             double scaleSum = 0.0;
             for (int j = 0; j < samplingLimit; j++) {
                 // make sure selected Index is not the first 3 or last 3 in ref
-//                getIndex = qLowIndex + randomNumbers[j];
                 getIndex = indices.get(j);
-//                calcRef.set(j, 0, ref.get(getIndex));
-//                calcTarget.set(j, 0, target.get(getIndex));
-
                 scaleSum += target.get(getIndex)/ref.get(getIndex); // could be weighted average
             }
 
-//            try {
-//                tempScale = (float) calcRef.solve(calcTarget).get(0,0);
-//            } catch ( SingularMatrixException e ) {
-//                tempScale = 1.0;
-//            }
             tempScale = scaleSum/(double)samplingLimit;
 
             //calculate residuals over input range
-//            residualsVector = tempTarget.scale(tempScale).minus(tempRef);
             residualsVector = tempRef.scale(tempScale).minus(tempTarget);
-
             residualsFromVector.clear();
 
             //Squared residual
