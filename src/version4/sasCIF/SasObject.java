@@ -28,6 +28,16 @@ public class SasObject implements Hidable {
         sasScan = new SasScan();
         sasDetc = new SasDetc();
         sasSample = new SasSample();
+        secFormat = new SecFormat();
+    }
+
+    public SasObject(SasObject oldObject){
+        this.sasBeam = new SasBeam(oldObject.getSasBeam());
+        this.sasBuffer = new SasBuffer(oldObject.getSasBuffer());
+        this.sasScan = new SasScan(oldObject.getSasScan());
+        this.sasDetc = new SasDetc(oldObject.getSasDetc());
+        this.sasSample = new SasSample(oldObject.getSasSample());
+        this.secFormat = new SecFormat(oldObject.getSecFormat());
     }
 
     public SasObject(String jsonString){

@@ -8,7 +8,7 @@ import java.util.Date;
 public class SasScan {
 
     public Object set;
-    private Dataset dataset;
+    private Dataset dataset; // reference to active dataset
     private String tempHeader;
     private float exposure_time;
     private float dead_time;
@@ -32,6 +32,17 @@ public class SasScan {
     public SasScan(Dataset dataset, int id){
         this.dataset = dataset;
         //this.setHeader( );
+    }
+
+    public SasScan(SasScan scan){
+        this.tempHeader = scan.tempHeader;
+        this.exposure_time = scan.exposure_time;
+        this.dead_time = scan.dead_time;
+        this.scan_name = scan.scan_name;
+        this.intensity_units = scan.intensity_units;
+        this.momentum_transfer_units = scan.momentum_transfer_units;
+        this.measurement_date = scan.measurement_date;
+        this.type = scan.type;
     }
 
 

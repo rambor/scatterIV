@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 
 import java.io.IOException;
+import java.util.HashMap;
 
 public class SasBeam extends SasBase {
 
@@ -30,6 +31,20 @@ public class SasBeam extends SasBase {
 
     public SasBeam(){
         super("sasbeam");
+    }
+
+    public SasBeam(SasBeam oldbeam){
+        super("sasbeam");
+        this.instrument_name = oldbeam.instrument_name;
+        this.type_of_source = oldbeam.type_of_source;
+        this.radiation_type = oldbeam.radiation_type;
+        this.radiation_wavelength = oldbeam.radiation_wavelength;
+        this.flux = oldbeam.flux;
+        this.units = oldbeam.units;
+        this.sample_to_detector_distance = oldbeam.sample_to_detector_distance;
+        for (HashMap.Entry<String, String> entry : oldbeam.attributes.entrySet()) {
+            this.attributes.put(entry.getKey(), entry.getValue());
+        }
     }
 
     public String getInstrument_name() {

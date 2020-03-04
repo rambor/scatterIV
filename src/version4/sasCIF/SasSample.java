@@ -18,6 +18,16 @@ public class SasSample implements Hidable{
         calibration_details = "water";
     }
 
+    public SasSample(SasSample sample){
+        this.details = sample.details;
+        this.cell_temperature = sample.cell_temperature;
+        this.calibration_details = sample.calibration_details;
+        this.thickness = sample.thickness;
+        this.sec_column = sample.sec_column;
+        this.sec_flow_rate = sample.sec_flow_rate;
+        this.sec_flow_rate_units = sample.sec_flow_rate_units;
+    }
+
 
     public String getDetails() {
         return details;

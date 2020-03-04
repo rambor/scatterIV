@@ -11,6 +11,13 @@ public class SasDetc {
         detector_read_out_dead_time = 0.1f;
     }
 
+    public SasDetc(SasDetc detc){
+        this.name = detc.name;
+        this.detector_read_out_dead_time = detc.detector_read_out_dead_time;
+        this.dist_spec_to_detc = detc.dist_spec_to_detc;
+        this.dead_time_units = detc.dead_time_units;
+    }
+
     public String getName() {
         return name;
     }

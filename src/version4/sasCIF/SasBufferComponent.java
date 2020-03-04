@@ -5,9 +5,19 @@ package version4.sasCIF;
  */
 public class SasBufferComponent {
 
+    public String unit;
+    public float concentration;
+    public String name;
+    public String chemicalFormula;
 
-    private String unit;
-    private float concentration;
-    private String name;
-    private String chemicalFormula;
+    public SasBufferComponent(){
+
+    }
+
+    public SasBufferComponent(SasBufferComponent comp){
+        this.unit = comp.unit;
+        this.concentration = comp.concentration;
+        this.name = comp.name;
+        this.chemicalFormula = comp.chemicalFormula;
+    }
 }

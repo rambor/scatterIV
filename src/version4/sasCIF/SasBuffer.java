@@ -15,6 +15,20 @@ public class SasBuffer {
     public SasBuffer(){
         comment = "no details specified";
         name = "water";
+        components = new ArrayList<>();
+    }
+
+    public SasBuffer(SasBuffer oldBuffer){
+        this.comment = oldBuffer.getComment();
+        this.name = oldBuffer.name;
+        this.salt = oldBuffer.salt;
+        this.other = oldBuffer.other;
+        this.pH = oldBuffer.pH;
+        components = new ArrayList<>();
+
+        for (SasBufferComponent entry : oldBuffer.components) {
+            this.components.add(entry);
+        }
     }
 
     public ArrayList<SasBufferComponent> getComponents() {
