@@ -41,7 +41,10 @@ public class SECFile {
 
     SecFormat secFormat;
     private ArrayList<Double> rgvalues;
+    private ArrayList<Double> rgErrorValues;
     private ArrayList<Double> iZerovalues;
+    private ArrayList<Double> iZeroErrorValues;
+
     private ArrayList<Integer> frame_indices;
 
     private SasObject sasObject;
@@ -125,7 +128,21 @@ public class SECFile {
             System.out.println("mapped access " + (endTime - startTime) + " milliseocnds");
             this.parseJSONHeader();
             this.loadSignal();
-            this.extractRgValues(); // compulsory
+
+            if (secFormat.getRg_index() > 0){
+                this.extractRgValues();    // compulsory
+                this.extractIzeroValues(); //
+            }
+
+            if(secFormat.getIzero_error_index() > 0){
+                this.extractIzeroErrorValues();
+            }
+
+            if(secFormat.getRg_error_index() > 0){
+                this.extractRgErrorValues();
+            }
+
+
             frame = new XYSeries("frame");
 
         } catch (FileNotFoundException e) {
@@ -177,6 +194,19 @@ public class SECFile {
     public double getRgbyIndex(int index){
         return rgvalues.get(index);
     }
+
+    public double getIzerobyIndex(int index){
+        return iZerovalues.get(index);
+    }
+
+    public double getRgErrorbyIndex(int index){
+        return rgErrorValues.get(index);
+    }
+
+    public double getIzeroErrorbyIndex(int index){
+        return iZeroErrorValues.get(index);
+    }
+
 
 
     public XYSeriesCollection getSignalCollection(){
@@ -303,6 +333,29 @@ public class SECFile {
     }
 
 
+    private void extractRgErrorValues(){
+        int rgAt = secFormat.getRg_error_index();
+        MappedByteBuffer buffer = null;
+        try {
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(rgAt), linesAndLength.get(rgAt));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
+        rgErrorValues = new ArrayList<>();
+        for(int i=1; i<values.length; i++){
+            try{
+                double value = Double.valueOf(values[i]);
+                rgErrorValues.add(value);
+            } catch (NumberFormatException ee) {
+                rgErrorValues.add(0.0);
+            }
+        }
+    }
+
+
     private void extractRgValues(){
         int rgAt = secFormat.getRg_index();
         MappedByteBuffer buffer = null;
@@ -343,6 +396,29 @@ public class SECFile {
                 iZerovalues.add(value);
             } catch (NumberFormatException ee) {
                 iZerovalues.add(0.0);
+            }
+        }
+    }
+
+
+    private void extractIzeroErrorValues(){
+        int izeroAt = secFormat.getIzero_error_index();
+        MappedByteBuffer buffer = null;
+        try {
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(izeroAt), linesAndLength.get(izeroAt));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
+        iZeroErrorValues = new ArrayList<>();
+        for(int i=1; i<values.length; i++){
+            try{
+                double value = Double.valueOf(values[i]);
+                iZeroErrorValues.add(value);
+            } catch (NumberFormatException ee) {
+                iZeroErrorValues.add(0.0);
             }
         }
     }

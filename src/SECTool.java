@@ -242,7 +242,6 @@ public class SECTool extends JDialog {
                                      * load signals and associated graphs
                                      */
                                     try {
-
                                         secFile = new SECFile(files[0]);
                                         status.setText("Please wait... loading " + secFile.getFilename());
                                         secFileLabel.setText("Using SEC FILE :: " + secFile.getFilename());
@@ -304,7 +303,6 @@ public class SECTool extends JDialog {
                             samplesList.updateUI();
                             progressBar.setStringPainted(false);
                             progressBar.setValue(0);
-
                             // convert Collection to a SECFile using SECBuilder
 
                         } catch (InterruptedException e1) {
@@ -649,6 +647,7 @@ public class SECTool extends JDialog {
                 if (averageCheckBox.isSelected() && (frameToMergeEnd- frameToMergeStart) > 2){
 
                     ScaleManagerSAS peakToMerge = new ScaleManagerSAS(frameToMergeStart, frameToMergeEnd, secFile, progressBar, status, true);
+                    String nameofnew = (saveAsTextField.getText().length() < 3) ? (secFile.getFilebase() + "_"+ Scatter.collectionSelected.getTotalDatasets()) : saveAsTextField.getText().replaceAll("\\W","_");
 
                     Thread mergeIt = new Thread() {
                         public void run() {
@@ -659,7 +658,7 @@ public class SECTool extends JDialog {
                                 /*
                                  * create new dataset from averaged and load into Analysis
                                  */
-                                String nameofnew = (saveAsTextField.getText().length() < 3) ? (secFile.getFilebase() + "_"+ Scatter.collectionSelected.getTotalDatasets()) : saveAsTextField.getText().replaceAll("\\W","_");
+
                                 Scatter.collectionSelected.createDataset(peakToMerge.getMerged(), peakToMerge.getMergedErrors(), nameofnew, true);
                                 // write dataset to file
                                 FileObject dataToWrite = new FileObject(new File(secFile.getParentPath()), Scatter.version);
@@ -684,7 +683,10 @@ public class SECTool extends JDialog {
                         System.out.println(ex);
                     }
                     // wait here to finish
-                    //report.setScaleFactors(peakToMerge.getScaleFactors());
+                    report.setScaleFactors(peakToMerge.getScaleFactors());
+                    report.setMergedAndMedian(peakToMerge.getMerged(), peakToMerge.getMedian());
+
+                    report.writeReport(nameofnew);
 
                 } else if (frameToMergeEnd > frameToMergeStart) { // write out selected frames
 

@@ -8,10 +8,7 @@ import version4.SEC.SECFile;
 
 import javax.swing.*;
 import java.lang.reflect.Array;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
 
@@ -23,7 +20,7 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
     private int samplingRounds=1000;
     private ArrayList<Double> scaleFactors;
     private boolean mergeIt = true;
-    private XYSeries merged, mergedErrors;
+    private XYSeries merged, mergedErrors, median;
     private int qLowIndex, qMaxIndex;
     /**
      * create a scaled set of frames to frame with largest signal
@@ -146,24 +143,32 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
     private void merge(){
         merged = new XYSeries("merged");
         mergedErrors = new XYSeries("errors");
+        median = new XYSeries("median");
+
         ArrayList<Double> qvalues = secFile.getQvalues();
         ArrayList<Double> target = secFile.getSubtractedFrameAt(startIndex);
         ArrayList<Double> tarErrors = secFile.getSubtractedErrorAtFrame(startIndex);
 
         ArrayList<Double> weightedISum = new ArrayList<>(qvalues.size());
         ArrayList<Double> weightedESum = new ArrayList<>(qvalues.size());
+        ArrayList<ArrayList<SigmaWeighted>> forMedianCalc = new ArrayList<>();
 
         double std, var, scale = scaleFactors.get(0);
 
         for(int i=0; i<qvalues.size(); i++){
+            forMedianCalc.add(new ArrayList<SigmaWeighted>());
+
             std = 1.0d/(tarErrors.get(i)*scale);
             var = std*std;
             weightedISum.add((target.get(i)*scale*var));
             weightedESum.add(var);
+
+            forMedianCalc.get(i).add(new SigmaWeighted(weightedISum.get(i), var));
         }
 
         int next = startIndex+1;
         int count = 1;
+        double tarval;
         for(; next < endIndex; next++){
             target = secFile.getSubtractedFrameAt(next);
             tarErrors = secFile.getSubtractedErrorAtFrame(next);
@@ -172,23 +177,55 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
             for(int i=0; i<qvalues.size(); i++){
                 std = 1.0d/(tarErrors.get(i)*scale);
                 var = std*std;
-
-                weightedISum.set(i, weightedISum.get(i) + (target.get(i)*scale*var));
+                tarval = (target.get(i)*scale*var);
+                weightedISum.set(i, weightedISum.get(i) + tarval);
                 weightedESum.set(i, weightedESum.get(i) + var);
+
+                forMedianCalc.get(i).add(new SigmaWeighted(tarval, var));
             }
             count+=1;
         }
 
+        boolean isEven = forMedianCalc.get(0).size() % 2 == 0;
+        int midpoint = (isEven) ? (forMedianCalc.get(0).size()/2 -1) : (forMedianCalc.get(0).size()/2);
         /*
          * scale the weight sum to get the average
          */
         double qval;
-        for(int i=0; i<qvalues.size(); i++){
-            qval = qvalues.get(i);
-            var = weightedESum.get(i);
-            merged.add(qval, weightedISum.get(i)/var);
-            mergedErrors.add(qval, 1.0/Math.sqrt(var));
+        if (isEven){
+            for(int i=0; i<qvalues.size(); i++){
+                qval = qvalues.get(i);
+                var = weightedESum.get(i);
+                merged.add(qval, weightedISum.get(i)/var);
+                mergedErrors.add(qval, 1.0/Math.sqrt(var));
+
+                ArrayList<SigmaWeighted> toSort = forMedianCalc.get(i);
+                Collections.sort(toSort, new Comparator<SigmaWeighted>() {
+                    public int compare(SigmaWeighted s1, SigmaWeighted s2) {
+                        return Double.compare(s1.getIntensity(),s2.getIntensity());
+                    }
+                });
+
+                median.add(qval, (toSort.get(midpoint).getIntensity() + toSort.get(midpoint + 1).getIntensity())/(toSort.get(midpoint).getWeight() + toSort.get(midpoint + 1).getWeight()));
+            }
+        } else {
+
+            for(int i=0; i<qvalues.size(); i++){
+                qval = qvalues.get(i);
+                var = weightedESum.get(i);
+                merged.add(qval, weightedISum.get(i)/var);
+                mergedErrors.add(qval, 1.0/Math.sqrt(var));
+
+                ArrayList<SigmaWeighted> toSort = forMedianCalc.get(i);
+                Collections.sort(toSort, new Comparator<SigmaWeighted>() {
+                    public int compare(SigmaWeighted s1, SigmaWeighted s2) {
+                        return Double.compare(s1.getIntensity(),s2.getIntensity());
+                    }
+                });
+                median.add(qval, toSort.get(midpoint).getIntensity()/toSort.get(midpoint).getWeight());
+            }
         }
+
     }
 
     private int[] randomArray(int limit, int max){
@@ -275,6 +312,10 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
         return merged;
     }
 
+    public XYSeries getMedian(){
+        return median;
+    }
+
     public XYSeries getMergedErrors() {
         return mergedErrors;
     }
@@ -302,6 +343,20 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
     public ArrayList<Double> getScaleFactors(){
         return scaleFactors;
     }
+
+    class SigmaWeighted {
+        public double intensity;
+        public double weight;
+        public SigmaWeighted(double ity, double wt){
+            this.intensity = ity;
+            this.weight = wt;
+        }
+
+        public double getIntensity(){ return intensity;}
+        public double getWeight(){ return weight;}
+    }
 }
+
+
 
 
