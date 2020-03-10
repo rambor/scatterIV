@@ -266,10 +266,10 @@ public class GPAPlot extends PlotManualGuinier {
         transformSeries(0, 0,completeSeries, datasetInUse.getOriginalPositiveOnlyData(), guinierRg, guinierIzero);
 
         if (realSpaceSeries instanceof XYSeries){
-            System.out.println("Instance of XYSeries");
+            //System.out.println("Instance of XYSeries");
             transformSeries(0, 0,realSpaceSeries, datasetInUse.getOriginalPositiveOnlyData(), datasetInUse.getRealRg(), datasetInUse.getRealIzero());
         } else {
-            System.out.println("Not an instance");
+            //System.out.println("Not an instance");
         }
     }
 
