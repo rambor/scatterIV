@@ -678,17 +678,29 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
 
     private void updateRgIzero(){ // only calculate Rg/Izero for frames above threshold
+
+        status.setText("Preparing new file... please wait");
+        progressBar.setStringPainted(false);
+        progressBar.setIndeterminate(true);
+
         int totalFrames = sasObject.getSecFormat().getTotal_frames();
         for(int i=0; i<totalFrames; i++){
             signals.add(new Signals(i, 0, 0,0,0,0));
         }
+        progressBar.setIndeterminate(false);
 
+        progressBar.setMaximum(collection.getTotalDatasets());
+        progressBar.setStringPainted(true);
+        progressBar.setValue(0);
+        status.setText("Estimating signal and performing subtraction... please wait");
         for(int i=0; i<collection.getTotalDatasets(); i++){
             Dataset tempData = collection.getDataset(i);
             AutoRg temp = new AutoRg(tempData.getAllData(), excludePoints);
             signals.set(tempData.getId(), new Signals(tempData.getId(), 0, temp.getI_zero(), temp.getRg(), temp.getI_zero_error(), temp.getRg_error()));
+            publish(i);
         }
-
+        progressBar.setStringPainted(false);
+        progressBar.setValue(0);
         // prepare lines to write to file
         StringBuilder izeroLine = new StringBuilder(totalFrames*11);
         StringBuilder rgLine = new StringBuilder(totalFrames*9);
@@ -730,7 +742,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         });
 
         secFormat = sasObject.getSecFormat();
-
+        status.setText("Updating SEC File... please wait");
+        progressBar.setIndeterminate(true);
         try {
             String sasObjectString = mapper.writeValueAsString(sasObject);
             updateLineInSECFile(0, sasObjectString + System.lineSeparator());
@@ -740,8 +753,10 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             updateLineInSECFile(secFormat.getIzero_error_index(), izeroErrorLineMD5HEX + " " + izeroErrorLine.toString() + System.lineSeparator());// line 12
 
         } catch (JsonProcessingException e) {
+            status.setText("Error updating SEC File... please check");
             e.printStackTrace();
         }
+        progressBar.setIndeterminate(false);
     }
 
     /**
