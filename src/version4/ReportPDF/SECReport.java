@@ -255,7 +255,11 @@ public class SECReport {
         plot.setBackgroundAlpha(0.0f);
         plot.setOutlineVisible(false);
 
-        ValueMarker mark = new ValueMarker(averageIt, Color.GRAY, new BasicStroke(2), Color.GRAY, null, 1);
+        //ValueMarker mark = new ValueMarker(averageIt, Color.GRAY, new BasicStroke(2), Color.GRAY, null, 1);
+        ValueMarker mark = new ValueMarker(averageIt, Color.LIGHT_GRAY, new BasicStroke(
+                2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                1.0f, new float[] {6.0f, 6.0f}, 0.0f
+        ), Color.LIGHT_GRAY, null, 1);
         plot.addRangeMarker(mark);
 
         XYLineAndShapeRenderer renderer1 = (XYLineAndShapeRenderer) plot.getRenderer();
