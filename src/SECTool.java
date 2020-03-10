@@ -656,9 +656,16 @@ public class SECTool extends JDialog {
                     ScaleManagerSAS peakToMerge = new ScaleManagerSAS(frameToMergeStart, frameToMergeEnd, secFile, progressBar, status, true);
                     String nameofnew = (saveAsTextField.getText().length() < 3) ? (secFile.getFilebase() + "_"+ Scatter.collectionSelected.getTotalDatasets()) : saveAsTextField.getText().replaceAll("\\W","_");
 
+                    MERGEButton.setEnabled(false);
+                    editDetailsButton.setEnabled(false);
+                    clearBuffersButton.setEnabled(false);
+                    clearSamplesButton.setEnabled(false);
+                    SetBufferButton.setEnabled(false);
+                    TRACEButton.setEnabled(false);
+                    outputDirButton.setEnabled(false);
+
                     Thread mergeIt = new Thread() {
                         public void run() {
-                            MERGEButton.setEnabled(false);
                             peakToMerge.run();
                             try {
                                 peakToMerge.get();
@@ -672,28 +679,50 @@ public class SECTool extends JDialog {
                                 dataToWrite.writeSAXSFile(nameofnew, Scatter.collectionSelected.getLast());
 
                                 MERGEButton.setEnabled(true);
+                                editDetailsButton.setEnabled(true);
+                                clearBuffersButton.setEnabled(true);
+                                clearSamplesButton.setEnabled(true);
+                                SetBufferButton.setEnabled(true);
+                                TRACEButton.setEnabled(true);
+                                outputDirButton.setEnabled(true);
+
                             } catch (InterruptedException ex) {
                                 MERGEButton.setEnabled(true);
+                                editDetailsButton.setEnabled(true);
+                                clearBuffersButton.setEnabled(true);
+                                clearSamplesButton.setEnabled(true);
+                                SetBufferButton.setEnabled(true);
+                                TRACEButton.setEnabled(true);
+                                outputDirButton.setEnabled(true);
                                 ex.printStackTrace();
                             } catch (ExecutionException ex) {
                                 MERGEButton.setEnabled(true);
+                                editDetailsButton.setEnabled(true);
+                                clearBuffersButton.setEnabled(true);
+                                clearSamplesButton.setEnabled(true);
+                                SetBufferButton.setEnabled(true);
+                                TRACEButton.setEnabled(true);
+                                outputDirButton.setEnabled(true);
                                 ex.printStackTrace();
                             }
-                            progressBar.setStringPainted(false);
+
+                            report.setScaleFactors(peakToMerge.getScaleFactors());
+                            report.setMergedAndMedian(peakToMerge.getMerged(), peakToMerge.getMedian());
+
+                            report.writeReport(nameofnew);
+
                             progressBar.setValue(0);
+                            progressBar.setStringPainted(false);
+
                         }
                     };
                     mergeIt.start();
-                    try {
-                        mergeIt.join();
-                    } catch (Exception ex) {
-                        System.out.println(ex);
-                    }
+//                    try {
+//                        mergeIt.join();
+//                    } catch (Exception ex) {
+//                        System.out.println(ex);
+//                    }
                     // wait here to finish
-                    report.setScaleFactors(peakToMerge.getScaleFactors());
-                    report.setMergedAndMedian(peakToMerge.getMerged(), peakToMerge.getMedian());
-
-                    report.writeReport(nameofnew);
 
                 } else if (frameToMergeEnd > frameToMergeStart) { // write out selected frames
 
