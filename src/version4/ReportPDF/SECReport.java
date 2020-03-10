@@ -142,7 +142,8 @@ public class SECReport {
             legend += log10OfAllText + " " + durbinWatsonCompareText + " " + rgIzeroText + " " + legendE;
 
             Paragraph tempparagraph = new Paragraph();
-            tempparagraph.addMarkup("*Figure | " + escape(titleText) + ".* " + legend, 9, BaseFont.Times);
+            legend = "*Figure | " + escape(titleText) + ".* " + legend;
+            tempparagraph.addMarkup(legend, 9, BaseFont.Times);
             tempparagraph.setMaxWidth((float)(document.getPageWidth()/1.2));
             tempparagraph.setAlignment(Alignment.Justify);
             document.add(tempparagraph, VerticalLayoutHint.CENTER);
