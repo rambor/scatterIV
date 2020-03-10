@@ -20,6 +20,7 @@ import version4.sasCIF.SasObject;
 import javax.swing.*;
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 
 public class SECBuilder extends SwingWorker<Void, Integer> {
 
@@ -805,6 +806,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                         // index, signal, Rg, I(0), integral qIq
                         ArrayList<XYSeries> subtraction = subtract(tempDataset.getAllData(), tempDataset.getAllDataError(), buffer, bufferError);
                         XYSeries subtracted = subtraction.get(0);
+
                         if (isSignal && area/noSignal > threshold){
                             AutoRg temp = new AutoRg(subtracted, excludePoints);
                             signals.add(new Signals(row, area/noSignal, temp.getI_zero(), temp.getRg(), temp.getI_zero_error(), temp.getRg_error()));

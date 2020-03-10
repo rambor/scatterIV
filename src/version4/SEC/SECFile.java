@@ -116,13 +116,13 @@ public class SECFile {
 
             long startTime = System.currentTimeMillis();
             fileChannel = this.file.getChannel();
-            System.out.println("FileChannel size " + fileChannel.size());
+            //System.out.println("FileChannel size " + fileChannel.size());
             //CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
             //Get direct byte buffer access using channel.map() operation
             //buffer.position(lineNumbers.get(4));
             MappedByteBuffer buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(9), linesAndLength.get(9));
-            CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
-            System.out.println(charBuffer.toString());
+            //CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+            //System.out.println(charBuffer.toString());
 
             long endTime = System.currentTimeMillis();
             System.out.println("mapped access " + (endTime - startTime) + " milliseocnds");
