@@ -7,6 +7,7 @@ import org.jfree.data.xy.XYSeries;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 
 /**
  * Created by robertrambo on 24/05/2017.
@@ -65,21 +66,20 @@ public class AutoRg {
      * Failure results in Rg = 0;
      */
     private void autoRg() {
-
         //int last = data.getItemCount()-1;
         double temp_resi, tempMedian, median = Double.POSITIVE_INFINITY;
         double tempRg;
 
         XYDataItem lastItem, item;
-        ArrayList<Double> resList = new ArrayList<>();
+//        ArrayList<Double> resList = new ArrayList<>();
         ArrayList<Double> rgList = new ArrayList<>();
 
         // calculate line between first and last points
-
         double lowerqlimitSquared = 0.15*0.15; // q2
         double qRgUp = 1.31*1.31;
 
         // find the index of the upper q-value that is less than lowerqlimit
+        // in this case find the index for which q_i < 0.15
         int lastAtLimit = 0;
         while(qSquaredData.getX(lastAtLimit).doubleValue() < lowerqlimitSquared){
             lastAtLimit++;
@@ -92,38 +92,45 @@ public class AutoRg {
         XYDataItem tempDataItem = qSquaredData.getDataItem(first);
         double slope;
         double intercept;
+        //ArrayList<Double> resList = new ArrayList<>(last);
+        List resList = Arrays.asList(new Double[last+1]);
         // calculate a progressively shrinking line using only first and last point
-        while( tempDataItem.getXValue() < lowerqlimitSquared && first < (lastAtLimit-19)){  // minimum line is defined by 7 points
+        int rescount;
+        int smallestWindow = 17;
+        while( tempDataItem.getXValue() < lowerqlimitSquared && first < (lastAtLimit-10)){  // minimum line is defined by 7 points
             // fit line to first and last point, calculate Rg, determine gRg limit
-            while (last > first+19) {
+            while (last > first+smallestWindow) {
                 lastItem = qSquaredData.getDataItem(last);
                 // calculate line using only first and last points
                 slope = (lastItem.getYValue() - tempDataItem.getYValue())/(lastItem.getXValue() - tempDataItem.getXValue());
                 intercept = lastItem.getYValue() - slope *lastItem.getXValue();
                 tempRg = -3.0* slope;
-
-                if (tempRg > 0 && lastItem.getXValue()*tempRg < qRgUp){  // means we have a reasonable limit
-                    resList.clear();
-
+                // use the line to calculate residuals
+                if (tempRg > 0 && lastItem.getXValue()*tempRg < 0.95){  // means we have a reasonable limit
+//                    resList.clear();
+                    rescount =0;
                     for(int i=first; i<last; i++){
                         item = qSquaredData.getDataItem(i);
                         temp_resi = item.getYValue() - (slope *item.getXValue() + intercept);
-                        resList.add(temp_resi*temp_resi);
+//                        resList.add(temp_resi*temp_resi);
+                        resList.set(rescount, temp_resi*temp_resi);
+                        rescount++;
                     }
                     // get median
-                    tempMedian = Statistics.calculateMedian(resList, true);
+                    tempMedian = Statistics.calculateMedian(resList.subList(0,rescount), true);
+                    //tempMedian = Statistics.calculateMedian(resList, true);
                     if (tempMedian < median){
                         rgList.add(FastMath.sqrt(tempRg));
                         median = tempMedian;
                     }
                 }
-
-                last--; // remove the last point
+                last -= 5; // remove the last point
             }
             last = lastAtLimit;
             //
-            first++; // set first to next point
+            first +=3; // set first to next point
             tempDataItem = qSquaredData.getDataItem(first);
+            // could average the 3 neighboring points?
         }
 
         tempRg = Statistics.calculateMedian(rgList, true); // rough estimate of Rg
