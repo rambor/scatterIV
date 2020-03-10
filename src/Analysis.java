@@ -125,7 +125,7 @@ public class Analysis extends JDialog {
 
         qIqLabel.setText("q\u2022I(q) Plot");
 
-        if (System.getProperty("os.name").toLowerCase().contains("Win") ){
+        if (System.getProperty("os.name").toLowerCase().contains("win") ){
             rcLabel.setText("Rc Analysis");
         } else {
             rcLabel.setText("R\u1D6A Analysis");
