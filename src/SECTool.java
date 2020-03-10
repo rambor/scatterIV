@@ -495,22 +495,24 @@ public class SECTool extends JDialog {
 
                             TRACEButton.setEnabled(false);
                             SetBufferButton.setEnabled(false);
+                            new Thread() {
+                                public void run() {
+                                    SECBuilder secBuilder = null;
+                                    try {// SECFile oldsecfile, JLabel status, JProgressBar bar, String workingDirectoryName, double threshold, int excludePoints
+                                        secBuilder = new SECBuilder(
+                                                secFile,
+                                                status,
+                                                progressBar,
+                                                Scatter.WORKING_DIRECTORY.getWorkingDirectory(),
+                                                Double.parseDouble(thresholdField.getText()),
+                                                Integer.parseInt(excludeComboBox.getSelectedItem().toString()));
+                                        secFile.closeFile();
+                                        secBuilder.run();
+                                        secBuilder.get();
 
-                            SECBuilder secBuilder = null;
-                            try {// SECFile oldsecfile, JLabel status, JProgressBar bar, String workingDirectoryName, double threshold, int excludePoints
-                                secBuilder = new SECBuilder(
-                                        secFile,
-                                        status,
-                                        progressBar,
-                                        Scatter.WORKING_DIRECTORY.getWorkingDirectory(),
-                                        Double.parseDouble(thresholdField.getText()),
-                                        Integer.parseInt(excludeComboBox.getSelectedItem().toString()));
-                                secFile.closeFile();
-                                secBuilder.run();
-                                secBuilder.get();
+                                        // reset secFile
+                                        status.setText("Loading updated SEC file");
 
-                                // reset secFile
-                                status.setText("Loading updated SEC file");
 //                                secFile = new SECFile(new File(secBuilder.getOutputname()));
 //                                updateSignalPlot();
 //                                selectedIndices.clear();
@@ -518,25 +520,30 @@ public class SECTool extends JDialog {
 //                                for(int i=0;i<secFile.getTotalFrames(); i++){
 //                                    selectedIndices.add(false);
 //                                }
-                                try {
-                                    secFile = new SECFile(new File(secfilename));
-                                } catch (IOException ex) {
-                                    ex.printStackTrace();
+                                        try {
+                                            secFile = new SECFile(new File(secfilename));
+                                            updateSelectedRegionPanel();
+                                        } catch (IOException ex) {
+                                            ex.printStackTrace();
+                                        }
+
+                                        framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
+                                        selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
+                                        status.setText("Finished loading SEC file");
+
+                                    } catch (IOException ex) {
+                                        ex.printStackTrace();
+                                    } catch (InterruptedException ex) {
+                                        ex.printStackTrace();
+                                    } catch (ExecutionException ex) {
+                                        ex.printStackTrace();
+                                    }
+                                    TRACEButton.setEnabled(true);
+                                    SetBufferButton.setEnabled(true);
                                 }
+                            }.start();
 
-                                framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
-                                selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
-                                status.setText("Finished loading SEC file");
 
-                            } catch (IOException ex) {
-                                ex.printStackTrace();
-                            } catch (InterruptedException ex) {
-                                ex.printStackTrace();
-                            } catch (ExecutionException ex) {
-                                ex.printStackTrace();
-                            }
-                            TRACEButton.setEnabled(true);
-                            SetBufferButton.setEnabled(true);
                             // reopen file and set reference
 //                            try {
 //                                secFile = new SECFile(new File(secfilename));
@@ -739,6 +746,7 @@ public class SECTool extends JDialog {
                 //signalPlot.getSeries(0).clear();
 
                 combinedPlot.setNotify(false);
+                combinedPlot.remove(lowerPlot);
                 selectedRegionCollection.removeAllSeries();
                 selectedRegionCollectionRight.removeAllSeries();
                 combinedPlot.setNotify(true);
@@ -1152,6 +1160,9 @@ plot.setRangeGridlinesVisible(false);
 
 
 
+    /*
+     * top right panels with Rg and durbin-watson graph
+     */
     public void updateSelectedRegionPanel(){
         combinedPlot.setNotify(false);
         //selectedRegionChart.setNotify(false);
