@@ -44,6 +44,7 @@ public class SECReport {
     boolean isMerged = false;
     private ArrayList<Double> scaleFactors;
     int startIndex, endIndex;
+    int peakIndex;
     private final float imageWidth = 270;
     private final float imageHeight = 240;
     private double pointSize = 6;
@@ -51,7 +52,7 @@ public class SECReport {
     private ArrayList<String> rgIzeroRows;
     private ArrayList<Color> plotColors;
     private XYSeries merged;
-    private XYSeries median;
+    private XYSeries median, peakSet;
     private String signalLegend, log10OfAllText, rgIzeroText, durbinWatsonCompareText, legendE;
 
     public SECReport(int startIndex, int endIndex, SECFile secFile, String workingDirectory, boolean isMerged){
@@ -63,6 +64,8 @@ public class SECReport {
         merged = new XYSeries("merged");
         median = new XYSeries("median");
     }
+
+
 
     /**
      *
@@ -102,11 +105,11 @@ public class SECReport {
 
         // Next left hand image are the subtracted SAXS curves (Panel B)
         BufferedImage iofqPlot;
-//        if (isMerged){
+        if (isMerged){
             iofqPlot = makeLog10PlotSScaled("B");
-//        } else { // unscaled
-//
-//        }
+        } else { // unscaled
+            iofqPlot = makeLog10PlotUnScaled("B");
+        }
 
         // B. Overlay subtracted curves, log10
         ImageElement leftUpperImage = new ImageElement(iofqPlot);
@@ -130,10 +133,17 @@ public class SECReport {
         document.add(lowerLeftImage, new VerticalLayoutHint(Alignment.Left, 0, 0 , 0, 0, true));
 //
 //        // E. Merged curve
-        ImageElement lowerRightImage = new ImageElement(createMergedChart());
-        lowerRightImage.setWidth(imageWidth);
-        lowerRightImage.setHeight(imageHeight);
-        document.add(lowerRightImage, new VerticalLayoutHint(Alignment.Right, 0, 0 , 0, 0, true));
+        if (isMerged){
+            ImageElement lowerRightImage = new ImageElement(createMergedChart());
+            lowerRightImage.setWidth(imageWidth);
+            lowerRightImage.setHeight(imageHeight);
+            document.add(lowerRightImage, new VerticalLayoutHint(Alignment.Right, 0, 0 , 0, 0, true));
+        } else {
+            ImageElement lowerRightImage = new ImageElement(createUnMergedChart());
+            lowerRightImage.setWidth(imageWidth);
+            lowerRightImage.setHeight(imageHeight);
+            document.add(lowerRightImage, new VerticalLayoutHint(Alignment.Right, 0, 0 , 0, 0, true));
+        }
 
         document.add(ControlElement.NEWPAGE);
 
@@ -169,6 +179,28 @@ public class SECReport {
         }
     }
 
+
+    public BufferedImage createUnMergedChart(){
+
+        XYSeriesCollection plotThis = new XYSeriesCollection();
+        plotThis.addSeries(peakSet);
+
+        XYSeries log10data = new XYSeries("log10");
+        int total = peakSet.getItemCount();
+        for(int i=0; i<total; i++){
+            XYDataItem item = peakSet.getDataItem(i);
+            if (item.getYValue() > 0){
+                log10data.add(item.getX(), Math.log10(item.getYValue()/item.getXValue()));
+            }
+        }
+
+        ArrayList<Color> pcolors = new ArrayList<>();
+        pcolors.add(Color.cyan);
+        legendE = "*E.* Total scattered intensity plot of a single frame selected by the highest average intensity. This frame is representative of quality of the subtracted signal. Red dashed line marks zero on the horizontal axis with points below the line implying negative intensities.";
+        return makeSinglePlot(peakSet, "q*I(q)", "E").createBufferedImage((int)imageWidth*3,(int)imageHeight*3);
+
+    }
+
     public BufferedImage createMergedChart(){
         XYSeriesCollection plotThis = new XYSeriesCollection();
 
@@ -194,7 +226,7 @@ public class SECReport {
         ArrayList<Color> pcolors = new ArrayList<>();
         pcolors.add(Color.gray);
         pcolors.add(Color.cyan);
-        legendE = "*E.* Log_10_ intensity plot of subtracted and merged SAXS frames. Black represents averaged buffer frames subtracted from averaged sampled frames. Cyan represents median of the buffer frames subtracted from the averaged sample frames. Poor buffer subtraction leads to a displacement between the two curves at high-_q_";
+        legendE = "*E.* Log_10_ intensity plot of subtracted and merged SAXS frames. Black represents averaged buffer frames subtracted from averaged sampled frames. Cyan represents median of the buffer frames subtracted from the averaged sample frames. Poor buffer subtraction leads to a displacement between the two curves at high-_q_.";
         return makeLog10Plot(plotThis, pcolors, "E");
     }
 
@@ -477,6 +509,90 @@ public class SECReport {
     }
 
 
+    private JFreeChart makeSinglePlot(XYSeries leftSeries, String leftTitle, String title) {
+        //
+        // previously miniCollection was being plotted
+        // this is really the active datasets,
+        // in the constructor for collection, miniCollection is derived from dataset (same pointer)
+        //
+        XYSeriesCollection leftCollection = new XYSeriesCollection();
+
+        double upperLeft = leftSeries.getMaxY();
+        double lowerLeft = leftSeries.getMinY();
+
+        leftCollection.addSeries(leftSeries);
+
+        JFreeChart chart = ChartFactory.createXYLineChart(
+                "",                // chart title
+                "",                        // domain axis label
+                "",                // range axis label
+                leftCollection,           // data
+                PlotOrientation.VERTICAL,
+                false,                      // include legend
+                true,
+                false
+        );
+
+        chart.setTitle(title);
+
+        chart.getTitle().setFont(new java.awt.Font("Times", 1, 42));
+        chart.getTitle().setPaint(Color.black);
+        chart.getTitle().setTextAlignment(HorizontalAlignment.LEFT);
+        chart.getTitle().setHorizontalAlignment(HorizontalAlignment.LEFT);
+        chart.getTitle().setMargin(10, 10, 4, 0);
+        chart.setBorderVisible(false);
+
+        XYPlot plot = chart.getXYPlot();
+
+        plot.setDomainAxis(0, getDomainAxis("q (\u212B\u207B\u00B9)"));
+        plot.setRangeAxis(0, getRangeAxis(leftTitle, lowerLeft, upperLeft));
+        plot.getRangeAxis().setRange(lowerLeft, upperLeft+ 0.05*upperLeft); // correct for the increase by getRangeAxis function
+
+        plot.getRangeAxis(0).setLabelPaint(Color.DARK_GRAY);
+        plot.getRangeAxis(0).setTickLabelsVisible(false);
+
+        // integer only ticks
+        plot.getDomainAxis().setAutoRange(true);
+
+        plot.getDomainAxis().setRange(leftSeries.getMinX(), leftSeries.getMaxX());
+
+        plot.configureDomainAxes();
+        plot.configureRangeAxes();
+        plot.setBackgroundAlpha(0.0f);
+        plot.setOutlineVisible(false);
+
+        //make crosshair visible
+        plot.setDomainCrosshairVisible(false);
+        plot.setRangeCrosshairVisible(false);
+
+        XYLineAndShapeRenderer leftRenderer = (XYLineAndShapeRenderer) plot.getRenderer(0);
+
+        plot.setDataset(0, leftCollection);
+        plot.setRenderer(0,leftRenderer);
+
+        //plot.mapDatasetToRangeAxis(0, 0);//1st dataset to 1st y-axis
+        ValueMarker mark = new ValueMarker(0, Color.RED, new BasicStroke(
+                2.0f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND,
+                1.0f, new float[] {6.0f, 6.0f}, 0.0f
+        ), Color.LIGHT_GRAY, null, 1);
+        plot.addRangeMarker(mark);
+
+        leftRenderer.setBaseShapesVisible(true);
+        leftRenderer.setSeriesShape(0, new Ellipse2D.Double(-4, -4, 8, 8));
+        leftRenderer.setSeriesLinesVisible(0, false);
+        leftRenderer.setSeriesPaint(0, Color.GRAY);
+        leftRenderer.setSeriesVisible(0, true);
+        leftRenderer.setSeriesOutlineStroke(0, new BasicStroke(2));
+        leftRenderer.setSeriesOutlinePaint(0, Color.BLACK);
+        leftRenderer.setBaseShapesFilled(false);
+
+        plot.setDomainZeroBaselineVisible(false);
+
+        return chart;
+    }
+
+
+
     private void populateSubtractedXYSeries(int pointsToExclude, double qmax, XYSeries series, ArrayList<Double> dataToAdd){
         double qvalue = secFile.getQvalues().get(pointsToExclude);
         for(int i=pointsToExclude; qvalue < qmax; i++){
@@ -564,6 +680,142 @@ public class SECReport {
         return chart.createBufferedImage((int)imageWidth*3,(int)imageHeight*3);
     }
 
+    private BufferedImage makeLog10PlotUnScaled(String title){
+
+        log10OfAllText = "*B.* Overlay of subtracted frames. Each frame is colored based on the following table.";
+
+        ArrayList<Double> qvalues = secFile.getQvalues();
+        ArrayList<Double> target;
+
+        // get scalefactors
+        // scale original data
+        // put in XYCollection for plot
+        XYSeriesCollection plottedDatasets = new XYSeriesCollection();
+        double log10value, value;
+        double ilower = Double.POSITIVE_INFINITY, iupper = Double.NEGATIVE_INFINITY;
+
+        // perform final scaling of each SAXS curve
+        int count = 0;
+        for(int next = startIndex; next < endIndex; next++){
+            target = secFile.getSubtractedFrameAt(next);
+
+            plottedDatasets.addSeries(new XYSeries(Integer.toString(next)));
+            XYSeries temp = plottedDatasets.getSeries(count);
+
+            for(int i=0; i<qvalues.size(); i++){
+                value = target.get(i).doubleValue();
+                if ( value > 0){
+                    log10value = Math.log10(value);
+                    temp.add(qvalues.get(i).doubleValue(), log10value);
+
+                    if (log10value > iupper){
+                        iupper = log10value;
+                    }
+                    if (log10value < ilower){
+                        ilower = log10value;
+                    }
+                }
+            }
+            count+=1;
+        }
+
+        // determine peak index
+        double tempSum, maxAvg = Double.NEGATIVE_INFINITY;
+        peakIndex=0;
+        for (int i =0 ; i<plottedDatasets.getSeriesCount(); i++){
+            XYSeries tempSeries = plottedDatasets.getSeries(i);
+            tempSum = tempSeries.getY(17).doubleValue();
+            tempSum += tempSeries.getY(18).doubleValue();
+            tempSum += tempSeries.getY(19).doubleValue();
+            tempSum += tempSeries.getY(20).doubleValue();
+            tempSum += tempSeries.getY(21).doubleValue();
+            tempSum /= 5.0;
+            if (tempSum > maxAvg){
+                maxAvg = tempSum;
+                peakIndex = i;
+            }
+        }
+
+//        peakSet = new XYSeries("peakSet");
+//        try {
+
+            target = secFile.getSubtractedFrameAt(startIndex + peakIndex);
+
+            peakSet = new XYSeries("best");
+            double qval;
+            for(int i=0; i<qvalues.size(); i++){
+                value = target.get(i).doubleValue();
+                qval = qvalues.get(i);
+
+                peakSet.add(qval, qval*value); // q * I(q)
+            }
+//            peakSet = plottedDatasets.getSeries(peakIndex).createCopy(0, plottedDatasets.getSeries(peakIndex).getItemCount()-1);
+//        } catch (CloneNotSupportedException e) {
+//            e.printStackTrace();
+//        }
+
+
+        JFreeChart chart = ChartFactory.createXYLineChart(
+                "",                     // chart title
+                "q",                             // domain axis label
+                "log[I(q)]",                     // range axis label
+                plottedDatasets,                 // data
+                PlotOrientation.VERTICAL,
+                false,                           // include legend
+                true,
+                false
+        );
+
+        chart.getXYPlot().setDomainCrosshairVisible(false);
+        chart.getXYPlot().setRangeCrosshairVisible(false);
+
+        chart.setBorderVisible(false);
+        chart.setTitle(title);
+        chart.getTitle().setFont(new java.awt.Font("Times",  Font.BOLD, 42));
+        chart.getTitle().setPaint(Color.BLACK);
+        chart.getTitle().setTextAlignment(HorizontalAlignment.LEFT);
+        chart.getTitle().setHorizontalAlignment(HorizontalAlignment.LEFT);
+
+        XYPlot plot = chart.getXYPlot();
+        plot.setBackgroundAlpha(0.0f);
+        plot.setDomainCrosshairLockedOnData(false);
+        plot.setOutlineVisible(false);
+
+        plot.setRangeAxis(getRangeAxis("log10[I(q)]",ilower, iupper));
+        plot.setDomainAxis(getDomainAxis("q (\u212B\u207B\u00B9)"));
+        //make crosshair visible
+        plot.setDomainCrosshairVisible(false);
+        plot.setRangeCrosshairVisible(false);
+
+        XYLineAndShapeRenderer renderer1 = (XYLineAndShapeRenderer) plot.getRenderer();
+        renderer1.setBaseShapesVisible(true);
+
+        //set dot size for all series
+        double offset;
+//        Random rN = new Random();
+        rgIzeroRows = new ArrayList<>();
+        rgIzeroRows.add(getRgDataSummaryTopHeader());
+
+        for (int i=0; i < count; i++){ // set color, covers entire range between start and end Indices
+            offset = -0.5*pointSize;
+//            plotColors.add(new Color(rN.nextInt(256),rN.nextInt(256),rN.nextInt(256)));
+            renderer1.setSeriesShape(i, new Ellipse2D.Double(offset, offset, pointSize, pointSize));
+            renderer1.setSeriesLinesVisible(i, false);
+            renderer1.setSeriesPaint(i, plotColors.get(i));
+            renderer1.setSeriesShapesFilled(i, false);
+            renderer1.setSeriesVisible(i, true);
+            renderer1.setSeriesOutlineStroke(i, new BasicStroke(stroke));
+            secFile.getRgbyIndex(startIndex+i);
+        }
+
+        plot.configureDomainAxes();
+        plot.configureRangeAxes();
+        plot.setDomainZeroBaselineVisible(false);
+
+        return chart.createBufferedImage((int)imageWidth*3,(int)imageHeight*3);
+    }
+
+
     private BufferedImage makeLog10PlotSScaled(String title){
 
         log10OfAllText = "*B.* Overlay of SAXS curves of subtracted frames. Each frame is colored based on the following table.";
@@ -579,26 +831,30 @@ public class SECReport {
         // scale original data
         // put in XYCollection for plot
         XYSeriesCollection plottedDatasets = new XYSeriesCollection();
-        double qvalue, log10value, value, std, var, scale = scaleFactors.get(0);
-        double qlower=10, qupper=-1, ilower = Double.POSITIVE_INFINITY, iupper = Double.NEGATIVE_INFINITY;
+        double log10value, value, std, var, scale = scaleFactors.get(0);
+        double ilower = Double.POSITIVE_INFINITY, iupper = Double.NEGATIVE_INFINITY;
 
         plottedDatasets.addSeries(new XYSeries(Integer.toString(startIndex)));
         XYSeries temp = plottedDatasets.getSeries(0);
 
         for(int i=0; i<qvalues.size(); i++){
             value = target.get(i).doubleValue()*scale;
-            log10value = Math.log10(value);
-            temp.add(qvalues.get(i).doubleValue(), log10value);
             std = 1.0d/(tarErrors.get(i)*scale);
             var = std*std;
             weightedISum.add((value*var));
             weightedESum.add(var);
-            if (log10value > iupper){
-                iupper = log10value;
-            }
 
-            if (log10value < ilower){
-                ilower = log10value;
+            if (value > 0){
+                log10value = Math.log10(value);
+                temp.add(qvalues.get(i).doubleValue(), log10value);
+
+                if (log10value > iupper){
+                    iupper = log10value;
+                }
+
+                if (log10value < ilower){
+                    ilower = log10value;
+                }
             }
         }
 
@@ -616,18 +872,22 @@ public class SECReport {
                 std = 1.0d/(tarErrors.get(i)*scale);
                 var = std*std;
                 value = target.get(i).doubleValue()*scale;
-                log10value = Math.log10(value);
-
-                temp.add(qvalues.get(i).doubleValue(), log10value);
 
                 // perform weighted average
                 weightedISum.set(i, weightedISum.get(i) + (value*var));
                 weightedESum.set(i, weightedESum.get(i) + var);
-                if (log10value > iupper){
-                    iupper = log10value;
-                }
-                if (log10value < ilower){
-                    ilower = log10value;
+
+                if (value > 0){
+                    log10value = Math.log10(value);
+
+                    temp.add(qvalues.get(i).doubleValue(), log10value);
+
+                    if (log10value > iupper){
+                        iupper = log10value;
+                    }
+                    if (log10value < ilower){
+                        ilower = log10value;
+                    }
                 }
             }
             count+=1;

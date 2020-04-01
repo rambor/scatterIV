@@ -1002,8 +1002,6 @@ public class Report {
             }
         }
 
-        System.out.println("iupper " + iupper);
-
         JFreeChart chart = ChartFactory.createXYLineChart(
                 "A",                     // chart title
                 "q",                             // domain axis label
