@@ -47,7 +47,6 @@ public class AutoRg {
      */
     private void autoRgTransformIt(int startAt){
         qSquaredData = new XYSeries("qq");
-        XYSeries error = new XYSeries("error");
 
         int total = inputData.getItemCount();
 
@@ -120,7 +119,8 @@ public class AutoRg {
                     tempMedian = Statistics.calculateMedian(resList.subList(0,rescount), true);
                     //tempMedian = Statistics.calculateMedian(resList, true);
                     if (tempMedian < median){
-                        rgList.add(FastMath.sqrt(tempRg));
+                        //rgList.add(FastMath.sqrt(tempRg));
+                        rgList.add(tempRg);
                         median = tempMedian;
                     }
                 }
@@ -133,11 +133,10 @@ public class AutoRg {
             // could average the 3 neighboring points?
         }
 
-        tempRg = Statistics.calculateMedian(rgList, true); // rough estimate of Rg
+        tempRg = FastMath.sqrt(Statistics.calculateMedian(rgList, true)); // rough estimate of Rg
 
         //create vector
         double xvalue;
-
         double c0, c1;
 
         double minResidual = Double.POSITIVE_INFINITY;
@@ -262,7 +261,7 @@ public class AutoRg {
                 rg = Math.sqrt(-3.0 * slope);
                 i_zero = Math.exp(intercept);
                 i_zero_error=i_zero* errorIntercept;  //Izero Error
-                rg_error=1.5* errorSlope *Math.sqrt(1/3.0*1/rg);  //Rg Error
+                rg_error=1.5* errorSlope *Math.sqrt(1.0/3.0*1.0/rg);  //Rg Error
                 correlation_coefficient = Math.abs(count*sumXY - sumX*sumY)/(Math.sqrt((count*sumXX-sumX*sumX)*(count*sumYY-sumY*sumY)));
             } else {
                 rg = 0;
