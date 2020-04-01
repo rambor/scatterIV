@@ -20,8 +20,12 @@ public class Averager {
         // should move StatMethods function to internal method for multi-threading
         ArrayList<XYSeries> results = StatMethods.weightedAverageDatasets(this.collectionInUse);
 
-        averaged = results.get(0);
-        averagedError = results.get(1);
+        try {
+            averaged = results.get(0).createCopy(0, results.get(0).getItemCount()-1);
+            averagedError = results.get(1).createCopy(0, results.get(0).getItemCount()-1);;
+        } catch (CloneNotSupportedException e) {
+            e.printStackTrace();
+        }
     }
 
 
@@ -30,8 +34,12 @@ public class Averager {
         this.collectionInUse = collection;
         ArrayList<XYSeries> results = StatMethods.weightedAverageDatasetsWithinLimits(this.collectionInUse);
 
-        averaged = results.get(0);
-        averagedError = results.get(1);
+        try {
+            averaged = results.get(0).createCopy(0, results.get(0).getItemCount()-1);
+            averagedError = results.get(1).createCopy(0, results.get(0).getItemCount()-1);;
+        } catch (CloneNotSupportedException e) {
+            e.printStackTrace();
+        }
     }
 
     public XYSeries getAveraged(){
