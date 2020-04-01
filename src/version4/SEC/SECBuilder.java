@@ -821,7 +821,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                         // index, signal, Rg, I(0), integral qIq
                         ArrayList<XYSeries> subtraction = subtract(tempDataset.getAllData(), tempDataset.getAllDataError(), buffer, bufferError);
                         XYSeries subtracted = subtraction.get(0);
-
+//                    System.out.println(i + " makeSamples " + (area/noSignal) + " isSignal " + isSignal + " threshold " + threshold);
                         if (isSignal && area/noSignal > threshold){
                             AutoRg temp = new AutoRg(subtracted, excludePoints);
                             signals.add(new Signals(row, area/noSignal, temp.getI_zero(), temp.getRg(), temp.getI_zero_error(), temp.getRg_error()));
@@ -845,6 +845,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
                         signals.get(signalsCount-1).setTotal_qIq(area);
                         XYSeries suberrors = subtraction.get(1);
+
                     try {
                         subtractedSets.set(i, subtracted.createCopy(0,subtracted.getItemCount()-1));
                         subtractedSetsErrors.set(i, suberrors.createCopy(0, suberrors.getItemCount()-1));
@@ -1203,9 +1204,12 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     private ArrayList<XYSeries> subtract(XYSeries sample, XYSeries sampleError, XYSeries buffer, XYSeries bufferError){
         ArrayList<XYSeries> returnMe = new ArrayList<XYSeries>();
         // for each element in sample collection, do subtraction
+        returnMe.add(new XYSeries("subtracted"));
+        returnMe.add(new XYSeries("errorSubtracted"));
 
-        XYSeries subData;
-        XYSeries subError;
+        XYSeries subData = returnMe.get(0);
+        XYSeries subError = returnMe.get(1);
+
         XYDataItem tempDataItem;
 
         int tempTotal, indexOf;
@@ -1213,8 +1217,6 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
         tempTotal = sample.getItemCount();
 
-        subData = new XYSeries("subtracted");
-        subError = new XYSeries("errorSubtracted");
         //Subtract and add to new data
         double maxQValueInBuffer = buffer.getMaxX();
 
@@ -1248,8 +1250,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             }
         }
 
-        returnMe.add(subData);
-        returnMe.add(subError);
+//        returnMe.add(subData);
+//        returnMe.add(subError);
 
         return returnMe;
     }
