@@ -59,6 +59,7 @@ public class IFTObject implements Runnable {
         } else if (useDirectFT && !useLegendre && !useL2 && !useSVD){
             // L1-norm
             tempIFT = new SineIntegralTransform(dataset.getfittedqIq(), dataset.getfittedError(), dmax, qmax, lambda, includeBackground, positiveOnly);
+            tempIFT.calculateSphericalCalibration();
 
         } else if (useLegendre && !useL2 && !useSVD) {
 
@@ -82,13 +83,16 @@ public class IFTObject implements Runnable {
 
             //tempIFT = new LaguerreTransform(rave , rg, dataset.getfittedqIq(), dataset.getfittedError(), dmax, qmax, lambda, 1);
 
-        } else if (useSVD) {  // use Laguerre
-
+        } else if (useSVD) {  // use SPI method
+            System.out.println("SVD ");
             tempIFT = new SVD(dataset.getfittedqIq(),
                     dataset.getfittedError(),
                     dmax,
                     qmax,
                     includeBackground);
+
+//tempIFT.calculateSphericalCalibration();
+//tempIFT.normalizeToSphericalDistribution();
 
         } else  {  // use Moore Method
             tempIFT = new MooreTransformApache(dataset.getfittedqIq(), dataset.getfittedError(), dmax, qmax, lambda, includeBackground);
