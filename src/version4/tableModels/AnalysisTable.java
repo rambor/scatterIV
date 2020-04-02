@@ -5,6 +5,7 @@ import org.jfree.data.xy.XYSeries;
 import version4.*;
 import version4.ReportPDF.Report;
 import version4.plots.PlotManualGuinier;
+import version4.sasCIF.SasObjectForm;
 
 import javax.swing.*;
 import javax.swing.border.Border;
@@ -259,7 +260,20 @@ public class AnalysisTable {
             }
         }));
 
+        popupMenu.add(new JMenuItem(new AbstractAction("EDIT Details") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                //To change body of implemented methods use File | Settings | File Templates.
+                int index = analysisTable.getSelectedRow();
 
+                if (index > -1){
+                    // select dataset with form factor
+                    SasObjectForm editForm = new SasObjectForm(collectionSelected.getDataset(index).getSasObject(), false);
+                    editForm.pack();
+                    editForm.setVisible(true);
+                }
+            }
+        }));
 
         analysisTable.setComponentPopupMenu(popupMenu);
 
