@@ -25,12 +25,11 @@ import java.util.concurrent.ExecutionException;
  */
 public class Subtraction extends SwingWorker<String, Integer> {
 
-    private final XYSeries medianBuffer;
-    private final XYSeries medianBufferError;
-    private final XYSeries averageBuffer;
-    private final XYSeries averageBufferError;
+    private XYSeries medianBuffer;
+    private XYSeries medianBufferError;
+    private XYSeries averageBuffer;
+    private XYSeries averageBufferError;
 
-    private int refId;//, scaleToID;
     private Collection samples;
     private Collection buffers;
     private Collection subtractedCollection;
@@ -68,11 +67,15 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
         if (buffers.getTotalDatasets() > 1){
             ArrayList<XYSeries> stuff = createMedianAverageXYSeries(buffers);
-            medianBuffer = stuff.get(0);
-            medianBufferError = stuff.get(1);
-            averageBuffer = stuff.get(2);
-            averageBufferError = stuff.get(3);
-        } else {
+            try {
+                medianBuffer = (XYSeries)stuff.get(0).clone();
+                medianBufferError = (XYSeries)stuff.get(1).clone();
+                averageBuffer = (XYSeries)stuff.get(2).clone();
+                averageBufferError = (XYSeries)stuff.get(3).clone();
+            } catch (CloneNotSupportedException e) {
+                e.printStackTrace();
+            }
+        } else { // reference to buffers data
             medianBuffer = buffers.getDataset(0).getAllData();
             medianBufferError = buffers.getDataset(0).getAllDataError();
             averageBuffer = buffers.getDataset(0).getAllData();
@@ -479,11 +482,11 @@ public class Subtraction extends SwingWorker<String, Integer> {
         return subtractedCollection;
     }
 
-    /**
-     * refID from the JComboBox
-     * @param refID
-     */
-    public void setRefID(int refID){ this.refId = refID;}
+//    /**
+//     * refID from the JComboBox
+//     * @param refID
+//     */
+//    public void setRefID(int refID){ this.refId = refID;}
 
     public void setBinsAndCutoff(double bins, double cutoff){
         this.cutoff = cutoff;
@@ -620,9 +623,10 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
         tempTotal = sample.getItemCount();
 
-
-        subData = new XYSeries("subtracted");
-        subError = new XYSeries("errorSubtracted");
+        returnMe.add(new XYSeries("subtracted"));
+        returnMe.add(new XYSeries("errorSubtracted"));
+        subData = returnMe.get(0);//new XYSeries("subtracted");
+        subError = returnMe.get(1);//new XYSeries("errorSubtracted");
         //Subtract and add to new data
 
         double maxQValueInBuffer = buffer.getMaxX();
@@ -671,8 +675,8 @@ public class Subtraction extends SwingWorker<String, Integer> {
             }
         }
 
-        returnMe.add(subData);
-        returnMe.add(subError);
+//        returnMe.add(subData);
+//        returnMe.add(subError);
 
         return returnMe;
     }
@@ -681,20 +685,19 @@ public class Subtraction extends SwingWorker<String, Integer> {
     private ArrayList<XYSeries> createMedianAverageXYSeries(Collection collection){
         ArrayList<XYSeries> returnMe = new ArrayList<XYSeries>();
 
+        returnMe.add(new XYSeries("medianAllData"));
+        returnMe.add(new XYSeries("medianAllDataError"));
+        returnMe.add(new XYSeries("average"));
+        returnMe.add(new XYSeries("averageError"));
         // calculate Average and Median for set
 
         ArrayList<XYSeries> median_reduced_set = StatMethods.medianDatasets(collection);
         ArrayList<XYSeries> averaged = StatMethods.weightedAverageDatasets(collection);
 
-//        System.out.println("printing averaged buffer ");
-//        for(int i=0; i<averaged.get(0).getItemCount(); i++){
-//            System.out.println(i + " " + averaged.get(0).getX(i) + " " + averaged.get(0).getY(i));
-//        }
-
         String name = "median_set";
 
-        XYSeries medianAllData = null;
-        XYSeries medianAllDataError = null;
+        XYSeries medianAllData = returnMe.get(0);
+        XYSeries medianAllDataError = returnMe.get(1);
 
         try {
             medianAllData = (XYSeries) median_reduced_set.get(0).clone();
@@ -705,10 +708,18 @@ public class Subtraction extends SwingWorker<String, Integer> {
             e.printStackTrace();
         }
 
-        returnMe.add(medianAllData);          // 0
-        returnMe.add(medianAllDataError);     // 1
-        returnMe.add(averaged.get(0));        // 2
-        returnMe.add(averaged.get(1));        // 3
+//        returnMe.add(medianAllData);          // 0
+//        returnMe.add(medianAllDataError);     // 1
+        int total = averaged.get(0).getItemCount();
+        XYSeries avg0 = returnMe.get(2);
+        XYSeries avg1 = returnMe.get(3);
+
+        for(int i=0; i<total; i++){
+            avg0.add(averaged.get(0).getDataItem(i));
+            avg1.add(averaged.get(1).getDataItem(i));
+        }
+//        returnMe.add(averaged.get(0));        // 2
+//        returnMe.add(averaged.get(1));        // 3
 
         return returnMe;
     }
@@ -802,12 +813,12 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
             // reject all data with standardizedObs > 2.5
             Iterator iter = standardObs.iterator();
-            int count=0;
+//            int count=0;
             while (iter.hasNext()){
                 tempSobs = (StandardObservations) iter.next();
                 if (tempSobs.getStandardizedObs() > cutoff) {
                     iter.remove();
-                    count++;
+//                    count++;
                 }
             }
             //System.out.println(totalObs + " Count " + count);
@@ -836,14 +847,16 @@ public class Subtraction extends SwingWorker<String, Integer> {
             lower = upper;
         }
 
-        XYSeries finalSeries = new XYSeries("Pruned");
-        XYSeries errorSeries = new XYSeries("PrunedError");
+        returnMe.add(new XYSeries("Pruned"));
+        returnMe.add(new XYSeries("PrunedError"));
+
+        XYSeries finalSeries = returnMe.get(0);//new XYSeries("Pruned");
+        XYSeries errorSeries = returnMe.get(1);//new XYSeries("PrunedError");
 
         Iterator it = finalData.entrySet().iterator();
         double weighted;
         while (it.hasNext()) {
             Map.Entry pairs = (Map.Entry)it.next();
-
             weighted = (Double)pairs.getValue()/finalError.get(pairs.getKey());
 
             finalSeries.add((Double)pairs.getKey(), (Double)weighted );
@@ -860,8 +873,8 @@ public class Subtraction extends SwingWorker<String, Integer> {
         }
 
         // return finalSeries and errorSeries
-        returnMe.add(finalSeries);
-        returnMe.add(errorSeries);
+//        returnMe.add(finalSeries);
+//        returnMe.add(errorSeries);
 
         return returnMe;
     }
