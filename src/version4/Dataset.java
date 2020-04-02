@@ -1,11 +1,19 @@
 package version4;
 
 import FileManager.FileObject;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.BeanDescription;
+import com.fasterxml.jackson.databind.JsonSerializer;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationConfig;
+import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.fasterxml.jackson.databind.ser.BeanSerializerModifier;
 import org.jfree.data.xy.XYDataItem;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.YIntervalDataItem;
 import org.jfree.data.xy.YIntervalSeries;
-import version4.sasCIF.SasObject;
+import version4.sasCIF.*;
 
 import javax.xml.crypto.Data;
 import java.awt.*;
@@ -25,6 +33,7 @@ public class Dataset {
     private int indexOfLowerGuinierFit; // belongs to positiveOnlyData
 
     private SasObject sasObject = null;
+    private SasResult sasResult;
 
     private String filename;
     private String originalFilename;
@@ -169,8 +178,6 @@ public class Dataset {
         allDataError = new XYSeries(tempName);
 
 //        plottedData = new XYSeries(tempName);  // actual log10 data that is plotted
-
-
 //        originalLog10Data = new XYSeries(tempName);
         originalPositiveOnlyData = new XYSeries(tempName);
         originalPositiveOnlyError = new XYSeries(tempName);
@@ -635,7 +642,6 @@ public class Dataset {
         YIntervalDataItem temp;
 
         int startHere = startAt - 1;
-
         int startINdex = allData.indexOf(plottedData.getX(startHere));
         int endIndex = allData.indexOf(plottedData.getMaxX());
 
@@ -1063,11 +1069,32 @@ public class Dataset {
         sasObject = new SasObject(jsonString);
     }
 
-    public SasObject getSasObject(){ return sasObject;}
+    public void setSasObject(SasObject sasObjectP){
+        sasObject = new SasObject(sasObjectP);
+    }
+
+    public SasObject getSasObject(){
+        if (sasObject == null) {
+            sasObject = new SasObject();
+        }
+
+        if (sasResult == null){
+            sasResult = new SasResult(this);
+            //set sasResult in SasObject
+            sasObject.setSasResult(sasResult);
+        } else {
+            sasResult.update();
+        }
+        return sasObject;
+    }
 
     public void initializeSasObject(){
         sasObject = new SasObject();
     }
+
+
+
+
 
     public XYSeries getQIQData(){ return qIqData;}
     public XYDataItem getQIQDataItem(int index){ return qIqData.getDataItem(index);}
