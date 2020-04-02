@@ -163,16 +163,15 @@ public class StatMethods {
         ArrayList<Double> sortList;
 
         ArrayList<XYSeries> returnMe = new ArrayList<XYSeries>();
-        XYSeries medianSet = new XYSeries("median_set_from_collection");
-        XYSeries medianErrorSet = new XYSeries("median_error_set_from_collection");
+        returnMe.add(new XYSeries("median_set_from_collection"));
+        returnMe.add(new XYSeries("median_error_set_from_collection"));
+        XYSeries medianSet = returnMe.get(0);//new XYSeries("median_set_from_collection");
+        XYSeries medianErrorSet = returnMe.get(1);//new XYSeries("median_error_set_from_collection");
 
         for (Double qvalue_key: intValuesHash.keySet()){
 
             tempArrayList = intValuesHash.get(qvalue_key);
             qListSize = tempArrayList.size();
-
-            median_value = 0;
-            err_value = 0;
 
             if (qListSize == 1 ){  //
                 median_value = tempArrayList.get(0);
@@ -211,9 +210,6 @@ public class StatMethods {
             tempArrayList = null;
         }
 
-        returnMe.add(medianSet);
-        returnMe.add(medianErrorSet);
-
         // write out new Median DataSet
         return returnMe;
     }
@@ -246,8 +242,11 @@ public class StatMethods {
         double scale, lower, upper, referenceQ;
         int refIndex, count;
 
-        XYSeries summedSet = new XYSeries("Summed");
-        XYSeries summedSetError = new XYSeries("SummedError");
+        returnMe.add(new XYSeries("Summed"));
+        returnMe.add(new XYSeries("SummedError"));
+
+        XYSeries summedSet = returnMe.get(0);//new XYSeries("Summed");
+        XYSeries summedSetError = returnMe.get(1);//new XYSeries("SummedError");
 
         double sigma, var, targetMax;
         Number targetMin;
@@ -373,9 +372,6 @@ public class StatMethods {
 
         }
 
-        returnMe.add(summedSet);
-        returnMe.add(summedSetError);
-
         return returnMe;
     }
 
@@ -410,8 +406,11 @@ public class StatMethods {
 
         double scale;
 
-        XYSeries summedSet = new XYSeries("Summed");
-        XYSeries summedSetError = new XYSeries("SummedError");
+        returnMe.add(new XYSeries("Summed"));
+        returnMe.add(new XYSeries("SummedError"));
+
+        XYSeries summedSet = returnMe.get(0);//new XYSeries("Summed");
+        XYSeries summedSetError = returnMe.get(1);//new XYSeries("SummedError");
 
         double sigma, var;
         scale = reference.getScaleFactor();
@@ -544,9 +543,6 @@ public class StatMethods {
             }
 
         }
-
-        returnMe.add(summedSet);
-        returnMe.add(summedSetError);
 
         return returnMe;
     }
