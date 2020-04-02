@@ -13,7 +13,7 @@ public class SasBuffer {
     private String comment, name, salt, other;
 
     public SasBuffer(){
-        comment = "no details specified";
+        comment = "no buffer details specified";
         name = "water";
         components = new ArrayList<>();
     }

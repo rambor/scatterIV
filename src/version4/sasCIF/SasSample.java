@@ -11,7 +11,7 @@ public class SasSample implements Hidable{
     // optional attributes below
     private String sec_column;
     private Float sec_flow_rate;
-    private String sec_flow_rate_units = "ml per minute";
+    private String sec_flow_rate_units;// = "ml per minute";
 
     public SasSample(){
         cell_temperature = 273.0f + 25.0f;
@@ -72,6 +72,7 @@ public class SasSample implements Hidable{
 
     @JsonIgnoreProperties("hidden")
     public Float getSec_flow_rate() {
+        System.out.println("sec_flow_rate " + sec_flow_rate);
         return sec_flow_rate;
     }
 
@@ -87,7 +88,6 @@ public class SasSample implements Hidable{
     public void setSec_flow_rate_units(String sec_flow_rate_units) {
         this.sec_flow_rate_units = sec_flow_rate_units;
     }
-
 
     @Override
     public boolean isHidden() {

@@ -21,14 +21,18 @@ public class SasObject implements Hidable {
     private SasDetc sasDetc;
     private SasSample sasSample;
     private SecFormat secFormat;
+    private SasResult sasResult;
 
+    /*
+     * constructor does not initialize secFormat
+     */
     public SasObject(){
         sasBeam = new SasBeam();
         sasBuffer = new SasBuffer();
         sasScan = new SasScan();
         sasDetc = new SasDetc();
         sasSample = new SasSample();
-        secFormat = new SecFormat();
+        //secFormat = new SecFormat();
     }
 
     public SasObject(SasObject oldObject){
@@ -37,7 +41,11 @@ public class SasObject implements Hidable {
         this.sasScan = new SasScan(oldObject.getSasScan());
         this.sasDetc = new SasDetc(oldObject.getSasDetc());
         this.sasSample = new SasSample(oldObject.getSasSample());
-        this.secFormat = new SecFormat(oldObject.getSecFormat());
+
+        // may or may not be present as secFormat is for SEC-SAXS data
+        if (oldObject.secFormat != null){
+            this.secFormat = new SecFormat(oldObject.getSecFormat());
+        }
     }
 
     public SasObject(String jsonString){
@@ -61,7 +69,6 @@ public class SasObject implements Hidable {
                 sasBeam = mapper.treeToValue(nameNode, SasBeam.class);
                 System.out.println("JSON Object " + sasBeam.getRadiation_type());
                 System.out.println("JSON Object " + sasBeam.getType_of_source());
-
             } else {
                 sasBeam = new SasBeam();
             }
@@ -113,6 +120,12 @@ public class SasObject implements Hidable {
 
     public void setSecFormat(SecFormat format){ this.secFormat = format;}
 
+    public void setSasResult(SasResult result){ this.sasResult = result;}
+
+    public boolean isResultSet(){
+        return (this.sasResult != null);
+    }
+
     @JsonProperty("sas_beam")
     public SasBeam getSasBeam() {
         return sasBeam;
@@ -143,6 +156,13 @@ public class SasObject implements Hidable {
     public SecFormat getSecFormat(){
         return secFormat;
     }
+
+    @JsonProperty("sas_result")
+    @JsonIgnoreProperties("hidden")
+    public SasResult getSasResult(){
+        return sasResult;
+    }
+
 
     @JsonIgnore
     public String getJSONString(){

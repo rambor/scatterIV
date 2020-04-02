@@ -35,8 +35,8 @@ public class SasCIF {
             fstream = new FileWriter(filename);
             BufferedWriter out = new BufferedWriter(fstream);
 
-            SasDetails details = new SasDetails(dataset);
-            out.write(details.getText());
+//            SasDetails details = new SasDetails();
+//            out.write(details.getText());
 
             SasResult results = new SasResult(dataset);
             out.write(results.getTextForOutput(resultId));
@@ -44,7 +44,7 @@ public class SasCIF {
             SasPofr pofr = new SasPofr(dataset);
             out.write(pofr.getTextOfFittedDataForOutput(resultId));
 
-            SasScan sasscan = new SasScan(dataset, resultId);
+//            SasScan sasscan = new SasScan(dataset, resultId);
             //out.write();
 
             SasIntensities iofq = new SasIntensities(dataset);

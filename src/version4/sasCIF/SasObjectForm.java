@@ -1,5 +1,7 @@
 package version4.sasCIF;
 
+import version4.Constants;
+
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
@@ -50,6 +52,24 @@ public class SasObjectForm extends JDialog{
     private JLabel sas_sample_sec_columnLabel;
     private JTextField sas_detc_name;
     private JTextField sas_detc_dead_time;
+    private JTextArea sas_results_comments;
+    private JLabel SummaryComments;
+    private JLabel rgReciLabel;
+    private JLabel reciRgValue;
+    private JLabel realRgValue;
+    private JLabel vcValue;
+    private JLabel volumeReciValue;
+    private JLabel massValue;
+    private JLabel peValue;
+    private JPanel sasResultsPanel;
+    private JLabel errorRgReciLabel;
+    private JLabel errorRealRgLabel;
+    private JLabel vcUnitsLabel;
+    private JLabel peErrorLabel;
+    private JLabel volumeRealLabel;
+    private JLabel reciVolumeUnitsLabel;
+    private JLabel volumeRealUnitsLabel;
+    private JLabel dmaxValue;
     private String sas_beam_radiation_type;
     private SasObject sasObject;
     private boolean isSEC = false;
@@ -57,9 +77,22 @@ public class SasObjectForm extends JDialog{
     public SasObjectForm(SasObject object, boolean isSEC){
         sasObject = object;
         this.isSEC = isSEC;
+
         if (!isSEC){
             bufferDetailsLabel.setText("Buffer Details");
             SECPanel.setVisible(false);
+        }
+
+        // show sasResult tab
+        if (sasObject.isResultSet()){
+            tabbedPane1.setEnabledAt(3,true);
+            vcUnitsLabel.setText("Angstrom\u00B2");
+            reciVolumeUnitsLabel.setText("Angstrom\u00B3");
+            volumeRealUnitsLabel.setText("Angstrom\u00B3");
+
+            setupSasResults();
+        } else {
+            tabbedPane1.setEnabledAt(3, false);
         }
 
         sas_sample_details_text.setLineWrap(true);
@@ -413,6 +446,7 @@ public class SasObjectForm extends JDialog{
         dispose();
     }
 
+    // save all details to sasObject
     private void onUpdate(){
         /*
          SAS Beam tab
@@ -522,7 +556,7 @@ public class SasObjectForm extends JDialog{
         }
 
         if (isSEC){
-            try{
+            try{ // parseFloat throws exception use to catch if properly formatted
                 sasSample.setSec_flow_rate(Float.parseFloat(sas_sample_sec_flow_rate.getText()));
             } catch (NumberFormatException ee) {
                 warningLabel.setText("SEC flow rate must be a number");
@@ -537,6 +571,11 @@ public class SasObjectForm extends JDialog{
             }
         }
 
+
+        if (sasObject.isResultSet()){
+            sasObject.getSasResult().setComments(sas_results_comments.getText().replaceAll("(?:\\n|\\r)", " ").trim());
+        }
+
         dispose();
     }
 
@@ -549,6 +588,44 @@ public class SasObjectForm extends JDialog{
         if (isSEC){
             sas_sample_sec_flow_rate.setText(String.format("%.2f", sasSample.getSec_flow_rate()));
             sas_sample_sec_column.setText(sasSample.getSec_column());
+        }
+    }
+
+    private void setupSasResults(){
+
+        SasResult sasResult = sasObject.getSasResult();
+        sas_results_comments.setLineWrap(true);
+        sas_results_comments.setWrapStyleWord(true);
+
+        sas_results_comments.setText(sasResult.getComments());
+        reciRgValue.setText(Constants.ThreeDecPlace.format(sasResult.getRg_from_guinier()) + " \u00B1 " + Constants.ThreeDecPlace.format(sasResult.getRg_from_guinier_error()));
+
+        if (sasResult.getRg_from_PR() > 0){
+            realRgValue.setText(Constants.ThreeDecPlace.format(sasResult.getRg_from_PR())+ " \u00B1 " + Constants.ThreeDecPlace.format(sasResult.getRg_from_pr_error()));
+        } else {
+            realRgValue.setText("-");
+        }
+
+        if (sasResult.getVolume_of_correlation_from_guinier() > 0){
+            vcValue.setText(Constants.OneDecPlace.format(sasResult.getVolume_of_correlation_from_guinier()));
+        } else {
+            vcValue.setText("-");
+        }
+
+        if (sasResult.getPorod_volume() > 0){
+            volumeReciValue.setText(Integer.toString(sasResult.getPorod_volume()));
+        } else {
+            volumeReciValue.setText("-");
+        }
+
+//        volumeReciValue.setText();
+        peValue.setText(Constants.OneDecPlace.format(sasResult.getPorod_exponenet()) + " \u00B1 " + Constants.OneDecPlace.format(sasResult.getPorod_exponent_error()));
+//        String vol = "<html><p><b>" + Constants.Scientific1.format(dataset.getPorodVolume()) + "</b></p><p>" + Constants.Scientific1.format(dataset.getPorodVolumeReal()) + "</p></html>";
+
+        if (sasResult.getDmax() > 0){
+            dmaxValue.setText(Constants.OneDecPlace.format(sasResult.getDmax()));
+        } else {
+            dmaxValue.setText("-");
         }
 
     }

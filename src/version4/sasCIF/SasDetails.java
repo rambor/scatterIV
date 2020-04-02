@@ -6,19 +6,17 @@ import java.util.Date;
 
 public class SasDetails {
 
-    private Dataset dataset;
+
     private float thickness = 1.50f;
     private float temperature = 25; // celcius
     private float exposure_time = 3.0f;
     private String title;
 
-    private Date measurement_date;
     private String momentum_transfer_units;
 
     private int number_of_frames = 1;
 
-    public SasDetails(Dataset dataset){
-        this.dataset = dataset;
+    public SasDetails(){
     }
 
     public String getText(){
@@ -29,7 +27,7 @@ public class SasDetails {
         tempHeader += String.format("#   temperature : Centigrade %n");
         tempHeader += String.format("_sas_sample.title ? %n");
 
-        String temp = dataset.getExperimentalNotes().replaceAll("\r\n", "\n");
+        String temp ="";//=dataset.getExperimentalNotes().replaceAll("\r\n", "\n");
         String[] arrayOfLines = temp.split("\n");
         if (arrayOfLines.length > 0 && temp.length() > 3){
             int total = arrayOfLines.length;
