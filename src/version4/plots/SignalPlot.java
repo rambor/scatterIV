@@ -492,8 +492,11 @@ public class SignalPlot extends SwingWorker<Void, Integer> {
 
         tempTotal = sample.getItemCount();
 
-        subData = new XYSeries("subtracted");
-        subError = new XYSeries("errorSubtracted");
+        returnMe.add(new XYSeries("subtracted"));
+        returnMe.add(new XYSeries("errorSubtracted"));
+
+        subData = returnMe.get(0);//new XYSeries("subtracted");
+        subError = returnMe.get(1);//new XYSeries("errorSubtracted");
         //Subtract and add to new data
         double maxQValueInBuffer = buffer.getMaxX();
 
@@ -537,12 +540,11 @@ public class SignalPlot extends SwingWorker<Void, Integer> {
                     subData.add(qValue, results[1]);
                     subError.add(qValue, Math.sqrt(yValue * yValue + eValue * eValue));
                 }
-
             }
         }
 
-        returnMe.add(subData);
-        returnMe.add(subError);
+//        returnMe.add(subData);
+//        returnMe.add(subError);
 
         return returnMe;
     }
@@ -864,9 +866,15 @@ public class SignalPlot extends SwingWorker<Void, Integer> {
 //        System.out.println(" => Calculating average for baseline ");
         Averager averagedEstimatedBackground = new Averager(keptCollection);
 
-        averagedEstimatedBackground.getAveraged();
-        buffer = averagedEstimatedBackground.getAveraged();
-        bufferError = averagedEstimatedBackground.getAveragedError();
+        //averagedEstimatedBackground.getAveraged();
+        buffer = new XYSeries("buffer");
+        bufferError = new XYSeries("bufferError");
+
+        for(int i=0; i<averagedEstimatedBackground.getAveraged().getItemCount(); i++){
+            buffer.add(averagedEstimatedBackground.getAveraged().getDataItem(i));
+            bufferError.add(averagedEstimatedBackground.getAveragedError().getDataItem(i));
+        }
+
         // create trace using averagedEstimatedBackground
         mainStatus.setIndeterminate(false);
         mainStatus.setStringPainted(false);
