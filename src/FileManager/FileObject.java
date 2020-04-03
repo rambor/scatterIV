@@ -45,6 +45,8 @@ public class FileObject {
         XYSeries refData = data.getAllData();
         XYSeries errorValues =data.getAllDataError();
 
+
+
         try {
             FileWriter fw = new FileWriter(directoryInfo +"/"+name+".dat");
             BufferedWriter out = new BufferedWriter(fw);

@@ -376,6 +376,7 @@ public class SECTool extends JDialog {
                     new Thread() {
                         public void run() {
 
+                            // build new SEC file
                             try { // no secFile loaded, only data files
                                 TRACEButton.setEnabled(false);
                                 SetBufferButton.setEnabled(false);
@@ -656,13 +657,7 @@ public class SECTool extends JDialog {
                     ScaleManagerSAS peakToMerge = new ScaleManagerSAS(frameToMergeStart, frameToMergeEnd, secFile, progressBar, status, true);
                     String nameofnew = (saveAsTextField.getText().length() < 3) ? (secFile.getFilebase() + "_"+ Scatter.collectionSelected.getTotalDatasets()) : saveAsTextField.getText().replaceAll("\\W","_");
 
-                    MERGEButton.setEnabled(false);
-                    editDetailsButton.setEnabled(false);
-                    clearBuffersButton.setEnabled(false);
-                    clearSamplesButton.setEnabled(false);
-                    SetBufferButton.setEnabled(false);
-                    TRACEButton.setEnabled(false);
-                    outputDirButton.setEnabled(false);
+                    disableAllButtons();
 
                     Thread mergeIt = new Thread() {
                         public void run() {
@@ -672,37 +667,20 @@ public class SECTool extends JDialog {
                                 /*
                                  * create new dataset from averaged and load into Analysis
                                  */
-
                                 Scatter.collectionSelected.createDataset(peakToMerge.getMerged(), peakToMerge.getMergedErrors(), nameofnew, true);
+                                // set SaSobject of last dataset
+                                Scatter.collectionSelected.getLast().setSasObject(secFile.getSasObject());
                                 // write dataset to file
                                 FileObject dataToWrite = new FileObject(new File(secFile.getParentPath()), Scatter.version);
                                 dataToWrite.writeSAXSFile(nameofnew, Scatter.collectionSelected.getLast());
 
-                                MERGEButton.setEnabled(true);
-                                editDetailsButton.setEnabled(true);
-                                clearBuffersButton.setEnabled(true);
-                                clearSamplesButton.setEnabled(true);
-                                SetBufferButton.setEnabled(true);
-                                TRACEButton.setEnabled(true);
-                                outputDirButton.setEnabled(true);
+                                enableAllButtons();
 
                             } catch (InterruptedException ex) {
-                                MERGEButton.setEnabled(true);
-                                editDetailsButton.setEnabled(true);
-                                clearBuffersButton.setEnabled(true);
-                                clearSamplesButton.setEnabled(true);
-                                SetBufferButton.setEnabled(true);
-                                TRACEButton.setEnabled(true);
-                                outputDirButton.setEnabled(true);
+                                enableAllButtons();
                                 ex.printStackTrace();
                             } catch (ExecutionException ex) {
-                                MERGEButton.setEnabled(true);
-                                editDetailsButton.setEnabled(true);
-                                clearBuffersButton.setEnabled(true);
-                                clearSamplesButton.setEnabled(true);
-                                SetBufferButton.setEnabled(true);
-                                TRACEButton.setEnabled(true);
-                                outputDirButton.setEnabled(true);
+                                enableAllButtons();
                                 ex.printStackTrace();
                             }
 
@@ -751,11 +729,11 @@ public class SECTool extends JDialog {
 
                         dataToWrite.writeSAXSFile(nameofnew, Scatter.collectionSelected.getLast());
                     }
+
+                    report.writeReport("unmerged_sec_report");
                 }
-
-
-
             }
+
         });
 
 
@@ -947,6 +925,17 @@ public class SECTool extends JDialog {
 
                 }
 
+            }
+        });
+
+        averageCheckBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (averageCheckBox.isSelected()){
+                    MERGEButton.setText("MERGE");
+                } else {
+                    MERGEButton.setText("SUBTRACT");
+                }
             }
         });
     }
@@ -1643,5 +1632,25 @@ plot.setRangeGridlinesVisible(false);
         } else {
             outputDirLabel.setText(text);
         }
+    }
+
+    private void disableAllButtons(){
+        MERGEButton.setEnabled(false);
+        editDetailsButton.setEnabled(false);
+        clearBuffersButton.setEnabled(false);
+        clearSamplesButton.setEnabled(false);
+        SetBufferButton.setEnabled(false);
+        TRACEButton.setEnabled(false);
+        outputDirButton.setEnabled(false);
+    }
+
+    private void enableAllButtons(){
+        MERGEButton.setEnabled(true);
+        editDetailsButton.setEnabled(true);
+        clearBuffersButton.setEnabled(true);
+        clearSamplesButton.setEnabled(true);
+        SetBufferButton.setEnabled(true);
+        TRACEButton.setEnabled(true);
+        outputDirButton.setEnabled(true);
     }
 }

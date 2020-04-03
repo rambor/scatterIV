@@ -44,7 +44,6 @@ public class DataLine {
             isUSUK = true;
         }
 
-
         if (checkline(line)){
             if (row[0].contains(",") && row[1].contains(",")){ // convert
                 LogIt.log(Level.INFO,"Number contains a comma in first column, convert format :: " + line );
@@ -74,6 +73,7 @@ public class DataLine {
             isData = true;
         } else {
             LogIt.log(Level.WARNING, "NON DATA FORMAT :: " + line);
+            throw new Exception("NON DATA FORMAT :: " + line);
         }
     }
 
@@ -86,7 +86,6 @@ public class DataLine {
         if (type.equals("fit")){ // switch columns
 
         }
-
     }
 
     /**

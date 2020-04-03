@@ -48,9 +48,10 @@ public class SasObjectTest {
 
         ObjectMapper mapperIt = new ObjectMapper();
         JsonNode root = mapperIt.readTree(sasObjectString);
-        // Get Name
-        JsonNode nameNode = root.path("sec_format");
 
+
+        // sec format should not be instantiated at this point
+        JsonNode nameNode = root.path("sec_format");
         Assert.assertTrue(nameNode.isMissingNode());
 
         /*
