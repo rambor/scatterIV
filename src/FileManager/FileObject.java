@@ -7,6 +7,7 @@ import version4.Collection;
 import version4.Constants;
 import version4.Dataset;
 import version4.RealSpace;
+import version4.sasCIF.SasObject;
 
 import javax.swing.*;
 import java.io.BufferedWriter;
@@ -44,7 +45,7 @@ public class FileObject {
         int total = data.getAllData().getItemCount();
         XYSeries refData = data.getAllData();
         XYSeries errorValues =data.getAllDataError();
-
+        String sasObjectString = data.getSasObjectJSON() + System.lineSeparator();
 
 
         try {
@@ -67,6 +68,7 @@ public class FileObject {
                 numberOfDigits = getDigits(refData.getX(n).doubleValue());
                 out.write( String.format("%s\t%s\t%s %n", formattedQ(refData.getX(n).doubleValue(), numberOfDigits), Constants.Scientific1dot5e2.format(refData.getY(n).doubleValue()),Constants.Scientific1dot5e2.format(errorValues.getY(n).doubleValue()) ));
             }
+            out.write(sasObjectString);
             out.close();
         } catch (IOException e) {
             e.printStackTrace();
@@ -104,6 +106,8 @@ public class FileObject {
         XYSeries refData = data.getAllData();
         XYSeries errorValues =data.getAllDataError();
 
+        String sasObjectString = data.getSasObjectJSON() + System.lineSeparator();
+
         try {
             FileWriter fw = new FileWriter(directoryInfo +"/"+name+".dat");
             BufferedWriter out = new BufferedWriter(fw);
@@ -125,6 +129,7 @@ public class FileObject {
                 numberOfDigits = getDigits(refData.getX(n).doubleValue());
                 out.write( String.format("%s\t%s\t%s %n", formattedQ(refData.getX(n).doubleValue(), numberOfDigits), Constants.Scientific1dot5e2.format(refData.getY(n).doubleValue()*data.getScaleFactor()),Constants.Scientific1dot5e2.format(errorValues.getY(n).doubleValue()*data.getScaleFactor()) ));
             }
+            out.write(sasObjectString);
             out.close();
         } catch (IOException e) {
             e.printStackTrace();

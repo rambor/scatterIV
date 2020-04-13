@@ -93,6 +93,22 @@ public class LoadedFile {
                                 allData.add(tempQValue, dataPoints.getI() );
                                 allDataError.add(tempQValue, dataPoints.getE() );
                             } else {
+//                                try{
+//                                    /*
+//                                     * check if line is a JSON string
+//                                     */
+//                                    ObjectMapper objectMapper = new ObjectMapper();
+//                                    JsonNode jsonNode = objectMapper.readTree(strLine.trim());
+//                                    jsonNode.isMissingNode();
+//                                    jsonPresent = true;
+//                                    json = strLine.trim();
+//                                    System.out.println("jsonn string " + json);
+//                                } catch (JsonProcessingException ex){
+//                                    LogIt.log(Level.INFO, ex.getMessage());
+//                                }
+                            }
+                        } catch (Exception e) {
+                            if (strLine.contains("{")){
                                 try{
                                     /*
                                      * check if line is a JSON string
@@ -102,13 +118,12 @@ public class LoadedFile {
                                     jsonNode.isMissingNode();
                                     jsonPresent = true;
                                     json = strLine.trim();
-
                                 } catch (JsonProcessingException ex){
                                     LogIt.log(Level.INFO, ex.getMessage());
                                 }
+                            } else {
+                                LogIt.log(Level.INFO, e.getMessage());
                             }
-                        } catch (Exception e) {
-                            LogIt.log(Level.INFO, e.getMessage());
                         }
                     }
 
