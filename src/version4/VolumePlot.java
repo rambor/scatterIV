@@ -639,6 +639,7 @@ public class VolumePlot {
         double[] volumePorodY = new double[volumePorod1st.getItemCount()];
         double[] powerLawX = new double[powerLaw1st.getItemCount()];
         double[] powerLawY = new double[powerLaw1st.getItemCount()];
+
         //Calculate oldQ, oldV
         int limit = volumePorodX.length;
         for(int i =0; i < limit; i++){
@@ -673,7 +674,6 @@ public class VolumePlot {
         XYSeries area = Functions.porodInvariant(tempSeries1, izero, 0.0, rg, 0.0);
         double porodInvariantOld = tempArray[1]/volumeKratky2nd.getX(index).doubleValue() + area.getY(area.getItemCount()-1).doubleValue();
 
-
         int volumeOld = (int)(Constants.TWO_PI_2*izero/porodInvariantOld);
         oldQ.setText(Constants.ThreeDecPlace.format(porodInvariantOld));
         oldV.setText(Integer.toString(volumeOld)); //Old method for determining correction to Q
@@ -693,6 +693,7 @@ public class VolumePlot {
         powerLawSeries.clear();
         powerLawTopSeries.clear();
         volumePowerLawCollection.removeAllSeries();
+
         for (int i =0; i< powerLawX.length; i++){
             powerLawSeries.add(Math.exp(powerLawX[i]), (powerLawY[i] - (powerLawX[i]*tempArray[0] + tempArray[1])));
         }

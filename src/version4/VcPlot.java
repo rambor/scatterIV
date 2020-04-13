@@ -123,7 +123,7 @@ public class VcPlot {
                 allLoop:
                 for (int j=startAll; j < dataset.getAllData().getItemCount(); j++){
                     tempqIqDataItem = dataset.getAllData().getDataItem(j);
-                    //tempqIqDataItem = dataset.getPlottedQIQDataSeries().getDataItem(j);
+
                     xValue = tempqIqDataItem.getXValue();
                     xyValue = xValue*tempqIqDataItem.getYValue();
 
@@ -166,8 +166,9 @@ public class VcPlot {
 
                 qr = Math.pow(dataset.getVC(),2)/dataset.getGuinierRg();
                 mass = qr/0.1231;
-//                dataset.setMassProtein((int) Math.floor(mass));
-//                dataset.setMassRna((int)Math.pow(qr/ 0.00934, 0.808));
+                dataset.setMassProtein((int) Math.floor(mass));
+                dataset.setMassRna((int)Math.pow(qr/ 0.00934, 0.808));
+
                 // table update (results tab)
                 qIqIntegratedDatasets.addSeries(new XYSeries(dataset.getFileName()));
                 XYSeries tempExtrapolated = Functions.qIqIntegral( qIqVcDatasets.getSeries(qIqVcDatasets.getSeriesCount()-1));

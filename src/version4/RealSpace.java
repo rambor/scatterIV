@@ -907,8 +907,19 @@ public class RealSpace {
         this.raverage = (model.rAverage > 0) ? model.rAverage : this.raverage ;
         this.chi2 = this.indirectFTModel.getChiEstimate();
         this.kurtosis = this.indirectFTModel.getKurtosisEstimate(0);
+
+        if (this.dataset.getInvariantQ() > 0){
+            this.dataset.setPorodVolumeReal((int)(Constants.TWO_PI_2*dataset.getRealIzero()/this.dataset.getInvariantQ()));
+        }
+
+        // set molecular mass usingn Vc - must use real space data range
     }
 
+    private void calculateVCMW(){
+        // using i-zero, Rg calculate extrapolated datasets
+
+
+    }
 
     public IndirectFT getIndirectFTModel(){
         return this.indirectFTModel;
