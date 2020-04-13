@@ -554,6 +554,10 @@ public class SECTool extends JDialog {
 
                         } else {
 
+                            /*
+                             * on MAC and LINUX can update a single line in the file without closing
+                             * on WINDOWS, must close file, so we update a temp and write to old file.
+                             */
                             String sasObjectString = secFile.getSasObjectJSON() + System.lineSeparator();
                             String parentPath = secFile.getParentPath();
                             secFile.closeFile();
