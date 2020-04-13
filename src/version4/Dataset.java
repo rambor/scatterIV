@@ -1086,7 +1086,7 @@ public class Dataset {
 
         // json string may or may not contain
         if (sasObject.getSasResult() instanceof SasResult){ // populate
-            this.porodExponent = sasObject.getSasResult().getPorod_exponenet();
+            this.porodExponent = sasObject.getSasResult().getPorod_exponent();
             this.porodExponentError = sasObject.getSasResult().getPorod_exponent_error();
             this.guinierObject = new Guinier(
                     sasObject.getSasResult().getRg_from_guinier(),

@@ -618,7 +618,7 @@ public class SasObjectForm extends JDialog{
         }
 
 //        volumeReciValue.setText();
-        peValue.setText(Constants.OneDecPlace.format(sasResult.getPorod_exponenet()) + " \u00B1 " + Constants.OneDecPlace.format(sasResult.getPorod_exponent_error()));
+        peValue.setText(Constants.OneDecPlace.format(sasResult.getPorod_exponent()) + " \u00B1 " + Constants.OneDecPlace.format(sasResult.getPorod_exponent_error()));
 //        String vol = "<html><p><b>" + Constants.Scientific1.format(dataset.getPorodVolume()) + "</b></p><p>" + Constants.Scientific1.format(dataset.getPorodVolumeReal()) + "</p></html>";
 
         if (sasResult.getDmax() > 0){

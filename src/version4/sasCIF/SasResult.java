@@ -13,7 +13,7 @@ public class SasResult  {
     private int porod_volume, porod_volume_error;
     private double rg_from_guinier, rg_from_guinier_error;
     private double rg_from_PR, rg_from_pr_error;
-    private double porod_exponenet, porod_exponent_error;
+    private double porod_exponent, porod_exponent_error;
     private double volume_of_correlation_from_guinier, volume_of_correlation_from_real;
 
     // manually set using pop-up
@@ -215,12 +215,12 @@ public class SasResult  {
         this.comments = comments;
     }
 
-    public double getPorod_exponenet() {
-        return porod_exponenet;
+    public double getPorod_exponent() {
+        return porod_exponent;
     }
 
-    public void setPorod_exponenet(double porod_exponenet) {
-        this.porod_exponenet = porod_exponenet;
+    public void setPorod_exponent(double porod_exponenet) {
+        this.porod_exponent = porod_exponenet;
     }
 
     public double getPorod_exponent_error() {
@@ -285,7 +285,7 @@ public class SasResult  {
         }
 
         if (dataset.getPorodExponent() > 0){
-            this.porod_exponenet = dataset.getPorodExponent();
+            this.porod_exponent = dataset.getPorodExponent();
             this.porod_exponent_error = dataset.getPorodExponentError();
         }
 
