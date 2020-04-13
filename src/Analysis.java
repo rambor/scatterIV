@@ -718,7 +718,6 @@ public class Analysis extends JDialog {
 
                         //close the output stream
                         status.setText(cleaned + ".dat written to " + fc.getCurrentDirectory());
-
                         //Logger.getLogger(Scatter.class.getName()).log(Level.SEVERE, null, ex);
                     }
                 }
