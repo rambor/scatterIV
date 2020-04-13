@@ -321,8 +321,6 @@ public class Dataset {
         this.indexOfLowerGuinierFit = indexOfLowerGuinierFit;
     }
 
-
-
     public double getAverageR() {
         return realSpace.getRaverage();
     }
@@ -611,6 +609,13 @@ public class Dataset {
     public int getPorodVolumeMass1p1(){return porodMass1p07;}
     public int getPorodVolumeMass1p37(){return porodMass1p11;}
 
+    public void setMassProtein(int massP){
+        massProtein=massP;
+    }
+
+    public void setMassRna(int massrna){
+        massRna=massrna;
+    }
 
     public int getMassProteinReal(){
         return massProteinReal;
@@ -1065,12 +1070,47 @@ public class Dataset {
         invariantQ=invariant;
     }
 
+    public double getInvariantQ(){ return invariantQ;}
+
+    /*
+     * SasObject for dataset
+     *
+     */
+
+    /**
+     * use when file is read with proper JSON string
+     * @param jsonString
+     */
     public void setSasObject(String jsonString){
         sasObject = new SasObject(jsonString);
+
+        // json string may or may not contain
+        if (sasObject.getSasResult() instanceof SasResult){ // populate
+            this.porodExponent = sasObject.getSasResult().getPorod_exponenet();
+            this.porodExponentError = sasObject.getSasResult().getPorod_exponent_error();
+            this.guinierObject = new Guinier(
+                    sasObject.getSasResult().getRg_from_guinier(),
+                    sasObject.getSasResult().getRg_from_guinier_error(),
+                    sasObject.getSasResult().getI0_from_guinier(),
+                    sasObject.getSasResult().getI0_from_guinier_error(),
+                    0.99
+            );
+            indexOfLowerGuinierFit = sasObject.getSasResult().getQuinier_point_min();
+            indexOfUpperGuinierFit = sasObject.getSasResult().getGuinier_point_max();
+
+            this.porodVolume = sasObject.getSasResult().getPorod_volume();
+
+            this.dMax = sasObject.getSasResult().getDmax();
+            this.vc = sasObject.getSasResult().getVolume_of_correlation_from_guinier();
+
+            this.realSpace.setIzero(sasObject.getSasResult().getI0_from_pr());
+            this.realSpace.setRg(sasObject.getSasResult().getRg_from_PR());
+        }
     }
 
     public void setSasObject(SasObject sasObjectP){
-        sasObject = new SasObject(sasObjectP);
+        sasObject = new SasObject(sasObjectP); // don't want SAS_SEC information carried over
+        sasObject.setSecFormat(null); // datasets should not have a SECFormat CIF attribute
     }
 
     public SasObject getSasObject(){
@@ -1092,7 +1132,38 @@ public class Dataset {
         sasObject = new SasObject();
     }
 
+    public String getSasObjectJSON(){
+        /*
+         * assemble the JSON string
+         */
+        ObjectMapper mapper = new ObjectMapper();
 
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_EMPTY);
+        mapper.registerModule(new SimpleModule() {
+            @Override
+            public void setupModule(SetupContext context) {
+                super.setupModule(context);
+                context.addBeanSerializerModifier(new BeanSerializerModifier() {
+                    @Override
+                    public JsonSerializer<?> modifySerializer(
+                            SerializationConfig config, BeanDescription desc, JsonSerializer<?> serializer) {
+                        if (Hidable.class.isAssignableFrom(desc.getBeanClass())) {
+                            return new HidableSerializer((JsonSerializer<Object>) serializer);
+                        }
+                        return serializer;
+                    }
+                });
+            }
+        });
+
+        String sasObjectString = null;
+        try {
+            sasObjectString = mapper.writeValueAsString(this.getSasObject());
+        } catch (JsonProcessingException e) {
+            e.printStackTrace();
+        }
+        return sasObjectString;
+    }
 
 
 
@@ -1186,7 +1257,6 @@ public class Dataset {
         if (!propChangeListeners.contains(l)) {
             propChangeListeners.addElement(l);
         }
-
     }
 
     // remove a property change listener
