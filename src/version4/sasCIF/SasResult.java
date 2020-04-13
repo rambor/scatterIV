@@ -2,7 +2,7 @@ package version4.sasCIF;
 
 import version4.Dataset;
 
-public class SasResult {
+public class SasResult  {
 
     private double dmax;
 //    private double dmax_error;
@@ -21,6 +21,11 @@ public class SasResult {
     private String length_units="Angstrom";
 
     private Dataset dataset;
+
+    public SasResult(){
+
+    }
+
     public SasResult(Dataset dataset){
         this.dataset = dataset;
         this.update();
