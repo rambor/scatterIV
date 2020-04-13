@@ -13,7 +13,7 @@ public class ResultsModel extends AbstractTableModel {
 
     private final LinkedList<Dataset> datalist;
 
-    private String[] columnNames = new String[]{"", "", "I(0)", "real", "<html>R<sub>g</sub></html>", "real", "<html>V<sub>c</sub></html>", "Volume", "MW 1.07", "MW 1.1","Protein", "RNA", "r", "<html>d<sub>max</sub></html>", "<html>R<sub>c</sub></html>", "<html>P<sub>x</sub></html>"};
+    private String[] columnNames = new String[]{"", "", "<html>R<sub>g</sub></html>", "real", "<html>V<sub>c</sub></html>", "Volume", "MW 1.07", "MW 1.1","Protein", "RNA", "r", "<html>d<sub>max</sub></html>", "<html>R<sub>c</sub></html>", "<html>P<sub>x</sub></html>"};
 
     public ResultsModel(){
         datalist = new LinkedList<Dataset>();
@@ -56,39 +56,35 @@ public class ResultsModel extends AbstractTableModel {
             case 1:
                 return dataset.getFileName();
             case 2:
-                return Constants.Scientific1.format(dataset.getGuinierIzero());
-            case 3:
-                return Constants.Scientific1.format(dataset.getRealIzero());
-            case 4: //spinner
                 return Constants.TwoDecPlace.format(dataset.getGuinierRg());
-            case 5: //spinner
+            case 3: //spinner
                 return Constants.TwoDecPlace.format(dataset.getRealRg());
-            case 6: //Fit file - rendered as a checkbox
+            case 4: //Fit file - rendered as a checkbox
                 return Constants.OneDecPlace.format(dataset.getVC());
-            case 7:
+            case 5:
                 String vol = "<html><p><b>" + Constants.Scientific1.format(dataset.getPorodVolume()) + "</b></p><p>" + Constants.Scientific1.format(dataset.getPorodVolumeReal()) + "</p></html>";
                 return vol;
             //return (int)dataset.getPorodVolume();
-            case 8:
+            case 6:
                 String mass11 = "<html><p><b>" +  Constants.Scientific1.format(dataset.getPorodVolumeMass1p1()) + "</b></p><p>" + Constants.Scientific1.format(dataset.getPorodVolumeRealMass1p1()) + "</p></html>";
                 return mass11;
-            case 9:
+            case 7:
                 String mass137 = "<html><p><b>" + Constants.Scientific1.format(dataset.getPorodVolumeMass1p37()) + "</b></p><p>" + Constants.Scientific1.format(dataset.getPorodVolumeRealMass1p37()) + "</p></html>";
                 return mass137;
-            case 10:
+            case 8:
                 String massP = "<html><p><b>" + Constants.Scientific1.format(dataset.getMassProtein()) + "</b></p><p>" + Constants.Scientific1.format(dataset.getMassProteinReal()) + "</p></html>";
                 //return scientific.format(dataset.getMassProtein());
                 return massP;
-            case 11:
+            case 9:
                 String massR = "<html><p><b>" + Constants.Scientific1.format(dataset.getMassRna()) + "</b></p><p>" + Constants.Scientific1.format(dataset.getMassRnaReal()) + "</p></html>";
                 return massR;
-            case 12:
+            case 10:
                 return Constants.OneDecPlace.format(dataset.getAverageR());
-            case 13:
+            case 11:
                 return (int)dataset.getDmax();
-            case 14:
+            case 12:
                 return Constants.TwoDecPlace.format(dataset.getRc());
-            case 15:
+            case 13:
                 return Constants.OneDecPlace.format(dataset.getPorodExponent());
             default:
                 return null;

@@ -275,6 +275,25 @@ public class AnalysisTable {
             }
         }));
 
+        popupMenu.add(new JMenuItem(new AbstractAction("Results Summary") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                //To change body of implemented methods use File | Settings | File Templates.
+                int total = 0;
+                for(int i=0; i<collectionSelected.getTotalDatasets(); i++){
+                    if (collectionSelected.getDataset(i).getInUse()){
+                        total+=1;
+                    }
+                }
+
+                if (total > 0){
+                    Results temp = new Results(collectionSelected);
+                    temp.pack();
+                    temp.setVisible(true);
+                }
+            }
+        }));
+
         analysisTable.setComponentPopupMenu(popupMenu);
 
     }

@@ -11,11 +11,13 @@ import org.apache.commons.math3.stat.StatUtils;
 import org.jfree.data.xy.XYDataItem;
 import org.jfree.data.xy.XYSeries;
 
-import version4.*;
 import version4.Collection;
+import version4.Dataset;
+import version4.Functions;
 import version4.sasCIF.Hidable;
 import version4.sasCIF.HidableSerializer;
 import version4.sasCIF.SasObject;
+import version4.*;
 
 import javax.swing.*;
 import java.io.*;
