@@ -32,7 +32,11 @@ public class SasObject implements Hidable {
         sasScan = new SasScan();
         sasDetc = new SasDetc();
         sasSample = new SasSample();
+
         //secFormat = new SecFormat();
+        /*
+         * SecFormat and SasResult are optional
+         */
     }
 
     public SasObject(SasObject oldObject){
@@ -97,7 +101,6 @@ public class SasObject implements Hidable {
                 sasSample = new SasSample();
             }
 
-
             nameNode = root.path("sas_detc");
             if (!nameNode.isMissingNode()) {        // if "name" node is exist
                 sasDetc = mapper.treeToValue(nameNode, SasDetc.class);
@@ -105,12 +108,18 @@ public class SasObject implements Hidable {
                 sasDetc = new SasDetc();
             }
 
+            nameNode = root.path("sas_result");
+            if (!nameNode.isMissingNode()) {        // if "name" node is exist
+                sasResult = mapper.treeToValue(nameNode, SasResult.class);
+            }
+
             nameNode = root.path("sec_format");
             if (!nameNode.isMissingNode()) {        // if "name" node is exist
                 secFormat = mapper.treeToValue(nameNode, SecFormat.class);
-            } else {
-                secFormat = new SecFormat();
             }
+//            } else {
+//                secFormat = new SecFormat();
+//            }
 
 
         } catch (IOException e) {
@@ -118,10 +127,17 @@ public class SasObject implements Hidable {
         }
     }
 
+    public void setSasBeam(SasBeam beam){ this.sasBeam = new SasBeam(beam);}
+    public void setSasScan(SasScan scan){ this.sasScan = new SasScan(scan);}
+    public void setSasBuffer(SasBuffer buff){ this.sasBuffer = new SasBuffer(buff);}
+    public void setSasBeam(SasDetc detc){ this.sasDetc = new SasDetc(detc);}
+    public void setSasSample(SasSample sample){this.sasSample = new SasSample(sample);}
+
     public void setSecFormat(SecFormat format){ this.secFormat = format;}
 
     public void setSasResult(SasResult result){ this.sasResult = result;}
 
+    @JsonIgnore
     public boolean isResultSet(){
         return (this.sasResult != null);
     }

@@ -571,7 +571,6 @@ public class SasObjectForm extends JDialog{
             }
         }
 
-
         if (sasObject.isResultSet()){
             sasObject.getSasResult().setComments(sas_results_comments.getText().replaceAll("(?:\\n|\\r)", " ").trim());
         }
