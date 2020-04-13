@@ -636,6 +636,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             });
 
             sasObject.setSecFormat(secFormat);
+            sasObject.setSasResult(null);
             String sasObjectString = mapper.writeValueAsString(sasObject);
 
             out.write(sasObjectString + System.lineSeparator());   // line 0
