@@ -247,6 +247,42 @@ public class Collection {
         this.notifyDataSetsChange();
     }
 
+
+    /**
+     * use this to avoid notification of changes
+     *
+     * @param loaded
+     */
+    public void createBareDatasetAPI(LoadedFile loaded){
+
+        int newIndex = datasets.size();
+
+        datasets.add(new Dataset(
+                loaded.allData,       //data
+                loaded.allDataError,  //original
+                loaded.filebase,
+                newIndex));
+
+        totalDatasets = datasets.size();
+
+        Dataset dat = datasets.get(totalDatasets-1);
+        // reset max and min values for collection
+
+        if (dat.getMaxI() > this.maxI ) {
+            this.maxI = dat.getMaxI();
+        }
+
+        if (dat.getMinI() < this.minI ) {
+            this.minI = dat.getMinI();
+        }
+        if (dat.getMaxq() > this.maxq ) {
+            this.maxq = dat.getMaxq();
+        }
+        if (dat.getMinq() < this.minq ) {
+            this.minq = dat.getMinq();
+        }
+    }
+
     /**
      * Removes dataset at specific index
      * @param index Index of a Dataset to be removed
