@@ -23,6 +23,7 @@ import version4.Constants;
 import version4.ReportPDF.SECReport;
 import version4.SEC.SECBuilder;
 import version4.SEC.SECFile;
+import version4.SVDCorMap;
 import version4.Scaler.ScaleManagerSAS;
 import version4.plots.DWSimilarityPlot;
 import version4.sasCIF.SasObjectForm;
@@ -112,6 +113,7 @@ public class SECTool extends JDialog {
     private JLabel outputDirLabel;
     private JLabel qmaxLabel;
     private JLabel qminLabel;
+    private JButton SVDCORMAPButton;
     private ChartPanel signalChartPanel;
     private ChartPanel intensityChartPanel;
     private ChartPanel selectedRegionsChartPanel;
@@ -356,7 +358,7 @@ public class SECTool extends JDialog {
         });
 
 
-        TRACEButton.addActionListener(new ActionListener() {
+        TRACEButton.addActionListener(new   ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                     /*
@@ -942,6 +944,77 @@ public class SECTool extends JDialog {
                 }
             }
         });
+
+        SVDCORMAPButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+
+                int total = selectedIndices.size();
+                XYSeriesCollection tempCollection = new XYSeriesCollection();
+
+                if (total > 3) {
+                    int counter=0;
+                    ArrayList<Double> qvalues = secFile.getQvalues();
+                    int qtotal = qvalues.size();
+                    for (int i = 0; i < total; i++) {
+                        if (selectedIndices.get(i)){
+                            ArrayList<Double> yvalues = secFile.getUnSubtractedFrameAt(i);
+                            //ArrayList<Double> yvalues = secFile.getSubtractedFrameAt(i);
+                            tempCollection.addSeries(new XYSeries("Series-"+i));
+                            XYSeries tempSeries = tempCollection.getSeries(counter);
+                            for(int q=0; q<qtotal; q++){
+                                tempSeries.add(qvalues.get(q), yvalues.get(q));
+                            }
+                            counter++;
+                        }
+                    }
+
+                    int startingIndex = 0;
+                    for (int i = 0; i < total; i++) {
+                        if (selectedIndices.get(i)){
+                            startingIndex = i;
+                            break;
+                        }
+                    }
+
+                    final int finalStartingIndex = startingIndex;
+
+                    Thread makeIt = new Thread(){
+                        public void run() {
+                            SVDCORMAPButton.setEnabled(false);
+                            progressBar.setIndeterminate(true);
+                            status.setText("SVD please wait, may take a minute...");
+                            final SVDCorMap svd = new SVDCorMap(Double.parseDouble(qminSECField.getText()), Double.parseDouble(qmaxSECField.getText()), tempCollection, finalStartingIndex);
+                            svd.execute();
+
+                            try {
+                                svd.get();
+                                svd.createPlot();
+                                progressBar.setIndeterminate(false);
+                                status.setText("SVD finished");
+                                SVDCORMAPButton.setEnabled(true);
+                            } catch (InterruptedException e1) {
+                                e1.printStackTrace();
+                                progressBar.setIndeterminate(false);
+                                status.setText("");
+                                SVDCORMAPButton.setEnabled(true);
+                            } catch (ExecutionException e1) {
+                                e1.printStackTrace();
+                                progressBar.setIndeterminate(false);
+                                status.setText("");
+                                SVDCORMAPButton.setEnabled(true);
+                            }
+                        }
+                    };
+
+                    makeIt.start();
+
+                } else {
+                    status.setText("Too few frames for SVD correlation mapping");
+                }
+
+            }
+        });
     }
 
     /*
@@ -1236,6 +1309,7 @@ plot.setRangeGridlinesVisible(false);
         NumberAxis rangeAxis = new NumberAxis("signal");
         rangeAxis.setTickLabelsVisible(false);
         rangeAxis.setAutoRangeIncludesZero(false);
+        rangeAxis.setAutoRange(true);
         rangeAxis.setLabelFont(new Font("Times", Font.BOLD, 16));
         rangeAxis.setRange(selectedRegionCollection.getRangeLowerBound(true) - 0.001*selectedRegionCollection.getRangeLowerBound(true), selectedRegionCollection.getRangeUpperBound(true) + 0.005*selectedRegionCollection.getRangeUpperBound(true));
         selectedRegionChart.getXYPlot().setRangeAxis(0, rangeAxis);
@@ -1316,6 +1390,7 @@ plot.setRangeGridlinesVisible(false);
         rangeAxisRight.setAutoRange(true);
         rangeAxisRight.setAutoRangeIncludesZero(false);
         rangeAxisRight.setAutoRangeStickyZero(false);
+
 
         selectedRegionRightRenderer = new XYLineAndShapeRenderer();
         splineRend = new XYSplineRenderer();

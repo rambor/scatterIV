@@ -20,6 +20,7 @@ import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.geom.Ellipse2D;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.stream.DoubleStream;
@@ -37,6 +38,7 @@ public class SVDCovariance extends SwingWorker<String, Object> {
     private double qmin;
     private double qmax;
     private XYSeriesCollection datasets;
+    private boolean column_wise = false;
     private int totalSets;
     private XYSeries singularValuesSeries;
     private XYSeriesCollection plotMe;
@@ -51,6 +53,7 @@ public class SVDCovariance extends SwingWorker<String, Object> {
         this.qmax = qmax;
         this.datasets = datasets;
         totalSets = datasets.getSeriesCount();
+        column_wise = true;
         System.out.println("Total Sets SVDCovariance " + totalSets);
         //setContentPane(contentPane);
         //setModal(true);
@@ -74,6 +77,7 @@ public class SVDCovariance extends SwingWorker<String, Object> {
         }
 
         totalSets = datasets.getSeriesCount();
+        column_wise = true;
         System.out.println("Total Sets SVDCovariance " + totalSets);
     }
 
@@ -81,38 +85,97 @@ public class SVDCovariance extends SwingWorker<String, Object> {
 
     @Override
     protected String doInBackground() throws Exception {
-
         // create mean subtracted sets
         XYSeriesCollection meanCenteredSets = new XYSeriesCollection();
         XYDataItem tempItem;
 
-        for(int i=0; i<totalSets; i++){
+        // need a collection of common q-values for column_wise
+        if (column_wise){
 
-            double sum=0;
-            double count=0;
-
-            XYSeries tempSeries = datasets.getSeries(i);
+            XYSeries tempSeries = datasets.getSeries(0);
+            ArrayList<Number> qvalues = new ArrayList<>();
             int totalInSeries = tempSeries.getItemCount();
-
             for(int j=0; j<totalInSeries; j++){
                 tempItem = tempSeries.getDataItem(j);
                 if (tempItem.getXValue() >= qmin && tempItem.getXValue() <= qmax){
-                    sum += tempItem.getYValue();
-                    count += 1;
+                    qvalues.add(tempItem.getX());
+                }
+            }
+            // now check the other series that are remaining
+            // for each q-value, check if in each dataset
+            ArrayList<Number> qs_to_use = new ArrayList<>();
+            for (Number num : qvalues) {
+                int qcount=1;
+                for (int i=1; i<totalSets; i++){
+                    tempSeries = datasets.getSeries(i);
+                    if (tempSeries.indexOf(num) > -1 ){
+                        qcount++;
+                    }
+                }
+
+                if (qcount == totalSets){
+                    qs_to_use.add(num);
                 }
             }
 
-            double invCount = 1.0/(double)count;
-            double mean = sum*invCount;
-            System.out.println("Mean Centering " + i + " => "+ mean);
+            ArrayList<Double> averages = new ArrayList<Double>();
+            for (Number num : qs_to_use) {
+                double qcount=0.0;
+                double sum = 0.0;
+                for (int i=1; i<totalSets; i++){
+                    tempSeries = datasets.getSeries(i);
+                    int index = tempSeries.indexOf(num);
+                    if (index > -1 ){
+                        sum += tempSeries.getY(index).doubleValue();
+                        qcount+=1.0;
+                    }
+                }
+                averages.add(sum/qcount);
+            }
 
             // center the data
-            meanCenteredSets.addSeries(new XYSeries("mean centered " + Integer.toString(i)));
+            for(int i=0; i<totalSets; i++){
+                // center the data
+                meanCenteredSets.addSeries(new XYSeries("mean centered " + Integer.toString(i)));
+                XYSeries meanSeries = meanCenteredSets.getSeries(i);
+                tempSeries = datasets.getSeries(i);
 
-            for(int j=0; j<totalInSeries; j++){
-                tempItem = tempSeries.getDataItem(j);
-                if (tempItem.getXValue() >= qmin && tempItem.getXValue() <= qmax){
-                    meanCenteredSets.getSeries(i).add(tempItem.getXValue(), (tempItem.getYValue() - mean));
+                for (int j=0; j< qs_to_use.size(); j++) {
+                    int index = tempSeries.indexOf(qs_to_use.get(j));
+                    if (index > -1 ){
+                        tempItem = tempSeries.getDataItem(index);
+                        meanSeries.add(tempItem.getXValue(), (tempItem.getYValue() - averages.get(j)));
+                    }
+                }
+            }
+        } else {
+            for(int i=0; i<totalSets; i++){
+
+                double sum=0;
+                double count=0;
+
+                XYSeries tempSeries = datasets.getSeries(i);
+                int totalInSeries = tempSeries.getItemCount();
+
+                for(int j=0; j<totalInSeries; j++){
+                    tempItem = tempSeries.getDataItem(j);
+                    if (tempItem.getXValue() >= qmin && tempItem.getXValue() <= qmax){
+                        sum += tempItem.getYValue();
+                        count += 1;
+                    }
+                }
+
+                double invCount = 1.0/(double)count;
+                double mean = sum*invCount;
+                //System.out.println("Mean Centering " + i + " => "+ mean);
+                // center the data
+                meanCenteredSets.addSeries(new XYSeries("mean centered " + Integer.toString(i)));
+
+                for(int j=0; j<totalInSeries; j++){
+                    tempItem = tempSeries.getDataItem(j);
+                    if (tempItem.getXValue() >= qmin && tempItem.getXValue() <= qmax){
+                        meanCenteredSets.getSeries(i).add(tempItem.getXValue(), (tempItem.getYValue() - mean));
+                    }
                 }
             }
         }
@@ -167,15 +230,15 @@ public class SVDCovariance extends SwingWorker<String, Object> {
         DMatrixRMaj W = svd.getW(null);
 //        DenseMatrix64F W = svd.getW(null);
        // DenseMatrix64F V = svd.getV(null,false);
+//        double firstss = W.get(0,0);
 
-        double firstss = W.get(0,0);
-        int svd_index = 1;
 
         System.out.println("/nSINGULAR VALUE => INDX    VALUE   RATIO");
 
         Double[] singularValues = new Double[totalSets];// = svd.getSingularValues(); // sould be sorted values
         for(int i=0; i < totalSets; i++){
             singularValues[i] = W.get(i,i);
+//            System.out.println(" => " + i + " " + singularValues[i]);
         }
 
         Arrays.sort(singularValues, Collections.reverseOrder());
@@ -197,8 +260,8 @@ public class SVDCovariance extends SwingWorker<String, Object> {
 
         double svvalue;
         singularValuesSeries = new XYSeries("Singular Values");
-
-        for(int i=0; i < totalSets; i++){
+//        int svd_index = 1;
+        for(int i=0; i < (totalSets-1); i++){
             //svvalue = W.get(i,i);
             svvalue = singularValues[i];
             singularValuesSeries.add(i+1, svvalue);
@@ -219,7 +282,7 @@ public class SVDCovariance extends SwingWorker<String, Object> {
                 ninetypercent=i;
             }
             //System.out.format("SINGULAR VALUE => %4d %8.4f  %8.6f\n", svd_index, Math.log10(W.get(i,i)), firstss/W.get(i,i));
-            svd_index++;
+//            svd_index++;
         }
 
         System.out.println("80% singular values contained within first " + eightypercent + " ( "+totalSets+" )");
@@ -329,7 +392,7 @@ public class SVDCovariance extends SwingWorker<String, Object> {
         boolean isCommon;
 
         int totalInSampleSet = datasets.getSeriesCount();
-        XYSeries referenceData = datasets.getSeries(0), tempData;
+        XYSeries referenceData = datasets.getSeries(0);
 
         int startHere=0;
         for(int i=0; i<referenceData.getItemCount(); i++){
@@ -338,7 +401,6 @@ public class SVDCovariance extends SwingWorker<String, Object> {
                 break;
             }
         }
-
 
         XYDataItem refItem;
         int startAt;
@@ -354,7 +416,7 @@ public class SVDCovariance extends SwingWorker<String, Object> {
             startAt = 1;
             innerloop:
             for(; startAt < totalInSampleSet; startAt++) {
-                tempData = datasets.getSeries(startAt);
+                XYSeries tempData = datasets.getSeries(startAt);
                 // check if refItem q-value is in tempData
                 // if true, check next value
                 if (tempData.indexOf(refItem.getX()) < 0) {
@@ -378,7 +440,7 @@ public class SVDCovariance extends SwingWorker<String, Object> {
 
         boolean isCommon;
         int totalInSampleSet = datasets.getSeriesCount();
-        XYSeries referenceData = datasets.getSeries(0), tempData;
+        XYSeries referenceData = datasets.getSeries(0);
 
         int startHere=referenceData.getItemCount()-1;
         for(int i=(referenceData.getItemCount()-1); i>0; i--){
@@ -402,7 +464,7 @@ public class SVDCovariance extends SwingWorker<String, Object> {
             startAt = 1;
             innerloop:
             for(; startAt < totalInSampleSet; startAt++) {
-                tempData = datasets.getSeries(startAt);
+                XYSeries tempData = datasets.getSeries(startAt);
                 // check if refItem q-value is in tempData
                 // if true, check next value
                 if (tempData.indexOf(refItem.getX()) < 0) {

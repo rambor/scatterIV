@@ -427,7 +427,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             status.setText("Assembling signals");
             for(int i=0; i<totalDataSetsInCollection; i++){
 
-                fLine.append(String.format(Locale.US, "%d ", i));
+                fLine.append(String.format(Locale.US, "%d ", i)); // includes terminal space
 
                 boolean notFound = true;
                 for (Signals signal : signals) {
@@ -893,19 +893,22 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         for(int i=0; i<1; i++){
 
             refData = collection.get(i);
+            int totalInRef = refData.getItemCount();
 
+            int upperLimit = ((upperIndex+1) > totalInRef) ? (totalInRef-1) : upperIndex;
+            //System.out.println(i + " " + refData.getKey() + " REF Data COunt " + refData.getItemCount() + " upperIndex " + upperIndex);
             for(int j=(i+1); j<windowSize; j++){
 
                 tempData = collection.get(j);
                 // go through each q-value in reference
-                double sum = 0;
+                //double sum = 0;
                 tt=0;
-                for (int q = lowerIndex; q < (upperIndex+1); q++) {
+                for (int q = lowerIndex; q < (upperLimit+1); q++) {
                     refXY = refData.getDataItem(q);
                     foundIndex = tempData.indexOf(refXY.getX());
                     if (foundIndex > -1 ) {
                         diff = (tempData.getY(foundIndex).doubleValue() - refXY.getYValue())/refXY.getYValue();
-                        sum += diff;
+                        //sum += diff;
                         residuals.set(tt,diff );
                         tt++;
                     }

@@ -597,6 +597,7 @@ public class Subtract {
 
                         for(int i=0; i<buffersCollection.getTotalDatasets(); i++){
                             buffersCollection.getDataset(i).setInUse(selectedBufferIndices.get(i));
+                            System.out.println(i + " " + selectedBufferIndices.get(i));
                         }
 
                         for(int i=0; i<samplesCollection.getTotalDatasets(); i++){

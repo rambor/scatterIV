@@ -72,8 +72,8 @@ public class DataLine {
             }
             isData = true;
         } else {
-            LogIt.log(Level.WARNING, "NON DATA FORMAT :: " + line);
-            throw new Exception("NON DATA FORMAT :: " + line);
+            LogIt.log(Level.WARNING, "NON DATA FORMATTED LINE :: " + line);
+            throw new Exception("NON DATA FORMATTED LINE :: " + line);
         }
     }
 
@@ -104,7 +104,6 @@ public class DataLine {
 
 
     private boolean checkline(String line){
-        boolean test = false;
 
         String newString = line.replaceAll( "[\\s\\t]+", " " );
         String trimmed = newString.trim();
@@ -119,13 +118,14 @@ public class DataLine {
                 dataFormat.matcher(row[1]).matches() &&
                 !isZero(row[0]) &&                               // no zero q values
 //                !isZero(row[1]) &&                               // no zero I(q) values
+                row[1].chars().filter(ch -> ch == '.').count() < 2 &&
                 isNumeric(row[0]) &&                             // check that value can be parsed as Double
                 isNumeric(row[1])                                // check that value can be parsed as Double
         )) {
             return true;
         }
 
-        return test;
+        return false;
     }
 
 

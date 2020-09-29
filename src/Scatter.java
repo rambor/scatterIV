@@ -5,6 +5,7 @@ import version4.ReportPDF.MergeReport;
 import version4.Collection;
 import version4.tableModels.AnalysisTable;
 
+import javax.crypto.spec.PSource;
 import javax.swing.*;
 import javax.swing.plaf.basic.BasicProgressBarUI;
 import java.awt.*;
@@ -20,7 +21,7 @@ public class Scatter {
     private static String ATSAS_DIRECTORY="";
     private static String THRESHOLD="";
 
-    public static String version = "IV.b";
+    public static String version = "IV.e";
     public static WorkingDirectory WORKING_DIRECTORY;
 
     public MergeReport mergeReport; //singleton
@@ -273,8 +274,8 @@ public class Scatter {
 
         prButtonPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 analysisPane.removeAll();
                 analysisPane.repaint();
                 dehighlightSideButtons();
@@ -292,11 +293,11 @@ public class Scatter {
             }
         });
 
-
         analysisButton.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                //super.mouseClicked(e);
+                super.mousePressed(e);
                 analysisPane.removeAll();
                 dehighlightSideButtons();
                 sideButtons.get(0).highlight(new Color(198,248,255));
@@ -308,8 +309,8 @@ public class Scatter {
 
         secButton.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 analysisPane.removeAll();
                 dehighlightSideButtons();
                 sideButtons.get(2).highlight(new Color(198,248,255));
@@ -324,8 +325,8 @@ public class Scatter {
 
         subtractPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 analysisPane.removeAll();
                 dehighlightSideButtons();
                 sideButtons.get(3).highlight(new Color(198,248,255));
@@ -339,8 +340,8 @@ public class Scatter {
 
         modelPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 analysisPane.removeAll();
                 dehighlightSideButtons();
                 sideButtons.get(4).highlight(new Color(198,248,255));
@@ -353,8 +354,8 @@ public class Scatter {
 
         SettingsPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 analysisPane.removeAll();
                 dehighlightSideButtons();
                 sideButtons.get(5).highlight(new Color(198,248,255));
@@ -397,19 +398,42 @@ public class Scatter {
                 input = new FileInputStream("scatter.config");
                 // load a properties file
                 prop.load(input);
+                System.out.println("User Home :: " + System.getProperty("user.home"));
+                System.out.println("User  Dir :: " + System.getProperty("user.dir"));
 
                 if (prop.getProperty("workingDirectory") != null) {
                     //WORKING_DIRECTORY_NAME = prop.getProperty("workingDirectory");
+                    //check directory exists
                     WORKING_DIRECTORY.setWorkingDirectory(prop.getProperty("workingDirectory"));
+                    File theDir = new File(WORKING_DIRECTORY.getWorkingDirectory());
+                    if (!theDir.exists()) {
+                        WORKING_DIRECTORY = new WorkingDirectory(System.getProperty("user.home"));
+                    }
+                    // WORKING_DIRECTORY.setWorkingDirectory(prop.getProperty("workingDirectory"));
                     // WORKING_DIRECTORY = new WorkingDirectory(prop.getProperty("workingDirectory"));
                 }
+
+
+
                 if (prop.getProperty("atsasDirectory") != null) {
                     ATSAS_DIRECTORY = prop.getProperty("atsasDirectory");
+
+                    File theDir = new File(ATSAS_DIRECTORY);
+                    if (!theDir.exists()) {
+                        ATSAS_DIRECTORY = System.getProperty("user.home");
+                    }
+
                     Settings setIt = Settings.getInstance();
                     setIt.setATSASDir(ATSAS_DIRECTORY);
                 }
+
                 if (prop.getProperty("subtractionDirectory") != null) {
+
                     OUTPUT_DIR_SUBTRACTION_NAME = prop.getProperty("subtractionDirectory");
+                    File theDir = new File(OUTPUT_DIR_SUBTRACTION_NAME);
+                    if (!theDir.exists()) {
+                        OUTPUT_DIR_SUBTRACTION_NAME = System.getProperty("user.home");
+                    }
                 }
 
             } catch (IOException ex) {
@@ -428,7 +452,7 @@ public class Scatter {
 
         File theDir = new File(WORKING_DIRECTORY.getWorkingDirectory());
         if (!theDir.exists()) {
-            WORKING_DIRECTORY = new WorkingDirectory(System.getProperty("user.dir"));
+            WORKING_DIRECTORY = new WorkingDirectory(System.getProperty("user.home"));
         }
 
         JFrame frame = new JFrame("ScatterIV");
@@ -454,6 +478,7 @@ public class Scatter {
             prop.setProperty("subtractionDirectory", OUTPUT_DIR_SUBTRACTION_NAME);
             // save properties to project root folder
             prop.store(output, null);
+            output.close();
 
         } catch (IOException io) {
             io.printStackTrace();

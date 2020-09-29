@@ -66,9 +66,11 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
                 if (chooser.showOpenDialog(contentPane) == JFileChooser.APPROVE_OPTION){
 
                     if (chooser.getSelectedFile().isDirectory()){
-                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getSelectedFile().toString());
-                    } else {
                         Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getCurrentDirectory().toString());
+                        //Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getSelectedFile().toString());
+                    } else {
+                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getSelectedFile().toString());
+                        //Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getCurrentDirectory().toString());
                     }
 
                     workingDirLabel.setText(Scatter.WORKING_DIRECTORY.getWorkingDirectory());

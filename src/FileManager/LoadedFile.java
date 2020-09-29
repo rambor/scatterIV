@@ -93,6 +93,7 @@ public class LoadedFile {
                                 allData.add(tempQValue, dataPoints.getI() );
                                 allDataError.add(tempQValue, dataPoints.getE() );
                             } else {
+                                System.out.println(strLine);
 //                                try{
 //                                    /*
 //                                     * check if line is a JSON string

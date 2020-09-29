@@ -59,7 +59,7 @@ public class IFTObject implements Runnable {
         } else if (useDirectFT && !useLegendre && !useL2 && !useSVD){
             // L1-norm
             tempIFT = new SineIntegralTransform(dataset.getfittedqIq(), dataset.getfittedError(), dmax, qmax, lambda, includeBackground, positiveOnly);
-            tempIFT.calculateSphericalCalibration();
+//            tempIFT.calculateSphericalCalibration();
 
         } else if (useLegendre && !useL2 && !useSVD) {
 

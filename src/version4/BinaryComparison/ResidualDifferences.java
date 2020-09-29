@@ -21,6 +21,7 @@ public class ResidualDifferences extends BinaryComparisonModel {
     //private XYSeries residuals;
     private double variance, skewness;
     private double scaleFactor;
+    private double average;
     private double durbinWatsonStatistic;
     private double ljungBoxStatistic;
     private double shapiroWilkStatistic;
@@ -159,6 +160,8 @@ public class ResidualDifferences extends BinaryComparisonModel {
     public String getSH(){ return String.format("%.4f", shapiroWilkStatistic);}
     public String getDW(){ return String.format("%.4f", durbinWatsonStatistic);}
 
+    public double getVariance(){ return variance;}
+    public double getAverage(){ return average;}
     public double getLjungBoxStatistic(){ return ljungBoxStatistic;}
     public double getShapiroWilkStatistic(){ return shapiroWilkStatistic;}
     public double getDurbinWatsonStatistic(){ return durbinWatsonStatistic;}
@@ -416,6 +419,9 @@ public class ResidualDifferences extends BinaryComparisonModel {
         location = sum/counter; // => average
         variance = sumqsquared/counter - location*location;
         scale = variance;
+
+        //System.out.println("Standard deviation :: " + Math.sqrt(variance));
+        average = location;
 
         invGaussianNormalizationFactor = 1.0/Math.sqrt(2.0*Math.PI*variance);
         inv2variance = 1.0/(2.0*variance);

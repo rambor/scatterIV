@@ -179,10 +179,12 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
         NumberAxis xAxis = new NumberAxis("frame");
         xAxis.setStandardTickUnits(NumberAxis.createIntegerTickUnits());
         xAxis.setRange(startIndex, endIndex);
+        xAxis.setAutoRangeIncludesZero(false);
 
         NumberAxis yAxis = new NumberAxis("frame");
         yAxis.setStandardTickUnits(NumberAxis.createIntegerTickUnits());
         yAxis.setRange(startIndex, endIndex);
+        yAxis.setAutoRangeIncludesZero(false);
 
         double minZ=0.0;
         for(int i=0; i<residualDataset.getSeriesCount(); i++){

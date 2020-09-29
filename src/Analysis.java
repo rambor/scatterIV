@@ -196,8 +196,8 @@ public class Analysis extends JDialog {
 
         log10Panel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 0){
                     log10Plot.plot();
                 } else {
@@ -208,8 +208,8 @@ public class Analysis extends JDialog {
 
         errorsPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 0){
                     errorPlot.plot();
                 } else {
@@ -220,8 +220,8 @@ public class Analysis extends JDialog {
 
         qIqPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 0){
                     qIqPlot.plot();
                 } else {
@@ -232,8 +232,8 @@ public class Analysis extends JDialog {
 
         powerlawPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 0){
                     powerLawPlot.plot();
                 } else {
@@ -245,8 +245,8 @@ public class Analysis extends JDialog {
 
         kratkyPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 kratkyPlot.plot();
             }
         });
@@ -254,8 +254,8 @@ public class Analysis extends JDialog {
 
         normalizedKratkyPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 normalizedGuinierKratkyPlot.plot();
                 boolean doReal = false;
                 for (int i=0; i<collectionSelected.getTotalDatasets(); i++){
@@ -275,8 +275,8 @@ public class Analysis extends JDialog {
 
         gpaPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 int id = collectionSelected.getSelected();
 
                 if (id < 0){
@@ -307,8 +307,8 @@ public class Analysis extends JDialog {
 
         porodDebyePanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 0){
                     FlexibilityPlots flexplot = new FlexibilityPlots(collectionSelected, WORKING_DIRECTORY);
                     flexplot.makePlot();
@@ -321,8 +321,8 @@ public class Analysis extends JDialog {
 
         volumePanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
 
                 if (collectionSelected.getTotalSelected() == 1){
                     int id = collectionSelected.getSelected();
@@ -339,8 +339,8 @@ public class Analysis extends JDialog {
 
         vcPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 0){
                     VcPlot tempPlot = new VcPlot(collectionSelected, WORKING_DIRECTORY.getWorkingDirectory());
                     tempPlot.plot(status);
@@ -353,8 +353,8 @@ public class Analysis extends JDialog {
 
         rcPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() == 1){
                     int selected = 0;
                     int limit = collectionSelected.getTotalDatasets();
@@ -378,8 +378,8 @@ public class Analysis extends JDialog {
 
         scalePanel.addMouseListener(new MouseAdapter(){
             @Override
-            public void mouseClicked(MouseEvent e) {
-
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 1){
                     new Thread(){
                         public void run() {
@@ -435,8 +435,8 @@ public class Analysis extends JDialog {
 
         SVDPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 0){
                     // need to determine number of frames selected
                     int inUseCount=0;
@@ -464,7 +464,7 @@ public class Analysis extends JDialog {
                         }
                     }
 
-                    System.out.println("tempcollection " + tempCollection.getSeriesCount());
+
                     if (inUseCount < 3){
                         status.setText("Too few frames, 3 or more!");
                         return;
@@ -478,6 +478,7 @@ public class Analysis extends JDialog {
                         public void run() {
 
                             final SVDCovariance svd = new SVDCovariance(finalQmin, finalQmax, tempCollection);
+//                            final SVDCorMap svd = new SVDCorMap(finalQmin, 0.23, tempCollection,0);
                             svd.execute();
 
                             try {
@@ -502,8 +503,8 @@ public class Analysis extends JDialog {
 
         izeroRgPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 1){
 
                     DoubleXYPlot izeroRgPlot = new DoubleXYPlot(WORKING_DIRECTORY.getWorkingDirectory());
@@ -517,8 +518,8 @@ public class Analysis extends JDialog {
 
         ratioPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 1){
                     BinaryComparisonPlot ratioPlot = new BinaryComparisonPlot(collectionSelected, WORKING_DIRECTORY.getWorkingDirectory());
                     ratioPlot.makePlot();
@@ -531,8 +532,8 @@ public class Analysis extends JDialog {
 
         complexPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 1){
 
                     new ComplexPlot(collectionSelected, WORKING_DIRECTORY.getWorkingDirectory(), status);
@@ -545,8 +546,8 @@ public class Analysis extends JDialog {
 
         clearPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalDatasets() > 0){
 
                     collectionSelected.removeAllDatasets();
@@ -566,8 +567,8 @@ public class Analysis extends JDialog {
 
         scaleToIzero.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 1){
 
                     if (collectionSelected.getTotalSelected() < 2){
@@ -611,8 +612,8 @@ public class Analysis extends JDialog {
 
         pdfPanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 0){
 
                     Notes temp = new Notes(collectionSelected, WORKING_DIRECTORY);
@@ -629,8 +630,8 @@ public class Analysis extends JDialog {
 
         LoadFilePanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
 
                 JFileChooser fc = new JFileChooser(WORKING_DIRECTORY.getWorkingDirectory());
                 fc.setMultiSelectionEnabled(true);
@@ -685,8 +686,8 @@ public class Analysis extends JDialog {
 
         saveFilePanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
 
                 if (collectionSelected.getTotalSelected() > 1){
                     status.setText("Select only one file!");
@@ -727,8 +728,8 @@ public class Analysis extends JDialog {
 
         scaleMergePanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 1){
 
                     Thread tempThread  = new Thread(){
@@ -816,8 +817,8 @@ public class Analysis extends JDialog {
 
         averagePanel.addMouseListener(new MouseAdapter() {
             @Override
-            public void mouseClicked(MouseEvent e) {
-                super.mouseClicked(e);
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
                 if (collectionSelected.getTotalSelected() > 1){
 
                     Averager tempAverage = new Averager(collectionSelected);
@@ -877,7 +878,8 @@ public class Analysis extends JDialog {
         int cpuCores = Runtime.getRuntime().availableProcessors();
         analysisTable.getTableHeader().addMouseListener(new MouseAdapter(){
             @Override
-            public void mouseClicked(MouseEvent mouseEvent){
+            public void mousePressed(MouseEvent mouseEvent){
+                super.mousePressed(mouseEvent);
                 int index = analysisTable.columnAtPoint(mouseEvent.getPoint());
                 if (index == 2 ){ // invert selection
 
@@ -967,12 +969,12 @@ public class Analysis extends JDialog {
             @Override
             public void mouseClicked(MouseEvent e) {
                 // updateMiniPlots
-                updateMiniPlots(Scatter.analysisTable.getTable().rowAtPoint(e.getPoint()));
+                //updateMiniPlots(Scatter.analysisTable.getTable().rowAtPoint(e.getPoint()));
             }
 
             @Override
             public void mousePressed(MouseEvent e) {
-
+                updateMiniPlots(Scatter.analysisTable.getTable().rowAtPoint(e.getPoint()));
             }
 
             @Override
