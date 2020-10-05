@@ -114,6 +114,7 @@ public class SECTool extends JDialog {
     private JLabel qmaxLabel;
     private JLabel qminLabel;
     private JButton SVDCORMAPButton;
+    private JButton exportTraceButton;
     private ChartPanel signalChartPanel;
     private ChartPanel intensityChartPanel;
     private ChartPanel selectedRegionsChartPanel;
@@ -264,12 +265,14 @@ public class SECTool extends JDialog {
                                         secFileLabel.setForeground(Color.cyan);
                                         TRACEButton.setText("UPDATE");
                                         status.setText("");
+                                        exportTraceButton.setEnabled(true);
                                     } catch (IOException e) {
+                                        exportTraceButton.setEnabled(false);
                                         e.printStackTrace();
                                     }
 
                                 } else if (ext.equals("dat")) { // dropping single file that ends in dat
-
+                                    exportTraceButton.setEnabled(false);
                                     try {
                                         FileListBuilder builder = new FileListBuilder(files[0], Scatter.WORKING_DIRECTORY.getWorkingDirectory());
                                         status.setText("Loading " + builder.getFoundFiles().length + " files, please wait");
@@ -602,7 +605,7 @@ public class SECTool extends JDialog {
                     }
 
                 }
-
+                exportTraceButton.setEnabled(true);
                 setBuffer = false;
             }
         });
@@ -1015,6 +1018,39 @@ public class SECTool extends JDialog {
 
             }
         });
+
+
+        exportTraceButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // if file loaded
+                if (signalPlot.getSeriesCount() > 1){
+                    int total = signalPlot.getSeriesCount();
+
+                    try {
+                        String name  = secFile.getFilebase();
+                        FileWriter fw = new FileWriter(Scatter.WORKING_DIRECTORY.getWorkingDirectory() +"/"+name+"_signal_plot.txt");
+                        BufferedWriter out = new BufferedWriter(fw);
+                        out.write(String.format("# %s %n", name));
+
+                        for (int n=1; n < total; n++) {
+                            XYSeries tempSeries = signalPlot.getSeries(n);
+
+                            out.write( String.format("%f,%s%n",
+                                    tempSeries.getX(0).doubleValue()*3.1/60.0,
+                                    Constants.Scientific1dot5e2.format(tempSeries.getY(0).doubleValue())
+                            ));
+                        }
+
+                        out.close();
+                    } catch (IOException ee) {
+                        ee.printStackTrace();
+                    }
+                } else {
+                    exportTraceButton.setEnabled(false);
+                }
+            }
+        });
     }
 
     /*
@@ -1060,8 +1096,9 @@ public class SECTool extends JDialog {
         XYPlot plot = chart.getXYPlot();
         chart.setNotify(false);
         signalPlot.removeAllSeries();
-
+        // Background is Series '0'
         signalPlot.addSeries(secFile.getBackground()); // background is the first element in signalPlot
+        // everything after Series '0' is signgal plot
         XYSeriesCollection tempC = secFile.getSignalCollection();
         for(int i=0; i<tempC.getSeriesCount(); i++){
             signalPlot.addSeries(tempC.getSeries(i));

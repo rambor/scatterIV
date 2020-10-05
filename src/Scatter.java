@@ -53,6 +53,7 @@ public class Scatter {
     private JPanel SettingsPanel;
     private JLabel settingsLabel;
     private JLabel settingsIcon;
+    private JLabel MSSXLabel;
     public static Collection collectionSelected;
     public static Color background;
     public static boolean useAutoRg = true;
