@@ -109,7 +109,7 @@ public class DataLine {
         String trimmed = newString.trim();
         String[] row = trimmed.split("\\s|;|,\\s|,"); // CSV files could have a ", "
 
-        if (row.length > 1 && !dataFormat.matcher(row[1]).matches()){
+        if ( row.length > 1 && (!dataFormat.matcher(row[1]).matches() || isZero(row[1]))  ){
             return false;
         } else if ((!trimmed.contains("#") &&
                 (row[0].length() > 2) &&
@@ -139,7 +139,6 @@ public class DataLine {
         if (hasOnlyComma(str) && !isUSUK){
 
             if (convertToUS(str) <= 0){
-
                 return true;
             }
         } else if (isUSUK) {
