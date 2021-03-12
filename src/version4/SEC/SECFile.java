@@ -195,6 +195,9 @@ public class SECFile {
         return rgvalues.get(index);
     }
 
+    /*
+     * null values are zero
+     */
     public double getIzerobyIndex(int index){
         return iZerovalues.get(index);
     }
@@ -207,12 +210,14 @@ public class SECFile {
         return iZeroErrorValues.get(index);
     }
 
-
-
     public XYSeriesCollection getSignalCollection(){
         return signalCollection;
     }
 
+    /*
+     * x value is frame index starting from 0
+     * y value is integrated signal
+     */
     public XYSeries getSignalSeries(){
         return signalSeries;
     }
@@ -378,6 +383,9 @@ public class SECFile {
         }
     }
 
+    /**
+     * extract Izero values from SecFile, values that are null will be set to 0.0
+     */
     private void extractIzeroValues(){
         int izeroAt = secFormat.getIzero_index();
         MappedByteBuffer buffer = null;
@@ -395,7 +403,7 @@ public class SECFile {
                 double value = Double.valueOf(values[i]);
                 iZerovalues.add(value);
             } catch (NumberFormatException ee) {
-                iZerovalues.add(0.0);
+                iZerovalues.add(0.0d);
             }
         }
     }
@@ -820,8 +828,6 @@ public class SECFile {
         }
         return tempXY;
     }
-
-
 
     public String getFilename() {
         return filename;

@@ -879,7 +879,7 @@ public class SubtractionReport {
                             }
                             System.out.println("StatMethods: Interpolating count " + count + " ref_q => " + referenceQ);
 
-                            Double[] results = Functions.interpolate(targetData, referenceQ, 1);
+                            Double[] results = Functions.interpolate(targetData, referenceQ);
                             Double[] sigmaResults = Functions.interpolateSigma(targetError, referenceQ);
                             sigma = 1.0/(sigmaResults[1]*scale);
                             var = sigma*sigma;

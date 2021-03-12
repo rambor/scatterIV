@@ -67,6 +67,7 @@ public class LoadedFile {
         // get file base and extension
         String[] filename = file.getName().split("\\.(?=[^\\.]+$)");
         filebase = filename[0];
+
         ext = filename[1];
         String keyName = Integer.toString(index) + filebase; // helps keep file names unique so we can load same file multiple times
 
@@ -76,7 +77,7 @@ public class LoadedFile {
 
         try {
             BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(file)));
-//            BufferedReader br = new BufferedReader(new FileReader(file));
+
             long filesize = file.length();
 
             if ( filesize > 0 && (ext.equals("dat") || ext.equals("int") || ext.equals("txt") || ext.equals("csv") || ext.equals("fit")) ) { //regular 3 column file space or tab delimited
@@ -109,6 +110,7 @@ public class LoadedFile {
 //                                }
                             }
                         } catch (Exception e) {
+                            System.out.println("CORRUPTED file :: " + filebase);
                             if (strLine.contains("{")){
                                 try{
                                     /*
@@ -170,7 +172,6 @@ public class LoadedFile {
 
     public boolean hasJson(){ return jsonPresent;}
     public String getJSONString() { return json;}
-
 
 }
 

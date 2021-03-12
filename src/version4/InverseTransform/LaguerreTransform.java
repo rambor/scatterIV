@@ -55,7 +55,6 @@ public class LaguerreTransform extends IndirectFT {
      * @param dmax
      * @param qmax
      * @param lambda
-     * @param cBoxValue
      */
     public LaguerreTransform(double r_ave_estimate, double rg_estimate, XYSeries dataset, XYSeries errors, double dmax, double qmax, double lambda) {
         super(dataset, errors, dmax, qmax, lambda, false);

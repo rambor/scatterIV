@@ -224,7 +224,6 @@ public class SECTool extends JDialog {
             @Override
             public void filesDropped(final File[] files) {
 
-
                 new Thread() {
                     public void run() {
 
@@ -1032,13 +1031,20 @@ public class SECTool extends JDialog {
                         FileWriter fw = new FileWriter(Scatter.WORKING_DIRECTORY.getWorkingDirectory() +"/"+name+"_signal_plot.txt");
                         BufferedWriter out = new BufferedWriter(fw);
                         out.write(String.format("# %s %n", name));
-
+                        out.write(String.format("# %s %n", "index signal izero rg rg_error"));
                         for (int n=1; n < total; n++) {
                             XYSeries tempSeries = signalPlot.getSeries(n);
 
-                            out.write( String.format("%f,%s%n",
-                                    tempSeries.getX(0).doubleValue()*3.1/60.0,
-                                    Constants.Scientific1dot5e2.format(tempSeries.getY(0).doubleValue())
+                        //    out.write( String.format("%f,%s%n",
+                        //            tempSeries.getX(0).doubleValue()*2.1/60.0,
+                        //            Constants.Scientific1dot5e2.format(tempSeries.getY(0).doubleValue())
+                        //    ));
+
+                            out.write( String.format("%d %s %s %s %s%n", n,
+                                    Constants.Scientific1dot5e2.format(tempSeries.getY(0).doubleValue()),
+                                            Constants.Scientific1dot5e2.format(secFile.getIzerobyIndex(n-1)),
+                                            Constants.Scientific1dot5e2.format(secFile.getRgbyIndex(n-1)),
+                                    Constants.Scientific1dot5e2.format(secFile.getRgErrorbyIndex(n-1))
                             ));
                         }
 

@@ -339,7 +339,7 @@ public class StatMethods {
                             }
                             System.out.println("StatMethods: Interpolating count " + count + " ref_q => " + referenceQ);
 
-                            Double[] results = Functions.interpolate(targetData, referenceQ, 1);
+                            Double[] results = Functions.interpolate(targetData, referenceQ);
                             Double[] sigmaResults = Functions.interpolateSigma(targetError, referenceQ);
                             sigma = 1.0/(sigmaResults[1]*scale);
                             var = sigma*sigma;
@@ -502,7 +502,7 @@ public class StatMethods {
                                     index -=1;
                                 }
 
-                                Double[] results = Functions.interpolate(reference.getAllData(), qvalue.doubleValue(), 1);
+                                Double[] results = Functions.interpolate(reference.getAllData(), qvalue.doubleValue());
                                 Double[] sigmaResults = Functions.interpolateSigma(reference.getAllDataError(), qvalue.doubleValue());
 
                                 sigma = 1.0/(sigmaResults[1]*scale);

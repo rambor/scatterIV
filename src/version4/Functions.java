@@ -479,19 +479,35 @@ public class Functions {
      */
     public static double median(double[] array) {
         int index;
-        double medianResult;
-        medianResult = 0.0;
 
         int length = array.length;
         //if even number of elements
         if (length%2==0) {
             index = length/2;
-            medianResult=(array[index]+array[index-1])*0.5;
+            return (array[index]+array[index-1])*0.5;
         } else {
             index = length/2;
-            medianResult=array[index];
+            return array[index];
         }
-        return medianResult;
+    }
+
+    /**
+     * Calculates median of an arrayList (must be sorted). If even number of elements it returns average of the two numbers
+     * @param array Array of Doubles to calculate median
+     * @return Median value calculated from array elements
+     */
+    public static double median(ArrayList<Double> array) {
+        int index;
+
+        int length = array.size();
+        //if even number of elements
+        if (length%2==0) {
+            index = length/2;
+            return (array.get(index)+array.get(index-1))*0.5;
+        } else {
+            index = length/2;
+            return array.get(index);
+        }
     }
 
     /**
@@ -939,14 +955,91 @@ public class Functions {
         return random_set;
     }
 
+
+
+    /**
+     *
+     * @param point double point to be determined
+     * @return
+     */
+    public static Double[] interpolate(double[] xvals, double[] yvals, double point){
+        //Kriging interpolation
+        int [] z = new int[6];
+        int index=0;
+        //loop over data to find the smalllest q rather than than point
+        int totalData = xvals.length;
+        for (int i=0; i< totalData-1; i++) {
+            if (xvals[i] > point){
+                index = i;
+                break;
+            }
+        }
+
+        // select indices to use for 6 point interpolation
+        if (index == 1){ // if first point to interpolate has only one neighbor
+            for (int k=0; k<6; k++){
+                z[k]=k;
+            }
+        } else if (index>=totalData-3){
+            z[0]=totalData-6;
+            z[1]=totalData-5;
+            z[2]=totalData-4;
+            z[3]=totalData-3;
+            z[4]=totalData-2;
+            z[5]=totalData-1;
+        } else {
+            for (int k=-2; k<4; k++){
+                z[k+2]=index+k;
+            }
+        }
+
+        // width between first and last
+        final double scale = xvals[z[5]] - xvals[z[0]];
+        final double inv_scale = 1.0d/scale;
+
+        SimpleMatrix c_m = new SimpleMatrix(6,6);
+        //this might be (1,6)
+        SimpleMatrix z_m = new SimpleMatrix(6,1);
+        SimpleMatrix one = new SimpleMatrix(6, 1);
+        for (int m=0; m<6; m++){
+            one.set(m, 0, 1);
+            double anchor = xvals[z[m]];
+
+            z_m.set(m, 0, yvals[z[m]]);
+            for (int n=0; n<6; n++){
+                double diff = (anchor - xvals[z[n]])*inv_scale;
+                c_m.set(m, n, 0.96*Math.exp(-diff*diff));
+            }
+        }
+
+        SimpleMatrix d_m = new SimpleMatrix(6,1);
+        for (int m=0; m<6; m++){
+            double diff = (point- xvals[z[m]])*inv_scale;
+            d_m.set(m, 0, 0.96*Math.exp( -diff*diff));
+        }
+
+        double mu = ((one.transpose().mult(c_m.invert())).mult(z_m).get(0))/(one.transpose().mult(c_m.invert().mult(one))).get(0);
+
+        Double[] resultS = new Double[3];
+        resultS[0]=point;
+        resultS[1]=mu+(d_m.transpose().mult(c_m.invert()).mult(z_m.minus(one.scale(mu)))).get(0); // predicted value
+
+        double sigma_2 = ((z_m.minus(one.scale(resultS[1]))).transpose().mult(c_m.invert()).mult(z_m.minus(one.scale(resultS[1])))).get(0)/6;
+        double sigma_d = ((d_m.transpose().mult(c_m.invert())).mult(d_m)).get(0);
+        double tmp1 = sigma_2*(1-sigma_d);
+        resultS[2]=Math.sqrt(tmp1); // stdev
+
+        return resultS;
+    }
+
+
     /**
      *
      * @param data XYSeries non-log10 data
      * @param point double point to be determined
-     * @param scaleFactor
      * @return
      */
-    public static Double[] interpolate(XYSeries data, double point, double scaleFactor){
+    public static Double[] interpolate(XYSeries data, double point){
         //Kriging interpolation
         int [] z = new int[6];
         int index=0;
@@ -959,9 +1052,10 @@ public class Functions {
             }
         }
 
-        if (index <=1){
+        // select indices to use for 6 point interpolation
+        if (index == 1){ // if first point to interpolate has only one neighbor
             for (int k=0; k<6; k++){
-                z[k]=index+k;
+                z[k]=k;
             }
         } else if (index>=data.getItemCount()-3){
             z[0]=data.getItemCount()-6;
@@ -976,7 +1070,9 @@ public class Functions {
             }
         }
 
-        double scale = data.getX(z[5]).doubleValue()-data.getX(z[0]).doubleValue();
+        // width between first and last
+        final double scale = data.getX(z[5]).doubleValue()-data.getX(z[0]).doubleValue();
+        final double inv_scale = 1.0d/scale;
 
         SimpleMatrix c_m = new SimpleMatrix(6,6);
         //this might be (1,6)
@@ -985,32 +1081,32 @@ public class Functions {
         for (int m=0; m<6; m++){
             one.set(m, 0, 1);
             double anchor = data.getX(z[m]).doubleValue();
-            //delog data
+
             z_m.set(m, 0, data.getY(z[m]).doubleValue());
             for (int n=0; n<6; n++){
-                c_m.set(m, n, 0.96*Math.exp(-1*(Math.pow(((anchor-data.getX(z[n]).doubleValue())/scale),2))));
-
+                double diff = (anchor-data.getX(z[n]).doubleValue())*inv_scale;
+                c_m.set(m, n, 0.96*Math.exp(-diff*diff));
             }
         }
+
         SimpleMatrix d_m = new SimpleMatrix(6,1);
         for (int m=0; m<6; m++){
-            d_m.set(m, 0, 0.96*Math.exp( -1*(Math.pow(((point-data.getX(z[m]).doubleValue())/scale),2))));
+            double diff = (point-data.getX(z[m]).doubleValue())*inv_scale;
+            d_m.set(m, 0, 0.96*Math.exp( -diff*diff));
         }
 
         double mu = ((one.transpose().mult(c_m.invert())).mult(z_m).get(0))/(one.transpose().mult(c_m.invert().mult(one))).get(0);
 
         Double[] resultS = new Double[3];
         resultS[0]=point;
-        resultS[1]=mu+(d_m.transpose().mult(c_m.invert()).mult(z_m.minus(one.scale(mu)))).get(0);
-        resultS[1]=resultS[1]*scaleFactor; //returning log10 data
+        resultS[1]=mu+(d_m.transpose().mult(c_m.invert()).mult(z_m.minus(one.scale(mu)))).get(0); // predicted value
 
         double sigma_2 = ((z_m.minus(one.scale(resultS[1]))).transpose().mult(c_m.invert()).mult(z_m.minus(one.scale(resultS[1])))).get(0)/6;
         double sigma_d = ((d_m.transpose().mult(c_m.invert())).mult(d_m)).get(0);
         double tmp1 = sigma_2*(1-sigma_d);
-        resultS[2]=Math.sqrt(tmp1);
+        resultS[2]=Math.sqrt(tmp1); // stdev
 
         return resultS;
-
     }
 
     /**
@@ -1392,9 +1488,9 @@ public class Functions {
             }
         }
 
-        if (index <=1){
+        if (index < 2){
             for (int k=0; k<6; k++){
-                z[k]=index+k;
+                z[k]= k;
             }
         } else if (index>=data.getItemCount()-3){
             z[0]=data.getItemCount()-6;
@@ -1443,7 +1539,6 @@ public class Functions {
         resultD[2]=Math.sqrt(tmp1);
 
         return resultD;
-
     }
     /**
      *

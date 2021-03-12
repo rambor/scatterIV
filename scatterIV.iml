@@ -30,5 +30,6 @@
     <orderEntry type="library" name="pdfbox-2.0.17" level="project" />
     <orderEntry type="library" name="pdfbox2-layout-1.0.0" level="project" />
     <orderEntry type="library" name="commons-logging-1" level="project" />
+    <orderEntry type="library" name="FastDTW" level="project" />
   </component>
 </module>

@@ -205,7 +205,7 @@ public class SVDCovariance extends SwingWorker<String, Object> {
                 if (indexOf > -1){
                     matrixA.set(j, col, tempSeries.getDataItem(indexOf).getYValue());
                 } else { // interpolate
-                    Double[] results = Functions.interpolate(tempSeries, refSeries.getX(j).doubleValue(), 1);
+                    Double[] results = Functions.interpolate(tempSeries, refSeries.getX(j).doubleValue());
                     matrixA.set(j, col, results[1]);
                     System.out.println("Not found! Interpolating q : " + refSeries.getX(j));
                 }

@@ -405,7 +405,7 @@ public class RcXSectionalPlot {
         residualsRcDatasetCollection.getSeries(1).clear();
         residualsRcDatasetCollection.getSeries(1).add(x_data[0], 0);
         residualsRcDatasetCollection.getSeries(1).add(x_data[maxCount-1], 0);
-        rc = Math.sqrt(-3.0*c1);
+        rc = Math.sqrt(-3.0*c1); // should be 2.0 instead of 3.0?
         rcError = 1.5*param3[2]*Math.sqrt(1/3.0*1/rc);
 
         valueLabel.setText(String.format("Rc :: %.2f", rc));

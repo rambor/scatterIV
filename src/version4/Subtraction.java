@@ -674,7 +674,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
                 if (qValue < maxQValueInBuffer){
                     System.out.println("Interpolating Background Value at " + qValue + " >= " + maxQValueInBuffer);
-                    Double[] results = Functions.interpolate(buffer, qValue, 1);
+                    Double[] results = Functions.interpolate(buffer, qValue);
                     Double[] sigmaResults = Functions.interpolateSigma(bufferError, qValue);
                     //returns unlogged data
                     eValue = sigmaResults[1];
@@ -1172,7 +1172,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
                             }
                             System.out.println("StatMethods: Interpolating count " + count + " ref_q => " + referenceQ);
 
-                            Double[] results = Functions.interpolate(targetData, referenceQ, 1);
+                            Double[] results = Functions.interpolate(targetData, referenceQ);
                             Double[] sigmaResults = Functions.interpolateSigma(targetError, referenceQ);
                             sigma = 1.0/(sigmaResults[1]*scale);
                             var = sigma*sigma;

@@ -79,6 +79,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         this.progressBar = bar;
 
         if (!validateQValues()){
+            status.setText("Improper dataset for SEC SAXS :: Run Scatter via console and examine output");
             throw new IOException("Improper dataset for SEC SAXS :: " + notice);
         }
 
@@ -1242,11 +1243,14 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
                 eValue = bufferError.getY(indexOf).doubleValue();
                 subError.add(qValue, Math.sqrt(yValue*yValue + eValue*eValue));
 
-            } else { // interpolate
+            } else if (indexOf > 1){ // interpolate
                 // interpolation requires at least two values on left or right side of value of interest
                 if (qValue < maxQValueInBuffer) {
-                    Double[] results = Functions.interpolate(buffer, qValue, 1);
+                    // System.out.println("q-value to interpolate :: " + qValue);
+
+                    Double[] results = Functions.interpolate(buffer, qValue);
                     Double[] sigmaResults = Functions.interpolateSigma(bufferError, qValue);
+
                     //returns unlogged data
                     eValue = sigmaResults[1];
 

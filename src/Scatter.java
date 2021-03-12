@@ -1,6 +1,7 @@
 import FileManager.ReceivedDroppedFiles;
 import FileManager.WorkingDirectory;
 import net.iharder.dnd.FileDrop;
+import version4.MSSX;
 import version4.ReportPDF.MergeReport;
 import version4.Collection;
 import version4.tableModels.AnalysisTable;
@@ -21,7 +22,7 @@ public class Scatter {
     private static String ATSAS_DIRECTORY="";
     private static String THRESHOLD="";
 
-    public static String version = "IV.e";
+    public static String version = "IV.g";
     public static WorkingDirectory WORKING_DIRECTORY;
 
     public MergeReport mergeReport; //singleton
@@ -54,6 +55,8 @@ public class Scatter {
     private JLabel settingsLabel;
     private JLabel settingsIcon;
     private JLabel MSSXLabel;
+    private JPanel mSSXButtonPanel;
+    private JLabel ssxIcon;
     public static Collection collectionSelected;
     public static Color background;
     public static boolean useAutoRg = true;
@@ -64,6 +67,7 @@ public class Scatter {
 
     private Analysis analysisTab;
     private RealSpacePr realSpacePr;
+    private MSSX mSSX;
     public static AnalysisTable analysisTable;
     private SECTool secTab;
     private Settings settingsTab;
@@ -112,6 +116,8 @@ public class Scatter {
                 settingsTab.getcBox(),
                 settingsTab.getRefinementRoundsBox()
         );
+
+        mSSX = new MSSX(status, mainProgressBar, WORKING_DIRECTORY);
 
 
         analysisPane.setBackground(Color.BLACK);
@@ -170,6 +176,7 @@ public class Scatter {
         sideButtons.add(new SideButtonIcon(subtractPanel, subIcon, subtractLabel));
         sideButtons.add(new SideButtonIcon(modelPanel, modelIcon, modelLabel));
         sideButtons.add(new SideButtonIcon(SettingsPanel, settingsIcon, settingsLabel));
+        sideButtons.add(new SideButtonIcon(mSSXButtonPanel, ssxIcon, MSSXLabel));
 
         totalSideButtons = sideButtons.size();
         for(int i=0; i<totalSideButtons; i++){
@@ -272,6 +279,21 @@ public class Scatter {
             }
         });
 
+        mSSXButtonPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                super.mouseEntered(e);
+                sideButtons.get(6).highlight(new Color(198,248,255));
+            }
+        });
+
+        mSSXButtonPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseExited(MouseEvent e) {
+                super.mouseExited(e);
+                sideButtons.get(6).dehighlight();
+            }
+        });
 
         prButtonPanel.addMouseListener(new MouseAdapter() {
             @Override
@@ -288,6 +310,22 @@ public class Scatter {
                     status.setText("No data to use");
                     return;
                 }
+
+                analysisPane.revalidate();
+                analysisPane.repaint();
+            }
+        });
+
+
+        mSSXButtonPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
+                analysisPane.removeAll();
+                analysisPane.repaint();
+                dehighlightSideButtons();
+                sideButtons.get(6).highlight(new Color(198,248,255));
+                analysisPane.add(mSSX.getPanel());
 
                 analysisPane.revalidate();
                 analysisPane.repaint();

@@ -532,7 +532,7 @@ public class SignalPlot extends SwingWorker<Void, Integer> {
 //                    }
                 if (qValue < maxQValueInBuffer) {
                     System.out.println("Interpolating Value at " + qValue);
-                    Double[] results = Functions.interpolate(buffer, qValue, 1);
+                    Double[] results = Functions.interpolate(buffer, qValue);
                     Double[] sigmaResults = Functions.interpolateSigma(bufferError, qValue);
                     //returns unlogged data
                     eValue = sigmaResults[1];
