@@ -1,8 +1,7 @@
 package version4.ConvolutionFunctions;
 
-import com.matrix.ColMajorCell;
+
 import org.apache.commons.io.FilenameUtils;
-import org.jfree.chart.renderer.xy.DefaultXYItemRenderer;
 import org.jfree.data.xy.XYSeries;
 
 import java.io.BufferedWriter;

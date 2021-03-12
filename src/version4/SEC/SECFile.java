@@ -261,11 +261,14 @@ public class SECFile {
         int signalIndex = secFormat.getSignal_index();
         MappedByteBuffer buffer = null;
 
+        System.out.println("load Signal");
+        int tempcount=1;
         try {
             buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(flineIndex), linesAndLength.get(flineIndex));
             CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
             String[] fvalues = charBuffer.toString().split("\\s+"); // starts with checksum
-
+            System.out.println("tempC " + tempcount + " " + charBuffer.toString() + " " + flineIndex + " " + lineNumbers.get(flineIndex) + "   " + linesAndLength.get(flineIndex));
+            System.out.printf("fvalues " + fvalues[0]);
             buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(signalIndex), linesAndLength.get(signalIndex));
             charBuffer = Charset.forName("UTF-8").decode(buffer);
             String[] signals = charBuffer.toString().split("\\s+");
@@ -304,6 +307,7 @@ public class SECFile {
 
             totalQValues = qvalues.size();
         } catch (IOException e) {
+            System.out.println(e.getMessage());
             e.printStackTrace();
         }
     }

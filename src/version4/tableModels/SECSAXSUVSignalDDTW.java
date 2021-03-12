@@ -5,7 +5,6 @@ import com.dtw.WarpPath;
 import com.matrix.ColMajorCell;
 import com.timeseries.TimeSeries;
 import com.util.DistanceFunctionFactory;
-import org.apache.commons.lang3.ArrayUtils;
 import org.jfree.data.xy.XYDataItem;
 import org.jfree.data.xy.XYSeries;
 import version4.Constants;
