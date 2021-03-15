@@ -120,7 +120,7 @@ public class SECTool extends JDialog {
     private ChartPanel selectedRegionsChartPanel;
 
     private SECFile secFile;
-    public static int selectedStart, selectedEnd, frameToMergeStart, frameToMergeEnd;
+    public static int selectedStart, selectedEnd, frameToMergeStart=0, frameToMergeEnd=0;
 
     private Collection collection;
     private XYSeriesCollection sasPlotCollection;
@@ -309,9 +309,7 @@ public class SECTool extends JDialog {
                             progressBar.setValue(0);
                             // convert Collection to a SECFile using SECBuilder
 
-                        } catch (InterruptedException e1) {
-                            e1.printStackTrace();
-                        } catch (ExecutionException e1) {
+                        } catch (InterruptedException | ExecutionException e1) {
                             e1.printStackTrace();
                         }
 
@@ -427,11 +425,7 @@ public class SECTool extends JDialog {
                                 secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
                                 status.setText("Using *.sec file now clearing samples list");
 
-                            } catch (InterruptedException e1) {
-                                TRACEButton.setEnabled(true);
-                                SetBufferButton.setEnabled(true);
-                                e1.printStackTrace();
-                            } catch (ExecutionException | IOException e1) {
+                            } catch (InterruptedException | ExecutionException | IOException e1) {
                                 TRACEButton.setEnabled(true);
                                 SetBufferButton.setEnabled(true);
                                 e1.printStackTrace();
@@ -473,11 +467,7 @@ public class SECTool extends JDialog {
                                     TRACEButton.setEnabled(true);
                                     SetBufferButton.setEnabled(true);
                                     status.setText("Finished loading SEC file");
-                                } catch (InterruptedException e1) {
-                                    TRACEButton.setEnabled(true);
-                                    SetBufferButton.setEnabled(true);
-                                    e1.printStackTrace();
-                                } catch (ExecutionException | IOException e1) {
+                                } catch (InterruptedException | ExecutionException | IOException e1) {
                                     TRACEButton.setEnabled(true);
                                     SetBufferButton.setEnabled(true);
                                     e1.printStackTrace();
@@ -536,11 +526,7 @@ public class SECTool extends JDialog {
                                         selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
                                         status.setText("Finished loading SEC file");
 
-                                    } catch (IOException ex) {
-                                        ex.printStackTrace();
-                                    } catch (InterruptedException ex) {
-                                        ex.printStackTrace();
-                                    } catch (ExecutionException ex) {
+                                    } catch (IOException | InterruptedException | ExecutionException ex) {
                                         ex.printStackTrace();
                                     }
                                     TRACEButton.setEnabled(true);
@@ -589,8 +575,6 @@ public class SECTool extends JDialog {
                                 File f2 = new File(secfilename);
                                 f1.renameTo(f2);
 
-                            } catch (FileNotFoundException ex) {
-                                ex.printStackTrace();
                             } catch (IOException ex) {
                                 ex.printStackTrace();
                             }
@@ -657,6 +641,12 @@ public class SECTool extends JDialog {
             @Override
             public void actionPerformed(ActionEvent e) {
 
+
+                if (frameToMergeEnd < frameToMergeStart || frameToMergeStart==0 || frameToMergeEnd==0){
+                    status.setText("Select frames before merging using plots on Right");
+                    return;
+                }
+
                 // create report using SEC File
                 SECReport report = new SECReport(frameToMergeStart, frameToMergeEnd, secFile, Scatter.WORKING_DIRECTORY.getWorkingDirectory(), averageCheckBox.isSelected());
 
@@ -684,10 +674,7 @@ public class SECTool extends JDialog {
 
                                 enableAllButtons();
 
-                            } catch (InterruptedException ex) {
-                                enableAllButtons();
-                                ex.printStackTrace();
-                            } catch (ExecutionException ex) {
+                            } catch (InterruptedException | ExecutionException ex) {
                                 enableAllButtons();
                                 ex.printStackTrace();
                             }
@@ -769,12 +756,15 @@ public class SECTool extends JDialog {
                 selectedIndices.clear();
                 sasPlotCollection.removeAllSeries();
                 secFile = null;
+                frameToMergeStart=0;
+                frameToMergeEnd=0;
                 rangeSetLabel.setText("- : -");
                 framesLabel.setText("TOTAL frames :: - | ");
                 selectedBufferIndicesLabel.setText("buffers :: -");
                 TRACEButton.setEnabled(true);
                 SetBufferButton.setEnabled(true);
                 TRACEButton.setText("TRACE");
+
             }
         });
 
@@ -917,12 +907,8 @@ public class SECTool extends JDialog {
 
                                         rec1.run();
                                         rec1.get();
-                                    } catch (InterruptedException e1) {
+                                    } catch (Exception e1) {
                                         e1.printStackTrace();
-                                    } catch (ExecutionException e1) {
-                                        e1.printStackTrace();
-                                    } catch (Exception ex) {
-                                        ex.printStackTrace();
                                     }
                                 }
                             }.start();

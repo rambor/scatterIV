@@ -57,6 +57,7 @@ public class SECFile {
     private int start_index_intensity;
 
     private final int totalFrames;
+    private long new_line_byte_length = 1L;
 
     /*
      * what if SECFile contains only q-values and unsubtracted intensities?
@@ -106,7 +107,8 @@ public class SECFile {
 
             for (Map.Entry<Integer, Long> entry : linesAndLength.entrySet()) {
                 lineNumbers.add(startIndex);
-                startIndex += entry.getValue() + (long)System.lineSeparator().getBytes().length;
+//                startIndex += entry.getValue() + (long)System.lineSeparator().getBytes().length;
+                startIndex += entry.getValue() + new_line_byte_length;
             }
 
 //            for(Integer index : lineNumbers){
@@ -234,9 +236,9 @@ public class SECFile {
      * Parse file, for each line record line Number and length
      * Excludes the newline character at end of each line. (could be /r, /n, /r/n)
      *
-     * @param fileToRead
+     * @param fileToRead input SEC FILE
      */
-    public void streamWithLargeBuffer(File fileToRead) {
+    private void streamWithLargeBuffer(File fileToRead) {
 
         CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
         int size = 8192 * 16;
@@ -262,37 +264,44 @@ public class SECFile {
         try {
             RandomAccessFile tfile = new RandomAccessFile(fileToRead, "rw");
             FileChannel fileChannel = tfile.getChannel();
-            tfile.seek(linesAndLength.get(0)); // measured in bytes
-//            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, linesAndLength.get(0), 5);
-//            CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+            /*
+             * go to the end of the first line
+             * if - first line is 10 long then new line character will be at position 10
+             */
+            tfile.seek(lengthOfFirstLine);
 
             byte[] bytes = new byte[5];
-//            ByteBuffer bbytes = ByteBuffer.allocate(1024);
-//            fileChannel.position(linesAndLength.get(0));
-//            fileChannel.read(bbytes, 5);
-
             tfile.read(bytes);
-            byte[] firstIn = new byte[1];
-            firstIn[0] = bytes[0];
+            String element_1 = String.format("%02X", bytes[0]);
+            String element_2 = String.format("%02X", bytes[1]);
 
-            System.out.println(" byte string :" + new String(firstIn, "UTF-8"));
+            /*
+             * Windows new line is carriage_return followed by new_line
+             * hexadecimal:
+             * cariage_return => 0D
+             * new_line => 0A
+             */
 
-//            byte[] bytes = bbytes.array();
-            for(int i=0; i<5; i++){
-                byte[] tempIn = new byte[1];
-                tempIn[0] = bytes[i];
-                System.out.println(i + " -> " + " " + tempIn[0] + " " +  new String(tempIn, Charset.forName("UTF-8")) + " " +
-                       String.format("%02X ", tempIn[0]));
+            if (element_1.equals("0D") && (element_2.equals("0A"))){ // windows
+                new_line_byte_length = 2L;
+            } else if ( !element_1.equals("0A") ){
+                // throw exception
+                String out = "BYTE SEQUENCE AFTER FIRST LINE :: \n";
+                for(int i=0; i<5; i++){
+                    byte[] tempIn = new byte[1];
+                    tempIn[0] = bytes[i];
+                    out = new StringBuilder().append(out).append(String.format("%d %s %02X %n", i , new String(tempIn, StandardCharsets.UTF_8), tempIn[0])).toString();
+                }
+
+                throw new Exception("Improperly formatted or corrupted SEC file - carriage return not found");
             }
-
-//            byte[] b = {(byte) 99, (byte)97, (byte)116};
-//            String s = new String(b, StandardCharsets.UTF_8);
 
             fileChannel.close();
             tfile.close();
-            System.exit(0);
 
         } catch (IOException e) {
+            e.printStackTrace();
+        } catch (Exception e) {
             e.printStackTrace();
         }
 
@@ -307,21 +316,18 @@ public class SECFile {
         int signalIndex = secFormat.getSignal_index();
         MappedByteBuffer buffer = null;
 
-        System.out.println("load Signal");
-        int tempcount=1;
+        System.out.println("SECFile::loadSignal()");
         try {
             buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(flineIndex), linesAndLength.get(flineIndex));
-            CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+            CharBuffer charBuffer = StandardCharsets.UTF_8.decode(buffer);
             String[] fvalues = charBuffer.toString().split("\\s+"); // starts with checksum
-            System.out.println("tempC " + tempcount + " " + charBuffer.toString() + " " + flineIndex + " " + lineNumbers.get(flineIndex) + "   " + linesAndLength.get(flineIndex));
-            System.out.printf("fvalues " + fvalues[0]);
             buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(signalIndex), linesAndLength.get(signalIndex));
-            charBuffer = Charset.forName("UTF-8").decode(buffer);
+            charBuffer = StandardCharsets.UTF_8.decode(buffer);
             String[] signals = charBuffer.toString().split("\\s+");
 
             // grab background
             buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(buffIndex), linesAndLength.get(buffIndex));
-            charBuffer = Charset.forName("UTF-8").decode(buffer);
+            charBuffer = StandardCharsets.UTF_8.decode(buffer);
             String[] bckgrnd = charBuffer.toString().split("\\s+");
 
             frame_indices = new ArrayList<>();
@@ -345,7 +351,7 @@ public class SECFile {
             }
 
             buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(qlineIndex), linesAndLength.get(qlineIndex));
-            charBuffer = Charset.forName("UTF-8").decode(buffer);
+            charBuffer = StandardCharsets.UTF_8.decode(buffer);
             String[] qvals = charBuffer.toString().split("\\s+");
             for(int i=1; i<qvals.length;i++){ // skip first value since it is the checksum
                 qvalues.add(Double.valueOf(qvals[i]));
@@ -369,7 +375,7 @@ public class SECFile {
             e.printStackTrace();
         }
 
-        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        CharBuffer charBuffer = StandardCharsets.UTF_8.decode(buffer);
         String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
 
         if (index != Integer.parseInt(values[0])){
@@ -397,7 +403,7 @@ public class SECFile {
             e.printStackTrace();
         }
 
-        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        CharBuffer charBuffer = StandardCharsets.UTF_8.decode(buffer);
         String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
         rgErrorValues = new ArrayList<>();
         for(int i=1; i<values.length; i++){
@@ -416,20 +422,19 @@ public class SECFile {
         MappedByteBuffer buffer = null;
         try {
             buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(rgAt), linesAndLength.get(rgAt));
+            CharBuffer charBuffer = StandardCharsets.UTF_8.decode(buffer);
+            String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
+            rgvalues = new ArrayList<>();
+            for(int i=1; i<values.length; i++){
+                try{
+                    double value = Double.parseDouble(values[i]);
+                    rgvalues.add(value);
+                } catch (NumberFormatException ee) {
+                    rgvalues.add(0.0);
+                }
+            }
         } catch (IOException e) {
             e.printStackTrace();
-        }
-
-        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
-        String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
-        rgvalues = new ArrayList<>();
-        for(int i=1; i<values.length; i++){
-            try{
-                double value = Double.valueOf(values[i]);
-                rgvalues.add(value);
-            } catch (NumberFormatException ee) {
-                rgvalues.add(0.0);
-            }
         }
     }
 
@@ -445,7 +450,7 @@ public class SECFile {
             e.printStackTrace();
         }
 
-        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        CharBuffer charBuffer = StandardCharsets.UTF_8.decode(buffer);
         String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
         iZerovalues = new ArrayList<>();
         for(int i=1; i<values.length; i++){
@@ -468,12 +473,12 @@ public class SECFile {
             e.printStackTrace();
         }
 
-        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        CharBuffer charBuffer = StandardCharsets.UTF_8.decode(buffer);
         String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
         iZeroErrorValues = new ArrayList<>();
         for(int i=1; i<values.length; i++){
             try{
-                double value = Double.valueOf(values[i]);
+                double value = Double.parseDouble(values[i]);
                 iZeroErrorValues.add(value);
             } catch (NumberFormatException ee) {
                 iZeroErrorValues.add(0.0);
@@ -492,7 +497,7 @@ public class SECFile {
             e.printStackTrace();
         }
 
-        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        CharBuffer charBuffer = StandardCharsets.UTF_8.decode(buffer);
         String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
 
         if (index != Integer.parseInt(values[0])){
@@ -511,8 +516,8 @@ public class SECFile {
 
     /**
      *
-     * @param index
-     * @return
+     * @param index index of frame to retrieve
+     * @return ArrayList of Doubles representing the recorded errors
      */
     public ArrayList<Double> getSubtractedErrorAtFrame(int index){
         int lookAt = secFormat.getSubtracted_intensities_error_index() + index;
@@ -524,7 +529,7 @@ public class SECFile {
             e.printStackTrace();
         }
 
-        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        CharBuffer charBuffer = StandardCharsets.UTF_8.decode(buffer);
         String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
 
         if (index != Integer.parseInt(values[0])){
@@ -551,7 +556,7 @@ public class SECFile {
             e.printStackTrace();
         }
 
-        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        CharBuffer charBuffer = StandardCharsets.UTF_8.decode(buffer);
         String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
 
 
@@ -687,8 +692,6 @@ public class SECFile {
                     startIndex += entry.getValue() + (long)(System.lineSeparator().getBytes(StandardCharsets.UTF_8).length);
                 }
 
-            } catch (FileNotFoundException e) {
-                e.printStackTrace();
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -700,7 +703,7 @@ public class SECFile {
     /**
      * New line Separator adds an extra bit that is not counted by readline
      *
-     * @param newLine
+     * @param newLine String line to parse
      */
     public void updateIZeroLine(String newLine){
 
@@ -893,7 +896,7 @@ public class SECFile {
             e.printStackTrace();
         }
 
-        CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+        CharBuffer charBuffer = StandardCharsets.UTF_8.decode(buffer);
         String[] values = charBuffer.toString().split("\\s+"); // starts with index followed by checksum
 
         int sum = 0;
