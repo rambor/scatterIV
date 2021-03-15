@@ -37,7 +37,7 @@ public class SECFile {
 
     //private MappedByteBuffer buffer;
     private FileChannel fileChannel;
-    private Map<Integer, Integer> linesAndLength;
+    private Map<Integer, Long> linesAndLength;
 
     SecFormat secFormat;
     private ArrayList<Double> rgvalues;
@@ -104,9 +104,10 @@ public class SECFile {
              * 2 bytes in windows
              */
             long startIndex=0L;
-            for (Map.Entry<Integer, Integer> entry : linesAndLength.entrySet()) {
+
+            for (Map.Entry<Integer, Long> entry : linesAndLength.entrySet()) {
                 lineNumbers.add(startIndex);
-                startIndex += entry.getValue() + System.lineSeparator().getBytes().length;
+                startIndex += entry.getValue() + (long)System.lineSeparator().getBytes().length;
             }
 
 //            for(Integer index : lineNumbers){
@@ -120,7 +121,7 @@ public class SECFile {
             //CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
             //Get direct byte buffer access using channel.map() operation
             //buffer.position(lineNumbers.get(4));
-            MappedByteBuffer buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(9), linesAndLength.get(9));
+            //MappedByteBuffer buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(9), linesAndLength.get(9));
             //CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
             //System.out.println(charBuffer.toString());
 
@@ -243,7 +244,7 @@ public class SECFile {
 
             AtomicInteger counter = new AtomicInteger(0);
             br.lines().limit(LINES_TO_READ).forEach(s -> {
-                linesAndLength.put( counter.getAndIncrement(), s.getBytes().length); // length of lines without new line characters
+                linesAndLength.put( counter.getAndIncrement(), (long)s.getBytes().length); // length of lines without new line characters
                 //System.out.println(s.getBytes().length);
             });
 
@@ -631,14 +632,14 @@ public class SECFile {
                 rtemp.close();
                 tfile.delete();
 
-                linesAndLength.replace(indexOfContentToBeReplaced, outbuff.array().length - System.lineSeparator().getBytes(StandardCharsets.UTF_8).length); // should be the length of lines without newline character
+                linesAndLength.replace(indexOfContentToBeReplaced, (long)outbuff.array().length - (long)System.lineSeparator().getBytes(StandardCharsets.UTF_8).length); // should be the length of lines without newline character
 
                 long startIndex=0L;
                 lineNumbers.clear();
-                for (Map.Entry<Integer, Integer> entry : linesAndLength.entrySet()) {
+                for (Map.Entry<Integer, Long> entry : linesAndLength.entrySet()) {
                     lineNumbers.add(startIndex);
 //                startIndex += entry.getValue() + 1;
-                    startIndex += entry.getValue() + System.lineSeparator().getBytes(StandardCharsets.UTF_8).length;
+                    startIndex += entry.getValue() + (long)(System.lineSeparator().getBytes(StandardCharsets.UTF_8).length);
                 }
 
             } catch (FileNotFoundException e) {
