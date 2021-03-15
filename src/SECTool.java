@@ -120,7 +120,7 @@ public class SECTool extends JDialog {
     private ChartPanel selectedRegionsChartPanel;
 
     private SECFile secFile;
-    public static int selectedStart, selectedEnd, frameToMergeStart, frameToMergeEnd;
+    public static int selectedStart, selectedEnd, frameToMergeStart=0, frameToMergeEnd=0;
 
     private Collection collection;
     private XYSeriesCollection sasPlotCollection;
@@ -656,6 +656,12 @@ public class SECTool extends JDialog {
         MERGEButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
+
+
+                if (frameToMergeEnd < frameToMergeStart || frameToMergeStart==0 || frameToMergeEnd==0){
+                    status.setText("Select frames before merging using plots on Right");
+                    return;
+                }
 
                 // create report using SEC File
                 SECReport report = new SECReport(frameToMergeStart, frameToMergeEnd, secFile, Scatter.WORKING_DIRECTORY.getWorkingDirectory(), averageCheckBox.isSelected());
