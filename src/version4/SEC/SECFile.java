@@ -71,7 +71,7 @@ public class SECFile {
 
         this.lineNumbers = new ArrayList<>();
         this.streamWithLargeBuffer(file);
-
+        this.determineNewLineCharacterByteSize(file);
         // get first element of the file, should be JSON string
         try {
             this.file = new RandomAccessFile(file, "rw");
@@ -81,7 +81,6 @@ public class SECFile {
 //            byte[] bytes = new byte[5];
 //            this.file.read(bytes);
 //            System.out.println(new String(bytes));
-
 //            this.file.length();
 
             /*
@@ -107,7 +106,6 @@ public class SECFile {
 
             for (Map.Entry<Integer, Long> entry : linesAndLength.entrySet()) {
                 lineNumbers.add(startIndex);
-                System.out.println("Line Numbers " + startIndex);
                 startIndex += entry.getValue() + (long)System.lineSeparator().getBytes().length;
             }
 
@@ -125,6 +123,7 @@ public class SECFile {
             //MappedByteBuffer buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(9), linesAndLength.get(9));
             //CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
             //System.out.println(charBuffer.toString());
+
             long endTime = System.currentTimeMillis();
             System.out.println("mapped access " + (endTime - startTime) + " milliseocnds");
             this.parseJSONHeader();
@@ -231,24 +230,72 @@ public class SECFile {
 
 
     /**
-     * Counts the length of read lines excluding the newline character at end of each line.
-     * @param f
+     * Populate linesAndLengthTree
+     * Parse file, for each line record line Number and length
+     * Excludes the newline character at end of each line. (could be /r, /n, /r/n)
+     *
+     * @param fileToRead
      */
-    public void streamWithLargeBuffer(File f) {
-// StandardCharsets.UTF_8
+    public void streamWithLargeBuffer(File fileToRead) {
+
         CharsetDecoder decoder = StandardCharsets.UTF_8.newDecoder();
         int size = 8192 * 16;
         linesAndLength = new TreeMap<>();
 
-        try (BufferedReader br = new BufferedReader(new InputStreamReader(newInputStream(f.toPath()), decoder), size)) {
+        try (BufferedReader br = new BufferedReader(new InputStreamReader(newInputStream(fileToRead.toPath()), decoder), size)) {
+
             AtomicInteger counter = new AtomicInteger(0);
             br.lines().limit(LINES_TO_READ).forEach(s -> {
                 linesAndLength.put( counter.getAndIncrement(), (long)s.getBytes().length); // length of lines without new line characters
-                System.out.println(counter.get() + " => " + s.getBytes().length);
+                //System.out.println(counter.get() + " => " + s.getBytes().length);
             });
+
+        } catch (IOException e) {
+
+            e.printStackTrace();
+        }
+    }
+
+    private void determineNewLineCharacterByteSize(File fileToRead){
+
+        long lengthOfFirstLine = linesAndLength.get(0);
+        try {
+            RandomAccessFile tfile = new RandomAccessFile(fileToRead, "rw");
+            FileChannel fileChannel = tfile.getChannel();
+            tfile.seek(linesAndLength.get(0)); // measured in bytes
+//            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, linesAndLength.get(0), 5);
+//            CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
+
+            byte[] bytes = new byte[5];
+//            ByteBuffer bbytes = ByteBuffer.allocate(1024);
+//            fileChannel.position(linesAndLength.get(0));
+//            fileChannel.read(bbytes, 5);
+
+            tfile.read(bytes);
+            byte[] firstIn = new byte[1];
+            firstIn[0] = bytes[0];
+
+            System.out.println(" byte string :" + new String(firstIn, "UTF-8"));
+
+//            byte[] bytes = bbytes.array();
+            for(int i=0; i<5; i++){
+                byte[] tempIn = new byte[1];
+                tempIn[0] = bytes[i];
+                System.out.println(i + " -> " + " " + tempIn[0] + " " +  new String(tempIn, Charset.forName("UTF-8")) + " " +
+                       String.format("%02X ", tempIn[0]));
+            }
+
+//            byte[] b = {(byte) 99, (byte)97, (byte)116};
+//            String s = new String(b, StandardCharsets.UTF_8);
+
+            fileChannel.close();
+            tfile.close();
+            System.exit(0);
+
         } catch (IOException e) {
             e.printStackTrace();
         }
+
     }
 
     public void loadSignal(){
@@ -258,16 +305,16 @@ public class SECFile {
         int flineIndex = secFormat.getFrame_index();
         int buffIndex = secFormat.getBackground_index();
         int signalIndex = secFormat.getSignal_index();
+        MappedByteBuffer buffer = null;
 
         System.out.println("load Signal");
         int tempcount=1;
         try {
-            MappedByteBuffer buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(flineIndex), linesAndLength.get(flineIndex));
+            buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(flineIndex), linesAndLength.get(flineIndex));
             CharBuffer charBuffer = Charset.forName("UTF-8").decode(buffer);
             String[] fvalues = charBuffer.toString().split("\\s+"); // starts with checksum
-            System.out.println("lineNumbers " + lineNumbers.get(flineIndex) + " " + linesAndLength.get(flineIndex));
             System.out.println("tempC " + tempcount + " " + charBuffer.toString() + " " + flineIndex + " " + lineNumbers.get(flineIndex) + "   " + linesAndLength.get(flineIndex));
-            System.out.println("fvalues " + fvalues[0]);
+            System.out.printf("fvalues " + fvalues[0]);
             buffer = fileChannel.map(FileChannel.MapMode.READ_ONLY, lineNumbers.get(signalIndex), linesAndLength.get(signalIndex));
             charBuffer = Charset.forName("UTF-8").decode(buffer);
             String[] signals = charBuffer.toString().split("\\s+");
@@ -286,7 +333,6 @@ public class SECFile {
 
                 signalCollection.addSeries(new XYSeries("frame " + (i-1)));
                 String fIndex = fvalues[i];
-                System.out.println("fIndex " + fIndex);
                 frame_indices.add(Integer.valueOf(fIndex));
 
                 XYSeries last = signalCollection.getSeries(i-1);
