@@ -263,6 +263,7 @@ public class SECTool extends JDialog {
                                         secFileLabel.setForeground(Color.cyan);
                                         TRACEButton.setText("UPDATE");
                                         status.setText("");
+                                        thresholdField.setText(String.format("%.3f", secFile.getThreshold()));
                                         exportTraceButton.setEnabled(true);
                                     } catch (IOException e) {
                                         exportTraceButton.setEnabled(false);
@@ -516,7 +517,9 @@ public class SECTool extends JDialog {
 //                                }
                                         try {
                                             secFile = new SECFile(new File(secfilename));
-                                            updateSelectedRegionPanel();
+                                            if (selectedEnd > selectedStart){
+                                                updateSelectedRegionPanel();
+                                            }
                                         } catch (IOException ex) {
                                             ex.printStackTrace();
                                         }
@@ -532,7 +535,6 @@ public class SECTool extends JDialog {
                                     SetBufferButton.setEnabled(true);
                                 }
                             }.start();
-
 
                             // reopen file and set reference
 //                            try {

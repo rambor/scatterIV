@@ -281,7 +281,6 @@ public class SECFile {
              * cariage_return => 0D
              * new_line => 0A
              */
-
             if (element_1.equals("0D") && (element_2.equals("0A"))){ // windows
                 new_line_byte_length = 2L;
             } else if ( !element_1.equals("0A") ){
@@ -293,7 +292,7 @@ public class SECFile {
                     out = new StringBuilder().append(out).append(String.format("%d %s %02X %n", i , new String(tempIn, StandardCharsets.UTF_8), tempIn[0])).toString();
                 }
 
-                throw new Exception("Improperly formatted or corrupted SEC file - carriage return not found");
+                throw new Exception("Improperly formatted or corrupted SEC file - carriage return not found " + out);
             }
 
             fileChannel.close();
