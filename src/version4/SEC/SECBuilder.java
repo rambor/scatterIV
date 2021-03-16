@@ -60,6 +60,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
     // index, signal, Rg, I(0), integral qIq
     private String outputname, workingDirectory;
+    private String new_line_separator;
 
     /**
      *
@@ -123,6 +124,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             outputname = newSecfilename;
         }
 
+        new_line_separator = System.lineSeparator();
         /*
          * populate and write intial file ::
          * estimate buffer frames
@@ -134,7 +136,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     }
 
     /**
-     * recalculate SECFile from new
+     * recalculate SECFile from new, this is used when new buffers are selected which means all frames
+     * must be re-substracted, and I-zero and Rg's are re-determined.
      *
      * @param oldsecfile
      */
@@ -142,6 +145,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         // build collection
         collection = new Collection("rebuild");
         backgroundPresent = true;
+        updateOnly = false;
 
         int totalFrames = oldsecfile.getTotalFrames();
         XYSeries iofq = new XYSeries("");
@@ -195,6 +199,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
         workingDirectory = workingDirectoryName;
         outputname = oldsecfile.getFilebase();
+        // since file is being completely re-written, use OS lineSeparator
+        new_line_separator = System.lineSeparator();
         setBackgroundFrames(bufferIndices);
         System.out.println("Finished");
     }
@@ -298,6 +304,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         totalSelected = sasObject.getSecFormat().getTotal_frames();
 
         workingDirectory = workingDirectoryName;
+
+        new_line_separator = oldsecfile.getNew_line_separator();
         outputname = oldsecfile.getFilebase();
     }
 
@@ -326,7 +334,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         //
         if (updateOnly){
             this.updateRgIzero();
-        } else {
+        } else { // all new files or complete re-writes use below
             this.makeSamples();
             // write file
             this.writeToSECFile();
@@ -750,11 +758,16 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         progressBar.setIndeterminate(true);
         try {
             String sasObjectString = mapper.writeValueAsString(sasObject);
-            updateLineInSECFile(0, sasObjectString + System.lineSeparator());
-            updateLineInSECFile(secFormat.getRg_index(), rgLineMD5HEX + " " + rgLine.toString() + System.lineSeparator());                // line 7
-            updateLineInSECFile(secFormat.getIzero_index(), izeroLineMD5HEX + " " + izeroLine.toString() + System.lineSeparator());          // line 8
-            updateLineInSECFile(secFormat.getRg_error_index(), rgLineErrorMD5HEX + " " + rgErrorLine.toString() + System.lineSeparator());      // line 11
-            updateLineInSECFile(secFormat.getIzero_error_index(), izeroErrorLineMD5HEX + " " + izeroErrorLine.toString() + System.lineSeparator());// line 12
+            updateLineInSECFile(0, sasObjectString + new_line_separator);
+            updateLineInSECFile(secFormat.getRg_index(), rgLineMD5HEX + " " + rgLine.toString() + new_line_separator);                // line 7
+            updateLineInSECFile(secFormat.getIzero_index(), izeroLineMD5HEX + " " + izeroLine.toString() + new_line_separator);          // line 8
+            updateLineInSECFile(secFormat.getRg_error_index(), rgLineErrorMD5HEX + " " + rgErrorLine.toString() + new_line_separator);      // line 11
+            updateLineInSECFile(secFormat.getIzero_error_index(), izeroErrorLineMD5HEX + " " + izeroErrorLine.toString() + new_line_separator);// line 12
+//            updateLineInSECFile(0, sasObjectString + System.lineSeparator());
+//            updateLineInSECFile(secFormat.getRg_index(), rgLineMD5HEX + " " + rgLine.toString() + System.lineSeparator());                // line 7
+//            updateLineInSECFile(secFormat.getIzero_index(), izeroLineMD5HEX + " " + izeroLine.toString() + System.lineSeparator());          // line 8
+//            updateLineInSECFile(secFormat.getRg_error_index(), rgLineErrorMD5HEX + " " + rgErrorLine.toString() + System.lineSeparator());      // line 11
+//            updateLineInSECFile(secFormat.getIzero_error_index(), izeroErrorLineMD5HEX + " " + izeroErrorLine.toString() + System.lineSeparator());// line 12
 
         } catch (JsonProcessingException e) {
             status.setText("Error updating SEC File... please check");
@@ -925,7 +938,6 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         double max = StatUtils.max(values);
         double min = StatUtils.min(values);
         double spread = max - min;
-//        System.out.println("Max : min " + max + " " + min + " " + spread + " < :: " + background_spread);
 
         if (spread < min_spread){
             min_spread = spread;
@@ -1474,15 +1486,16 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
             int is;
             for(int i=0; i<lineToUpdate; i++){ // readline() removes the terminator
-                    bw.write(br.readLine() + System.lineSeparator());
+                    bw.write(br.readLine() + new_line_separator);
+                //bw.write(br.readLine() + System.lineSeparator());
             }
-            bw.write(stringToWrite);
+            bw.write(stringToWrite); // write new line using new_line_separator that is consistent with old(existing) file
             br.readLine(); // read past the old line
 
             do {
                 is = br.read();
                 if (is != -1) {
-                    bw.write((char) is);
+                    bw.write((char) is); // write out remaining file, character-by-character, will have existing new_line_character
                 }
             } while (is != -1);
 
