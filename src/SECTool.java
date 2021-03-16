@@ -515,6 +515,7 @@ public class SECTool extends JDialog {
 //                                for(int i=0;i<secFile.getTotalFrames(); i++){
 //                                    selectedIndices.add(false);
 //                                }
+                                        System.out.println("SECFILENAME " + secfilename);
                                         try {
                                             secFile = new SECFile(new File(secfilename));
                                             if (selectedEnd > selectedStart){

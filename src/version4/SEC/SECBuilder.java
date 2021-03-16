@@ -21,6 +21,10 @@ import version4.*;
 
 import javax.swing.*;
 import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 
@@ -221,6 +225,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         parentPath = oldsecfile.getParentPath();
 
         sasObject = new SasObject(oldsecfile.getSasObject());
+        System.out.println("Threshold " + threshold);
         sasObject.getSecFormat().setThreshold(threshold);
 
         this.excludePoints = excludePoints;
@@ -1504,8 +1509,18 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             // overwrite original file
             File f1 = new File(parentPath+"/temp.sec");
             File f2 = new File(secfilename);
-            f1.renameTo(f2);
-
+            System.out.println("renaming f1 to f2 " + f1.getName() + " -> " + f2.getName());
+            System.out.println(f1.getAbsolutePath());
+            System.out.println(f2.getAbsolutePath());
+            //boolean didIt = f1.renameTo(f2);
+            Path source = Paths.get(f1.getAbsolutePath());
+            Path target = Paths.get(f2.getAbsolutePath());
+            try{
+                Files.move(source, target, StandardCopyOption.REPLACE_EXISTING);
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            //System.out.println("DidIt " + didIt);
         } catch (FileNotFoundException ex) {
             ex.printStackTrace();
         } catch (IOException ex) {
