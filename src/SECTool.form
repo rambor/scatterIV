@@ -6,6 +6,7 @@
       <xy x="48" y="54" width="600" height="800"/>
     </constraints>
     <properties>
+      <autoscrolls value="true"/>
       <background color="-13483695"/>
       <foreground color="-36"/>
       <minimumSize width="600" height="640"/>
@@ -105,7 +106,7 @@
                   </grid>
                 </children>
               </grid>
-              <grid id="61efe" binding="parametersPanel" layout-manager="GridLayoutManager" row-count="10" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+              <grid id="61efe" binding="parametersPanel" layout-manager="GridLayoutManager" row-count="9" column-count="1" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
                 <margin top="4" left="0" bottom="2" right="0"/>
                 <constraints>
                   <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="9" fill="0" indent="0" use-parent-layout="false"/>
@@ -390,7 +391,7 @@
                       </component>
                     </children>
                   </grid>
-                  <grid id="5800c" layout-manager="GridLayoutManager" row-count="2" column-count="2" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+                  <grid id="5800c" layout-manager="GridLayoutManager" row-count="1" column-count="2" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
                     <margin top="0" left="6" bottom="0" right="0"/>
                     <constraints>
                       <grid row="4" column="0" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
@@ -400,19 +401,9 @@
                     </properties>
                     <border type="none"/>
                     <children>
-                      <component id="97c5a" class="javax.swing.JLabel">
-                        <constraints>
-                          <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
-                        </constraints>
-                        <properties>
-                          <font name="Century Gothic" style="1"/>
-                          <foreground color="-1"/>
-                          <text value="MERGING"/>
-                        </properties>
-                      </component>
                       <component id="4933e" class="javax.swing.JCheckBox" binding="averageCheckBox" default-binding="true">
                         <constraints>
-                          <grid row="1" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
+                          <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
                         </constraints>
                         <properties>
                           <background color="-13419191"/>
@@ -421,30 +412,42 @@
                           <text value="Average"/>
                         </properties>
                       </component>
-                      <component id="75382" class="javax.swing.JComboBox" binding="comboBoxSubtractBins">
+                      <grid id="d226e" layout-manager="GridLayoutManager" row-count="1" column-count="2" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
+                        <margin top="0" left="0" bottom="0" right="0"/>
                         <constraints>
-                          <grid row="1" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="2" anchor="0" fill="0" indent="0" use-parent-layout="false"/>
+                          <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="3" hsize-policy="3" anchor="0" fill="3" indent="0" use-parent-layout="false"/>
                         </constraints>
                         <properties>
-                          <model>
-                            <item value="13"/>
-                            <item value="17"/>
-                            <item value="23"/>
-                            <item value="31"/>
-                            <item value="57"/>
-                          </model>
+                          <background color="-13483695"/>
                         </properties>
-                      </component>
-                      <component id="9569a" class="javax.swing.JLabel">
-                        <constraints>
-                          <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="2" fill="0" indent="0" use-parent-layout="false"/>
-                        </constraints>
-                        <properties>
-                          <font name="Century Gothic"/>
-                          <foreground color="-1639681"/>
-                          <text value="bins"/>
-                        </properties>
-                      </component>
+                        <border type="none"/>
+                        <children>
+                          <component id="9569a" class="javax.swing.JLabel">
+                            <constraints>
+                              <grid row="0" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="0" fill="0" indent="0" use-parent-layout="false"/>
+                            </constraints>
+                            <properties>
+                              <font name="Century Gothic"/>
+                              <foreground color="-1639681"/>
+                              <text value="bins"/>
+                            </properties>
+                          </component>
+                          <component id="75382" class="javax.swing.JComboBox" binding="comboBoxSubtractBins">
+                            <constraints>
+                              <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="2" anchor="0" fill="0" indent="0" use-parent-layout="false"/>
+                            </constraints>
+                            <properties>
+                              <model>
+                                <item value="13"/>
+                                <item value="17"/>
+                                <item value="23"/>
+                                <item value="31"/>
+                                <item value="57"/>
+                              </model>
+                            </properties>
+                          </component>
+                        </children>
+                      </grid>
                     </children>
                   </grid>
                   <grid id="d0538" layout-manager="GridLayoutManager" row-count="2" column-count="2" same-size-horizontally="false" same-size-vertically="false" hgap="-1" vgap="-1">
@@ -506,7 +509,7 @@
                   </component>
                   <component id="f3dd9" class="javax.swing.JButton" binding="MERGEButton" default-binding="true">
                     <constraints>
-                      <grid row="9" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="1" use-parent-layout="false"/>
+                      <grid row="8" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
                     </constraints>
                     <properties>
                       <background color="-1315861"/>
@@ -523,14 +526,6 @@
                       <background color="-1315861"/>
                       <foreground color="-12086017"/>
                       <text value="Edit Details"/>
-                    </properties>
-                  </component>
-                  <component id="6ee6a" class="javax.swing.JButton" binding="SVDCORMAPButton" default-binding="true">
-                    <constraints>
-                      <grid row="8" column="0" row-span="1" col-span="1" vsize-policy="0" hsize-policy="3" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
-                    </constraints>
-                    <properties>
-                      <text value="SVD-CORMAP"/>
                     </properties>
                   </component>
                   <component id="1a868" class="javax.swing.JButton" binding="exportTraceButton" default-binding="true">

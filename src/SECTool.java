@@ -113,7 +113,7 @@ public class SECTool extends JDialog {
     private JLabel outputDirLabel;
     private JLabel qmaxLabel;
     private JLabel qminLabel;
-    private JButton SVDCORMAPButton;
+    //private JButton SVDCORMAPButton;
     private JButton exportTraceButton;
     private ChartPanel signalChartPanel;
     private ChartPanel intensityChartPanel;
@@ -246,7 +246,6 @@ public class SECTool extends JDialog {
                                     try {
                                         secFile = new SECFile(files[0]);
                                         status.setText("Please wait... loading " + secFile.getFilename());
-                                        secFileLabel.setText("Using SEC FILE :: " + secFile.getFilename());
                                         Scatter.WORKING_DIRECTORY.setWorkingDirectory(secFile.getParentPath());
                                         updateOutputDirLabel(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
 
@@ -933,78 +932,6 @@ public class SECTool extends JDialog {
             }
         });
 
-        SVDCORMAPButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-
-                int total = selectedIndices.size();
-                XYSeriesCollection tempCollection = new XYSeriesCollection();
-
-                if (total > 3) {
-                    int counter=0;
-                    ArrayList<Double> qvalues = secFile.getQvalues();
-                    int qtotal = qvalues.size();
-                    for (int i = 0; i < total; i++) {
-                        if (selectedIndices.get(i)){
-                            ArrayList<Double> yvalues = secFile.getUnSubtractedFrameAt(i);
-                            //ArrayList<Double> yvalues = secFile.getSubtractedFrameAt(i);
-                            tempCollection.addSeries(new XYSeries("Series-"+i));
-                            XYSeries tempSeries = tempCollection.getSeries(counter);
-                            for(int q=0; q<qtotal; q++){
-                                tempSeries.add(qvalues.get(q), yvalues.get(q));
-                            }
-                            counter++;
-                        }
-                    }
-
-                    int startingIndex = 0;
-                    for (int i = 0; i < total; i++) {
-                        if (selectedIndices.get(i)){
-                            startingIndex = i;
-                            break;
-                        }
-                    }
-
-                    final int finalStartingIndex = startingIndex;
-
-                    Thread makeIt = new Thread(){
-                        public void run() {
-                            SVDCORMAPButton.setEnabled(false);
-                            progressBar.setIndeterminate(true);
-                            status.setText("SVD please wait, may take a minute...");
-                            final SVDCorMap svd = new SVDCorMap(Double.parseDouble(qminSECField.getText()), Double.parseDouble(qmaxSECField.getText()), tempCollection, finalStartingIndex);
-                            svd.execute();
-
-                            try {
-                                svd.get();
-                                svd.createPlot();
-                                progressBar.setIndeterminate(false);
-                                status.setText("SVD finished");
-                                SVDCORMAPButton.setEnabled(true);
-                            } catch (InterruptedException e1) {
-                                e1.printStackTrace();
-                                progressBar.setIndeterminate(false);
-                                status.setText("");
-                                SVDCORMAPButton.setEnabled(true);
-                            } catch (ExecutionException e1) {
-                                e1.printStackTrace();
-                                progressBar.setIndeterminate(false);
-                                status.setText("");
-                                SVDCORMAPButton.setEnabled(true);
-                            }
-                        }
-                    };
-
-                    makeIt.start();
-
-                } else {
-                    status.setText("Too few frames for SVD correlation mapping");
-                }
-
-            }
-        });
-
-
         exportTraceButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -1048,9 +975,7 @@ public class SECTool extends JDialog {
     /*
      * check if file is proper format for SEC, if single dat file, then search directory and build list
      */
-    public JPanel getPanel(){
-        return contentPane;
-    }
+    public JPanel getPanel(){ return contentPane;}
 
 
     public JPanel getFilesPanel() { return filesPanel;}
@@ -1186,20 +1111,74 @@ public class SECTool extends JDialog {
 
         signalChartPanel.addMouseListener(new MouseMarker(this, signalChartPanel, selectedIndices));
 
-//        signalChartPanel.addChartMouseListener(new ChartMouseListener() {
-//            private Double markerStart = Double.NaN;
-//            private Double markerEnd = Double.NaN;
-//
-//            @Override
-//            public void chartMouseClicked(ChartMouseEvent chartMouseEvent) {
-//                System.out.println("Setting frame min ");
-//            }
-//
-//            @Override
-//            public void chartMouseMoved(ChartMouseEvent chartMouseEvent) {
-//
-//            }
-//        });
+        final JPopupMenu popupMenu = new JPopupMenu();
+        popupMenu.add(new JMenuItem(new AbstractAction("SVD-CORMAP") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                //To change body of implemented methods use File | Settings | File Templates.
+                int total = selectedIndices.size();
+                XYSeriesCollection tempCollection = new XYSeriesCollection();
+
+                if (total > 3) {
+                    int counter=0;
+                    ArrayList<Double> qvalues = secFile.getQvalues();
+                    int qtotal = qvalues.size();
+                    for (int i = 0; i < total; i++) {
+                        if (selectedIndices.get(i)){
+                            ArrayList<Double> yvalues = secFile.getUnSubtractedFrameAt(i);
+                            //ArrayList<Double> yvalues = secFile.getSubtractedFrameAt(i);
+                            tempCollection.addSeries(new XYSeries("Series-"+i));
+                            XYSeries tempSeries = tempCollection.getSeries(counter);
+                            for(int q=0; q<qtotal; q++){
+                                tempSeries.add(qvalues.get(q), yvalues.get(q));
+                            }
+                            counter++;
+                        }
+                    }
+
+                    int startingIndex = 0;
+                    for (int i = 0; i < total; i++) {
+                        if (selectedIndices.get(i)){
+                            startingIndex = i;
+                            break;
+                        }
+                    }
+
+                    final int finalStartingIndex = startingIndex;
+
+                    Thread makeIt = new Thread(){
+                        public void run() {
+                            progressBar.setIndeterminate(true);
+                            status.setText("SVD please wait, may take a minute...");
+                            final SVDCorMap svd = new SVDCorMap(Double.parseDouble(qminSECField.getText()), Double.parseDouble(qmaxSECField.getText()), tempCollection, finalStartingIndex);
+                            svd.execute();
+
+                            try {
+                                svd.get();
+                                svd.createPlot();
+                                progressBar.setIndeterminate(false);
+                                status.setText("SVD finished");
+                            } catch (InterruptedException e1) {
+                                e1.printStackTrace();
+                                progressBar.setIndeterminate(false);
+                                status.setText("");
+                            } catch (ExecutionException e1) {
+                                e1.printStackTrace();
+                                progressBar.setIndeterminate(false);
+                                status.setText("");
+                            }
+                        }
+                    };
+
+                    makeIt.start();
+
+                } else {
+                    status.setText("Too few frames for SVD correlation mapping");
+                }
+            }
+        }));
+
+        signalChartPanel.setComponentPopupMenu(popupMenu);
 
         chromatogramPanel.removeAll();
         chromatogramPanel.add(signalChartPanel);
@@ -1700,15 +1679,9 @@ plot.setRangeGridlinesVisible(false);
     private class ArrowKeyListener implements KeyListener {
 
         private ValueMarker mousemarker;
-        private int totalInCollection=0;
-
 
         public ArrowKeyListener(ValueMarker signalPlotMarker){
             this.mousemarker = signalPlotMarker;
-        }
-
-        public void setTotalInCollection(int tot){
-            this.totalInCollection = tot;
         }
 
         public void keyPressed(KeyEvent event){
