@@ -113,7 +113,7 @@ public class SECTool extends JDialog {
     private JLabel outputDirLabel;
     private JLabel qmaxLabel;
     private JLabel qminLabel;
-    private JButton SVDCORMAPButton;
+    //private JButton SVDCORMAPButton;
     private JButton exportTraceButton;
     private ChartPanel signalChartPanel;
     private ChartPanel intensityChartPanel;
@@ -246,7 +246,6 @@ public class SECTool extends JDialog {
                                     try {
                                         secFile = new SECFile(files[0]);
                                         status.setText("Please wait... loading " + secFile.getFilename());
-                                        secFileLabel.setText("Using SEC FILE :: " + secFile.getFilename());
                                         Scatter.WORKING_DIRECTORY.setWorkingDirectory(secFile.getParentPath());
                                         updateOutputDirLabel(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
 
@@ -1149,7 +1148,6 @@ public class SECTool extends JDialog {
 
                     Thread makeIt = new Thread(){
                         public void run() {
-                            SVDCORMAPButton.setEnabled(false);
                             progressBar.setIndeterminate(true);
                             status.setText("SVD please wait, may take a minute...");
                             final SVDCorMap svd = new SVDCorMap(Double.parseDouble(qminSECField.getText()), Double.parseDouble(qmaxSECField.getText()), tempCollection, finalStartingIndex);
@@ -1160,17 +1158,14 @@ public class SECTool extends JDialog {
                                 svd.createPlot();
                                 progressBar.setIndeterminate(false);
                                 status.setText("SVD finished");
-                                SVDCORMAPButton.setEnabled(true);
                             } catch (InterruptedException e1) {
                                 e1.printStackTrace();
                                 progressBar.setIndeterminate(false);
                                 status.setText("");
-                                SVDCORMAPButton.setEnabled(true);
                             } catch (ExecutionException e1) {
                                 e1.printStackTrace();
                                 progressBar.setIndeterminate(false);
                                 status.setText("");
-                                SVDCORMAPButton.setEnabled(true);
                             }
                         }
                     };
