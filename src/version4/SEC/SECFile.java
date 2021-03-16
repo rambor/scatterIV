@@ -58,6 +58,7 @@ public class SECFile {
 
     private final int totalFrames;
     private long new_line_byte_length = 1L;
+    private String new_line_separator = System.lineSeparator();
 
     /*
      * what if SECFile contains only q-values and unsubtracted intensities?
@@ -67,7 +68,6 @@ public class SECFile {
         this.absolutePath = file.getAbsolutePath();
         this.parentPath = (file.getParent() == null) ? " " : file.getParent();
 
-//        String[] fileElements = file.getName().split("\\.(?=[^\\.]+$)")[0];
         filebase = file.getName().split("\\.(?=[^\\.]+$)")[0];
 
         this.lineNumbers = new ArrayList<>();
@@ -144,7 +144,6 @@ public class SECFile {
                 this.extractRgErrorValues();
             }
 
-
             frame = new XYSeries("frame");
 
         } catch (FileNotFoundException e) {
@@ -180,8 +179,6 @@ public class SECFile {
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-
     }
 
     public XYSeries getSeriesAtFrame(int frameIndex){
@@ -249,11 +246,9 @@ public class SECFile {
             AtomicInteger counter = new AtomicInteger(0);
             br.lines().limit(LINES_TO_READ).forEach(s -> {
                 linesAndLength.put( counter.getAndIncrement(), (long)s.getBytes().length); // length of lines without new line characters
-                //System.out.println(counter.get() + " => " + s.getBytes().length);
             });
 
         } catch (IOException e) {
-
             e.printStackTrace();
         }
     }
@@ -283,6 +278,8 @@ public class SECFile {
              */
             if (element_1.equals("0D") && (element_2.equals("0A"))){ // windows
                 new_line_byte_length = 2L;
+                byte[] new_line = {bytes[0], bytes[1]};
+                new_line_separator = new String(new_line, StandardCharsets.UTF_8);
             } else if ( !element_1.equals("0A") ){
                 // throw exception
                 String out = "BYTE SEQUENCE AFTER FIRST LINE :: \n";
@@ -293,6 +290,9 @@ public class SECFile {
                 }
 
                 throw new Exception("Improperly formatted or corrupted SEC file - carriage return not found " + out);
+            } else {
+                byte[] new_line = {bytes[0]};
+                new_line_separator = new String(new_line, StandardCharsets.UTF_8);
             }
 
             fileChannel.close();
@@ -673,7 +673,7 @@ public class SECFile {
                 fileChannel.write(outbuff, offset); // write new line
                 rtemp = new RandomAccessFile(tfile, "r");
                 tempChannel = rtemp.getChannel();
-                long newOffset = offset + (outbuff.array().length); // length of outbuff includes the new line character
+                long newOffset = offset + (long)(outbuff.array().length); // length of outbuff includes the new line character
                 tempChannel.position(0L);
                 fileChannel.transferFrom(tempChannel, newOffset, (oldFileSize-keepAfterHereInBytes));
 
@@ -687,7 +687,6 @@ public class SECFile {
                 lineNumbers.clear();
                 for (Map.Entry<Integer, Long> entry : linesAndLength.entrySet()) {
                     lineNumbers.add(startIndex);
-//                startIndex += entry.getValue() + 1;
                     startIndex += entry.getValue() + (long)(System.lineSeparator().getBytes(StandardCharsets.UTF_8).length);
                 }
 
@@ -959,4 +958,6 @@ public class SECFile {
     public String getParentPath() {
         return parentPath;
     }
+
+    public String getNew_line_separator(){ return new_line_separator; }
 }

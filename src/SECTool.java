@@ -433,7 +433,7 @@ public class SECTool extends JDialog {
                         }
                     }.start();
 
-                } else if (setBuffer){ // if new buffer is region is set
+                } else if (setBuffer){ // if new buffer region is set, rebuild entire file
 
                     if (selectedBuffers.size() > 1){
 
@@ -549,7 +549,7 @@ public class SECTool extends JDialog {
                              * on MAC and LINUX can update a single line in the file without closing
                              * on WINDOWS, must close file, so we update a temp and write to old file.
                              */
-                            String sasObjectString = secFile.getSasObjectJSON() + System.lineSeparator();
+                            String sasObjectString = secFile.getSasObjectJSON() + secFile.getNew_line_separator();
                             String parentPath = secFile.getParentPath();
                             secFile.closeFile();
 
