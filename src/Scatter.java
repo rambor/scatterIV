@@ -27,6 +27,7 @@ public class Scatter {
 
     public MergeReport mergeReport; //singleton
 
+    static JFrame frame;// = new JFrame("ScatterIV");
     private JPanel bg;
     private JPanel mainPanel;
     private JPanel sidePanel;
@@ -357,7 +358,9 @@ public class Scatter {
                 analysisPane.revalidate();
                 analysisPane.repaint();
                 System.out.println("centermain " + analysisPane.getWidth());
+                //frame.pack();
                 secTab.printDimensions();
+
             }
         });
 
@@ -421,6 +424,8 @@ public class Scatter {
         });
 
         status.setText("version " + version);
+
+
     }
 
     public static void main(String[] args) {
@@ -494,7 +499,7 @@ public class Scatter {
             WORKING_DIRECTORY = new WorkingDirectory(System.getProperty("user.home"));
         }
 
-        JFrame frame = new JFrame("ScatterIV");
+        frame = new JFrame("ScatterIV");
         frame.setContentPane(new Scatter().bg);
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         frame.pack();
