@@ -963,8 +963,9 @@ public class SECTool extends JDialog {
                                     Constants.Scientific1dot5e2.format(secFile.getRgErrorbyIndex(n-1))
                             ));
                         }
-
                         out.close();
+                        status.setText("File written :: " + Scatter.WORKING_DIRECTORY.getWorkingDirectory() +"/"+name+"_signal_plot.txt");
+                        Toolkit.getDefaultToolkit().beep();
                     } catch (IOException ee) {
                         ee.printStackTrace();
                     }
@@ -1097,6 +1098,7 @@ public class SECTool extends JDialog {
         signalChartPanel = new ChartPanel(chart);
 
         XYPlot plot = chart.getXYPlot();
+        //plot.getRangeAxis().setLabelPaint(new Color(51, 153, 255));
         plot.setBackgroundAlpha(0.0f);
         //plot.setOutlineVisible(false);
 
@@ -1322,6 +1324,7 @@ plot.setRangeGridlinesVisible(false);
         rangeAxis.setAutoRangeIncludesZero(false);
         rangeAxis.setAutoRange(true);
         rangeAxis.setLabelFont(new Font("Times", Font.BOLD, 16));
+        rangeAxis.setLabelPaint(new Color(51, 153, 255));
         rangeAxis.setRange(selectedRegionCollection.getRangeLowerBound(true) - 0.001*selectedRegionCollection.getRangeLowerBound(true), selectedRegionCollection.getRangeUpperBound(true) + 0.005*selectedRegionCollection.getRangeUpperBound(true));
         selectedRegionChart.getXYPlot().setRangeAxis(0, rangeAxis);
         NumberAxis domainAxis = new NumberAxis("frame");
@@ -1397,11 +1400,11 @@ plot.setRangeGridlinesVisible(false);
         rangeAxisRight = new NumberAxis("Rg");
         rangeAxisRight.setLabel(quoteR);
         rangeAxisRight.setLabelFont(new Font("Times", Font.BOLD, 16));
-        rangeAxisRight.setLabelPaint(new Color(51, 153, 255));
+        //rangeAxisRight.setLabelPaint(new Color(51, 153, 255));
+        rangeAxisRight.setLabelPaint(Color.red);
         rangeAxisRight.setAutoRange(true);
         rangeAxisRight.setAutoRangeIncludesZero(false);
         rangeAxisRight.setAutoRangeStickyZero(false);
-
 
         selectedRegionRightRenderer = new XYLineAndShapeRenderer();
         splineRend = new XYSplineRenderer();
@@ -1455,7 +1458,6 @@ plot.setRangeGridlinesVisible(false);
        // selectedRegionPanel.addKeyListener(new ArrowKeyListener(selectedDatasetMarker));
         selectedRegionsChartPanel.addKeyListener(new ArrowKeyListener(selectedDatasetMarker));
 
-
         selectedRegionsChartPanel.addChartMouseListener(new ChartMouseListener() {
 
             @Override
@@ -1484,12 +1486,10 @@ plot.setRangeGridlinesVisible(false);
             }
         });
 
-
         selectedRegionsChartPanel.setDisplayToolTips(true);
 //        selectedRegionsChartPanel.setMouseZoomable(false);
         selectedRegionsChartPanel.setHorizontalAxisTrace(true);
         selectedRegionsChartPanel.setVerticalAxisTrace(true);
-
 
         selectedRegionPanel.add(selectedRegionsChartPanel);
     }
