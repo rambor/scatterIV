@@ -422,9 +422,11 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
         try {
             outputname = workingDirectory +"/" +outputname+".sec";
+            Path path = Paths.get(outputname);
+Files.deleteIfExists(path);
+
             fw = new FileWriter( outputname);
             BufferedWriter out = new BufferedWriter(fw);
-
             // set initial capacity of of each line, however, capacity will be increased if exceeded
             StringBuilder fLine = new StringBuilder(totalDataSetsInCollection*3); // total number of frames, indexes from one to max
             StringBuilder signalLine = new StringBuilder(totalDataSetsInCollection*11);
@@ -1510,8 +1512,6 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             File f1 = new File(parentPath+"/temp.sec");
             File f2 = new File(secfilename);
             System.out.println("renaming f1 to f2 " + f1.getName() + " -> " + f2.getName());
-            System.out.println(f1.getAbsolutePath());
-            System.out.println(f2.getAbsolutePath());
             //boolean didIt = f1.renameTo(f2);
             Path source = Paths.get(f1.getAbsolutePath());
             Path target = Paths.get(f2.getAbsolutePath());
