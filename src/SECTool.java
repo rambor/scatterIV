@@ -43,6 +43,9 @@ import java.awt.geom.Rectangle2D;
 import java.io.*;
 import java.nio.charset.CharsetDecoder;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -643,7 +646,6 @@ public class SECTool extends JDialog {
             @Override
             public void actionPerformed(ActionEvent e) {
 
-
                 if (frameToMergeEnd < frameToMergeStart || frameToMergeStart==0 || frameToMergeEnd==0){
                     status.setText("Select frames before merging using plots on Right");
                     return;
@@ -944,7 +946,11 @@ public class SECTool extends JDialog {
 
                     try {
                         String name  = secFile.getFilebase();
-                        FileWriter fw = new FileWriter(Scatter.WORKING_DIRECTORY.getWorkingDirectory() +"/"+name+"_signal_plot.txt");
+                        String outputname = Scatter.WORKING_DIRECTORY.getWorkingDirectory() +"/"+name+"_signal_plot.txt";
+                        Path path = Paths.get(outputname);
+                        FileWriter fw = new FileWriter(outputname);
+                        Files.deleteIfExists(path);
+
                         BufferedWriter out = new BufferedWriter(fw);
                         out.write(String.format("# %s %n", name));
                         out.write(String.format("# %s %n", "index signal izero rg rg_error"));

@@ -423,7 +423,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         try {
             outputname = workingDirectory +"/" +outputname+".sec";
             Path path = Paths.get(outputname);
-Files.deleteIfExists(path);
+
+            Files.deleteIfExists(path);
 
             fw = new FileWriter( outputname);
             BufferedWriter out = new BufferedWriter(fw);

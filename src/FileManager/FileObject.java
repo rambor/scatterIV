@@ -14,6 +14,9 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Locale;
 
@@ -39,7 +42,6 @@ public class FileObject {
         this.directoryInfo = directory; this.version = version;
     }
 
-
     public void writeSAXSFile(String name, Dataset data){
 
         int total = data.getAllData().getItemCount();
@@ -47,9 +49,12 @@ public class FileObject {
         XYSeries errorValues =data.getAllDataError();
         String sasObjectString = data.getSasObjectJSON() + System.lineSeparator();
 
-
         try {
-            FileWriter fw = new FileWriter(directoryInfo +"/"+name+".dat");
+            String outputname = directoryInfo +"/"+name+".dat";
+            FileWriter fw = new FileWriter(outputname);
+            Path path = Paths.get(outputname);
+            Files.deleteIfExists(path);
+
             BufferedWriter out = new BufferedWriter(fw);
             out.write(createScatterHeader());
             out.write(this.createNotesRemark(data));
