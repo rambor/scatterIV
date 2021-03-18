@@ -613,9 +613,7 @@ public class Subtract {
                         subTemp.run();
                         try {
                             subTemp.get();
-                        } catch (InterruptedException e1) {
-                            e1.printStackTrace();
-                        } catch (ExecutionException e1) {
+                        } catch (InterruptedException | ExecutionException e1) {
                             e1.printStackTrace();
                         }
 
@@ -709,9 +707,7 @@ public class Subtract {
                                 Scatter.WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
                                 Scatter.updateProp();
 
-                            } catch (InterruptedException ex) {
-                                ex.printStackTrace();
-                            } catch (ExecutionException ex) {
+                            } catch (InterruptedException | ExecutionException ex) {
                                 ex.printStackTrace();
                             }
 
@@ -797,9 +793,7 @@ public class Subtract {
                                 Scatter.WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
                                 Scatter.updateProp();
 
-                            } catch (InterruptedException ex) {
-                                ex.printStackTrace();
-                            } catch (ExecutionException ex) {
+                            } catch (InterruptedException | ExecutionException ex) {
                                 ex.printStackTrace();
                             }
 
