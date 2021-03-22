@@ -6,6 +6,7 @@ import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
+import org.jfree.ui.Layer;
 import version4.Collection;
 import version4.Constants;
 import version4.Dataset;
@@ -19,28 +20,34 @@ import java.beans.PropertyChangeEvent;
 import java.io.File;
 
 public class NormalizedKratkyPlot extends ScatterPlot {
-    private final ValueMarker yMarker = new ValueMarker(1.1);
-    private final ValueMarker xMarker = new ValueMarker(1.7320508);
+    private final ValueMarker yMarker = new ValueMarker(1.1, Color.DARK_GRAY, new BasicStroke(1.5f));
+    private final ValueMarker xMarker = new ValueMarker(1.7320508, Color.DARK_GRAY, new BasicStroke(1.5f));
     private final ValueMarker lineAtZero = new ValueMarker(0, Color.BLACK, new BasicStroke(1.0f));
 
     public NormalizedKratkyPlot(Collection collection, WorkingDirectory wkd) {
         super(collection, wkd);
 
+        dialogTitle="Normalized Kratky Plot";
+        upperLabelText="Upper Bound Limit X-axis";
+        lowerRangeLabelText="Lower Bound Limit Y-axis";
+
         locationOfWindow = new Point(225,300);
         frame = new ChartFrame("SC\u212BTTER \u2263 Guinier-Based Dimensionless Kratky PLOT", chart);
         JPopupMenu popup = frame.getChartPanel().getPopupMenu();
         popup.add(toggler);
+        popup.add(setUpperLimitDomain);
+        popup.add(setLowerLimitRange);
 
-        String quote = "q\u2217Rg";
+        String quote = "q\u00B7Rg";
         domainAxis.setLabelFont(Constants.BOLD_16);
-        domainAxis.setTickLabelFont(Constants.FONT_12);
+        domainAxis.setTickLabelFont(Constants.FONT_16);
         domainAxis.setLabel(quote);
 
-        rangeAxis.setLabel("I(q)/I(0)\u2217(q\u2217Rg)\u00B2");
+        rangeAxis.setLabel("I(q)/I\u2080\u00B7(q\u00B7Rg)\u00B2");
         rangeAxis.setAutoRange(false);
         rangeAxis.setLabelFont(Constants.BOLD_16);
         rangeAxis.setTickLabelFont(Constants.FONT_12);
-        rangeAxis.setAutoRangeStickyZero(false);
+        rangeAxis.setAutoRangeStickyZero(true);
         domainAxis.setAutoRangeStickyZero(false);
 
 //        plot.setDomainAxis(domainAxis);
@@ -48,14 +55,12 @@ public class NormalizedKratkyPlot extends ScatterPlot {
         plot.setBackgroundAlpha(0.0f);
         plot.setDomainCrosshairLockedOnData(true);
         plot.setOutlineVisible(false);
-        plot.addDomainMarker(xMarker);
-        plot.addRangeMarker(yMarker);
-        plot.addRangeMarker(lineAtZero);
-
+        plot.addDomainMarker(xMarker, Layer.BACKGROUND);
+        plot.addRangeMarker(yMarker, Layer.BACKGROUND);
+        plot.addRangeMarker(lineAtZero, Layer.BACKGROUND);
 
         baseRenderer = (XYLineAndShapeRenderer) plot.getRenderer();
         baseRenderer.setBaseShapesVisible(true);
-
     }
 
     @Override

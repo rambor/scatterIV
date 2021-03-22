@@ -15,6 +15,7 @@ import org.jfree.ui.HorizontalAlignment;
 import version4.Collection;
 import version4.Constants;
 import version4.Dataset;
+import version4.GetValueDialog;
 
 import javax.swing.*;
 import java.awt.*;
@@ -41,6 +42,9 @@ public abstract class ScatterPlot implements ScatterPlotInterface, PropertyChang
     double lower, dlower;
 
     JMenuItem toggler;
+    JMenuItem setUpperLimitDomain;
+    JMenuItem setLowerLimitRange;
+    String dialogTitle, upperLabelText, lowerRangeLabelText;
 
     WorkingDirectory WORKING_DIRECTORY;
     Collection collection;
@@ -89,6 +93,27 @@ public abstract class ScatterPlot implements ScatterPlotInterface, PropertyChang
             }
         });
 
+        setUpperLimitDomain = new JMenuItem(new AbstractAction("set MAX x-axis") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                //To change body of implemented methods use File | Settings | File Templates.
+                GetValueDialog dialog = new GetValueDialog(dialogTitle, upperLabelText, chart, "upperDomain");
+                dialog.pack();
+                dialog.setVisible(true);
+                //chart.getXYPlot().getDomainAxis().setUpperBound(9);
+            }
+        });
+
+        setLowerLimitRange = new JMenuItem(new AbstractAction("set MIN y-axis") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                //To change body of implemented methods use File | Settings | File Templates.
+                GetValueDialog dialog = new GetValueDialog(dialogTitle, lowerRangeLabelText, chart, "lowerRange");
+                dialog.pack();
+                dialog.setVisible(true);
+                //chart.getXYPlot().getDomainAxis().setUpperBound(9);
+            }
+        });
         this.setChartPanel();
 
         domainAxis = new NumberAxis("");
@@ -97,7 +122,6 @@ public abstract class ScatterPlot implements ScatterPlotInterface, PropertyChang
         domainAxis.setTickMarkStroke(new BasicStroke(1.4f));
         rangeAxis.setAxisLineStroke(new BasicStroke(1.4f));
         rangeAxis.setTickMarkStroke(new BasicStroke(1.4f));
-
     }
 
     public void setChartPanel(){
