@@ -889,7 +889,7 @@ public class SECTool extends JDialog {
                                 }.start();
                             }
 
-                    } else if (files.length > 0 && ext.equals("dat")) {
+                    } else if (files.length > 1 && ext.equals("dat")) {
 
                             new Thread() {
                                 public void run() {
@@ -948,10 +948,11 @@ public class SECTool extends JDialog {
                         String name  = secFile.getFilebase();
                         String outputname = Scatter.WORKING_DIRECTORY.getWorkingDirectory() +"/"+name+"_signal_plot.txt";
                         Path path = Paths.get(outputname);
-                        FileWriter fw = new FileWriter(outputname);
                         Files.deleteIfExists(path);
 
+                        FileWriter fw = new FileWriter(outputname);
                         BufferedWriter out = new BufferedWriter(fw);
+
                         out.write(String.format("# %s %n", name));
                         out.write(String.format("# %s %n", "index signal izero rg rg_error"));
                         for (int n=1; n < total; n++) {
@@ -1002,7 +1003,6 @@ public class SECTool extends JDialog {
 
             setEnabled(list.isEnabled());
             setSelected(((SampleBufferElement) value).isSelected());
-            //setFont(list.getFont());
             setFont( new Font ("CenturyGothic", Font.PLAIN, 11));
             setBackground(list.getBackground());
             setForeground(((SampleBufferElement) value).getColor());
@@ -1406,7 +1406,6 @@ plot.setRangeGridlinesVisible(false);
         rangeAxisRight = new NumberAxis("Rg");
         rangeAxisRight.setLabel(quoteR);
         rangeAxisRight.setLabelFont(new Font("Times", Font.BOLD, 16));
-        //rangeAxisRight.setLabelPaint(new Color(51, 153, 255));
         rangeAxisRight.setLabelPaint(Color.red);
         rangeAxisRight.setAutoRange(true);
         rangeAxisRight.setAutoRangeIncludesZero(false);

@@ -51,10 +51,11 @@ public class FileObject {
 
         try {
             String outputname = directoryInfo +"/"+name+".dat";
-            FileWriter fw = new FileWriter(outputname);
+
             Path path = Paths.get(outputname);
             Files.deleteIfExists(path);
 
+            FileWriter fw = new FileWriter(outputname);
             BufferedWriter out = new BufferedWriter(fw);
             out.write(createScatterHeader());
             out.write(this.createNotesRemark(data));

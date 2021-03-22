@@ -56,7 +56,7 @@
                     </constraints>
                     <properties>
                       <background color="-13419191"/>
-                      <foreground color="-1"/>
+                      <foreground color="-16777216"/>
                       <text value="SEC-SAS File"/>
                     </properties>
                   </component>
@@ -87,7 +87,7 @@
                     </constraints>
                     <properties>
                       <background color="-13419191"/>
-                      <foreground color="-11009"/>
+                      <foreground color="-16777216"/>
                       <text value="UV Trace File"/>
                     </properties>
                   </component>
@@ -139,7 +139,7 @@
                     <constraints border-constraint="West"/>
                     <properties>
                       <background color="-13419191"/>
-                      <foreground color="-1"/>
+                      <foreground color="-13419191"/>
                       <text value="Set Baseline"/>
                     </properties>
                   </component>
@@ -158,7 +158,7 @@
                 </constraints>
                 <properties>
                   <background color="-13419191"/>
-                  <foreground color="-1"/>
+                  <foreground color="-16777216"/>
                   <text value="Load and Plot"/>
                 </properties>
               </component>
@@ -188,7 +188,7 @@
                         </constraints>
                         <properties>
                           <background color="-13419191"/>
-                          <foreground color="-1"/>
+                          <foreground color="-16777216"/>
                           <text value="Calibrate"/>
                         </properties>
                       </component>

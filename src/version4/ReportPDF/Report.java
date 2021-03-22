@@ -40,6 +40,9 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 
@@ -93,7 +96,12 @@ public class Report {
         final OutputStream outputStream;
 
         try {
-            outputStream = new FileOutputStream(workingDirectory.getWorkingDirectory()+"/"+ Functions.sanitizeForFilename(filename)+".pdf");
+            String outputname = workingDirectory.getWorkingDirectory()+"/"+ Functions.sanitizeForFilename(filename)+".pdf";
+
+            Path path = Paths.get(outputname);
+            Files.deleteIfExists(path);
+
+            outputStream = new FileOutputStream(outputname);
             document.save(outputStream);
         } catch (FileNotFoundException e) {
             e.printStackTrace();
@@ -191,7 +199,12 @@ public class Report {
         final OutputStream outputStream;
 
         try {
-            outputStream = new FileOutputStream(workingDirectory.getWorkingDirectory()+"/"+Functions.sanitizeForFilename(dataset.getFileName())+".pdf");
+            String outputname = workingDirectory.getWorkingDirectory()+"/"+Functions.sanitizeForFilename(dataset.getFileName())+".pdf";
+
+            Path path = Paths.get(outputname);
+            Files.deleteIfExists(path);
+
+            outputStream = new FileOutputStream(outputname);
             document.save(outputStream);
         } catch (FileNotFoundException e) {
             e.printStackTrace();

@@ -35,6 +35,9 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 
 public class MergeReport {
@@ -441,7 +444,12 @@ public class MergeReport {
 
         try {
             String filename = Functions.sanitizeForFilename(titleText);
-            outputStream = new FileOutputStream(workingDirectory+"/"+filename+".pdf");
+            String outputname = workingDirectory+"/"+filename+".pdf";
+
+            Path path = Paths.get(outputname);
+            Files.deleteIfExists(path);
+
+            outputStream = new FileOutputStream(outputname);
             document.save(outputStream);
             document = null;
             outputStream.close();
