@@ -53,6 +53,9 @@ public abstract class ScatterPlot implements ScatterPlotInterface, PropertyChang
         this.collection = collection;
         this.WORKING_DIRECTORY = wkd;
         plottedDatasets = new XYSeriesCollection();
+        dialogTitle = "Scatter Plot";
+        upperLabelText = "Set q-max";
+        lowerRangeLabelText = "Set min log[I(q)]";
 
         chart = ChartFactory.createXYLineChart(
                 "",                          // chart title

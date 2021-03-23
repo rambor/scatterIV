@@ -30,6 +30,9 @@ public class ErrorsPlot extends ScatterPlot {
 
     public ErrorsPlot(Collection collection, WorkingDirectory wkd) {
         super(collection, wkd);
+        dialogTitle="Errors Plot";
+        upperLabelText="Upper Bound Limit X-axis";
+        lowerRangeLabelText="Lower Bound Limit Y-axis";
 
         this.plottedYDatasets = new YIntervalSeriesCollection();
         chart = ChartFactory.createXYLineChart(
@@ -61,6 +64,8 @@ public class ErrorsPlot extends ScatterPlot {
         frame = new ChartFrame("SC\u212BTTER \u2263 Total Scattered Intensity with Measurement Errors in I(q) PLOT", chart);
         JPopupMenu popup = frame.getChartPanel().getPopupMenu();
         popup.add(toggler);
+        popup.add(setUpperLimitDomain);
+        popup.add(setLowerLimitRange);
 
         String quote = "q, \u212B \u207B\u00B9";
         domainAxis.setLabelFont(Constants.BOLD_16);

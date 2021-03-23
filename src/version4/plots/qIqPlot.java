@@ -27,11 +27,16 @@ public class qIqPlot extends ScatterPlot {
 
     public qIqPlot(Collection collection, WorkingDirectory wkd) {
         super(collection, wkd);
+        dialogTitle="Total Scattered Intensity Plot";
+        upperLabelText="Upper Bound Limit X-axis";
+        lowerRangeLabelText="Lower Bound Limit Y-axis";
 
         locationOfWindow = new Point(300,300);
         frame = new ChartFrame("SC\u212BTTER \u2263 Total Scattered Intensity PLOT", chart);
         JPopupMenu popup = frame.getChartPanel().getPopupMenu();
         popup.add(toggler);
+        popup.add(setUpperLimitDomain);
+        popup.add(setLowerLimitRange);
 
         String quote = "q, \u212B \u207B\u00B9";
         domainAxis.setLabelFont(Constants.BOLD_16);

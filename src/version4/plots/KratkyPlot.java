@@ -22,11 +22,16 @@ public class KratkyPlot extends ScatterPlot {
     private final ValueMarker lineAtZero = new ValueMarker(0, Color.BLACK, new BasicStroke(1.0f));
     public KratkyPlot(Collection collection, WorkingDirectory wkd) {
         super(collection, wkd);
+        dialogTitle="Kratky Plot";
+        upperLabelText="Upper Bound Limit X-axis";
+        lowerRangeLabelText="Lower Bound Limit Y-axis";
 
         locationOfWindow = new Point(225,300);
         frame = new ChartFrame("SC\u212BTTER \u2263 Kratky PLOT", chart);
         JPopupMenu popup = frame.getChartPanel().getPopupMenu();
         popup.add(toggler);
+        popup.add(setUpperLimitDomain);
+        popup.add(setLowerLimitRange);
 
         String quote = "q, \u212B \u207B\u00B9";
         domainAxis.setLabelFont(Constants.BOLD_16);
@@ -41,7 +46,6 @@ public class KratkyPlot extends ScatterPlot {
 
         rangeAxis.setAutoRangeStickyZero(false);
         domainAxis.setAutoRangeIncludesZero(true);
-
 
         plot.setDomainAxis(domainAxis);
         plot.setRangeAxis(rangeAxis);

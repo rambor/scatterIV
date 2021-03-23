@@ -22,11 +22,16 @@ public class PowerLawPlot extends ScatterPlot {
 
     public PowerLawPlot(Collection collection, WorkingDirectory wkd) {
         super(collection, wkd);
+        dialogTitle="Power-law Plot";
+        upperLabelText="Upper Bound Limit X-axis";
+        lowerRangeLabelText="Lower Bound Limit Y-axis";
 
         locationOfWindow = new Point(225,300);
         frame = new ChartFrame("SC\u212BTTER \u2263 Power-law PLOT", chart);
         JPopupMenu popup = frame.getChartPanel().getPopupMenu();
         popup.add(toggler);
+        popup.add(setUpperLimitDomain);
+        popup.add(setLowerLimitRange);
 
         String quote = "ln[q]";
         domainAxis.setLabelFont(Constants.BOLD_16);

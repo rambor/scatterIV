@@ -28,11 +28,17 @@ public class PlotData extends ScatterPlot {
         super(collection, wkd);
         locationOfWindow = new Point(100,100);
 
+        dialogTitle="LOG10 INTENSITY Plot";
+        upperLabelText="Upper Bound Limit X-axis";
+        lowerRangeLabelText="Lower Bound Limit Y-axis";
+
         frame = new ChartFrame("SC\u212BTTER \u2263 LOG10 INTENSITY PLOT", chart);
         JPopupMenu popup = frame.getChartPanel().getPopupMenu();
 
         //frame.getChartPanel().getChart().getXYPlot().getRangeAxis().setAxisLineStroke();
         popup.add(toggler);
+        popup.add(setUpperLimitDomain);
+        popup.add(setLowerLimitRange);
 
         String quote = "q (\u212B\u207B\u00B9)";
         domainAxis.setLabelFont(Constants.BOLD_16);
