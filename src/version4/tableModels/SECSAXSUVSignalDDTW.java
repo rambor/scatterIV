@@ -28,6 +28,7 @@ public class SECSAXSUVSignalDDTW {
     int[] indices_in_use;
     double[] assigned_absorbances;
     int shift = 5;
+    int boundary;
 
     /*
      *
@@ -37,8 +38,9 @@ public class SECSAXSUVSignalDDTW {
         saxs_trace = saxs_signal;
         uv_trace = uv_signal;
 
-        saxs_differences = new double[saxs_signal.getItemCount() - 4]; // remove 2x2 from each end due to finite differences calculations
-        uv_differences = new double[uv_signal.getItemCount() - 4]; // remove 2x2 from each end due to finite differences calculations
+        boundary = 2;
+        saxs_differences = new double[saxs_signal.getItemCount() - 2*boundary]; // remove 2x2 from each end due to finite differences calculations
+        uv_differences = new double[uv_signal.getItemCount() - 2*boundary]; // remove 2x2 from each end due to finite differences calculations
 
         this.setCentralDifferences();
     }
@@ -58,11 +60,12 @@ public class SECSAXSUVSignalDDTW {
         }
 
         // calculate derivative
-        double inv_h = 1.0/(saxs_trace.getMaxX() - saxs_trace.getMinX())/(saxs_trace.getItemCount()-1);
+        double inv_h = 1.0/(12*(saxs_trace.getMaxX() - saxs_trace.getMinX())/(saxs_trace.getItemCount()-1));
         int count=0;
-        for(int i=2; i<saxs_trace.getItemCount()-2; i++){
+        for(int i=boundary; i<saxs_trace.getItemCount()-boundary; i++){
             //saxs_differences[count] = (saxs.getY(i - 2).doubleValue() - 8*saxs.getY(i - 1).doubleValue() + 8*saxs.getY(i + 1).doubleValue() - saxs.getY(i + 2).doubleValue())*inv_h;
             element = (values[i - 2] - 8*values[i - 1] + 8*values[i + 1] - values[i + 2])*inv_h;
+//            element = 0.5*((values[i] - values[i - 1]) + 0.5*(values[i+1] - values[i - 1]));
             saxs_differences[count] = element;
             sum += element;
             sum2 += element*element;
@@ -83,13 +86,14 @@ public class SECSAXSUVSignalDDTW {
             values[i] = uv_trace.getY(i).doubleValue();
         }
 
-        inv_h = 1.0/(uv_trace.getMaxX() - uv_trace.getMinX())/(uv_trace.getItemCount()-1);
+        inv_h = 1.0/(12*(uv_trace.getMaxX() - uv_trace.getMinX())/(uv_trace.getItemCount()-1));
         count=0;
         sum = 0.0d;
         sum2 = 0.0d;
-        for(int i=2; i<uv_trace.getItemCount()-2; i++){
+        for(int i=boundary; i<uv_trace.getItemCount()-boundary; i++){
 //            uv_differences[count] = (uv.getY(i - 2).doubleValue() - 8*uv.getY(i - 1).doubleValue() + 8*uv.getY(i + 1).doubleValue() - uv.getY(i + 2).doubleValue())*inv_h;
             element = (values[i - 2] - 8*values[i - 1] + 8*values[i + 1] - values[i + 2])*inv_h;
+//            element = 0.5*((values[i] - values[i - 1]) + 0.5*(values[i+1] - values[i - 1]));
             uv_differences[count] = element;
             sum += element;
             sum2 += element*element;
@@ -105,8 +109,6 @@ public class SECSAXSUVSignalDDTW {
             uv_differences[i] = (uv_differences[i] - average)/stdev;
         }
 
-
-
         // perform averaging to smooth data
         int start_at = (shift-1)/2; // shift is required due to averaging window
         saxs_smoothed = new double[saxs_differences.length-(shift-1)];
@@ -120,6 +122,7 @@ public class SECSAXSUVSignalDDTW {
             //System.out.println(i + " " + saxs_smoothed[i-start_at]);
         }
 
+        printArray("saxs_smooothed", saxs_smoothed);
 
         uv_smoothed =new double[uv_differences.length-(shift-1)];
         for(int i=start_at; i<uv_differences.length - start_at; i++){
@@ -131,11 +134,11 @@ public class SECSAXSUVSignalDDTW {
             //System.out.println(i + " " + uv_smoothed[i-start_at]);
         }
 
+        printArray("uv_smoothed", uv_smoothed);
     }
 
 
     public void calculateTimeWarp(){
-
         // keep saxs signal as outer loop
         TimeSeries saxs_series = new TimeSeries(saxs_smoothed);
         TimeSeries uv_series = new TimeSeries(uv_smoothed);
@@ -143,8 +146,10 @@ public class SECSAXSUVSignalDDTW {
 //        TimeSeries saxs_series = new TimeSeries(saxs_smoothed);
 //        TimeSeries uv_series = new TimeSeries(uv_smoothed);
 
-        int radius = 10;//Math.round(uv_smoothed.length/saxs_smoothed.length);
-        TimeWarpInfo info = com.dtw.FastDTW.getWarpInfoBetween(saxs_series, uv_series, radius, DistanceFunctionFactory.getDistFnByName("ManhattanDistance"));
+        System.out.println("ratio of uv to saxs :: " + Math.round(uv_smoothed.length/saxs_smoothed.length));
+        int radius = 10;//2*Math.round(uv_smoothed.length/saxs_smoothed.length);
+//        TimeWarpInfo info = com.dtw.FastDTW.getWarpInfoBetween(saxs_series, uv_series, radius, DistanceFunctionFactory.getDistFnByName("ManhattanDistance"));
+        TimeWarpInfo info = com.dtw.FastDTW.getWarpInfoBetween(saxs_series, uv_series, radius, DistanceFunctionFactory.getDistFnByName("EuclideanDistance"));
 //        TimeWarpInfo info = com.dtw.DTW.getWarpInfoBetween(saxs_series, uv_series, DistanceFunctionFactory.getDistFnByName("EuclideanDistance"));
 
         WarpPath path = info.getPath();
@@ -250,4 +255,20 @@ public class SECSAXSUVSignalDDTW {
         }
     }
 
+
+    private void printArray(String name, double[] values ){
+        int length = values.length;
+        try {
+            FileWriter fstream = new FileWriter(name+"_derivative.txt");
+            BufferedWriter out = new BufferedWriter(fstream);
+
+            for (int i=0; i < length; i++){
+                out.write( String.format("%d %.3e %n", i, values[i]));
+            }
+            out.close();
+            fstream.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 }

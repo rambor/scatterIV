@@ -51,7 +51,6 @@ public class IFTObject implements Runnable {
     @Override
     public void run() {
         IndirectFT tempIFT;
-
         if (useMoore){
             tempIFT = new MooreTransformApache(dataset.getfittedqIq(), dataset.getfittedError(), dmax, qmax, lambda, includeBackground);
             //tempIFT = new MooreTransform(dataset.getfittedqIq(), dataset.getfittedError(), dmax, qmax, lambda, useMoore, includeBackground);
@@ -84,7 +83,6 @@ public class IFTObject implements Runnable {
             //tempIFT = new LaguerreTransform(rave , rg, dataset.getfittedqIq(), dataset.getfittedError(), dmax, qmax, lambda, 1);
 
         } else if (useSVD) {  // use SPI method
-            System.out.println("SVD ");
             tempIFT = new SVD(dataset.getfittedqIq(),
                     dataset.getfittedError(),
                     dmax,
@@ -97,7 +95,6 @@ public class IFTObject implements Runnable {
         } else  {  // use Moore Method
             tempIFT = new MooreTransformApache(dataset.getfittedqIq(), dataset.getfittedError(), dmax, qmax, lambda, includeBackground);
             //tempIFT = new MooreTransform(dataset.getfittedqIq(), dataset.getfittedError(), dmax, qmax, lambda, useMoore, includeBackground);
-
         }
 
         this.dataset.setStandardizationMean(tempIFT.getStandardizedLocation(), tempIFT.getStandardizedScale());

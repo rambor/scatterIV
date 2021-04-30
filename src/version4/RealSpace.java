@@ -101,7 +101,6 @@ public class RealSpace {
             originalqIq.add(tempItem.getX(), tempItem.getYValue()*tempItem.getXValue());
         }
 
-        //System.out.println("Average I " + averageIntensity(allData) + " digits " + digits);
 
         fittedIq = new XYSeries(Integer.toString(this.id) + " Iq-" + filename);
         fittedqIq = new XYSeries(Integer.toString(this.id) + " qIq-" + filename);
@@ -279,11 +278,11 @@ public class RealSpace {
             double kvalue = ns + 1 + 1 + 1; // lambda, dmax and noise
             double aic = 2.0*kvalue + ns*Math.log(chi2) + (2.0*kvalue*kvalue + 2*kvalue)/(totalPointsInUse - kvalue -1);
             double scoreIt = this.getIndirectFTModel().getPrScore();
-            //System.out.println(dmax + " AIC: " + aic + " DW " + kurtosis + " PSI " + scoreIt + " " +(0.1*aic + 993.1*kurtosis + 3*this.getIndirectFTModel().getPrScore()));
+//            System.out.println(dmax + " chi2 " + chi2  + " AIC: " + aic + " DW " + kurtosis + " PSI " + scoreIt + " " +(0.1*aic + 993.1*kurtosis + 3*this.getIndirectFTModel().getPrScore()));
             //double sum = (0.1*aic + 993.1*kurtosis + 3*scoreIt);
-            //System.out.println(dmax + " AIC " + aic + " " + kurtosis + " " +  scoreIt);
 //        totalScore = (Math.log10((0.93*aic + 39.1d*kurtosis + 37.0d*scoreIt)));
             totalScore = (Math.log10(0.1*aic + (4.0d*kurtosis + scoreIt)));
+
         } catch (java.lang.NullPointerException exception){
            // System.out.println("PR NULL Exception :: possible pdb :: " + exception.getMessage());
             totalScore = 1;
@@ -660,8 +659,7 @@ public class RealSpace {
         // spinner in Pr follows originalqIq but limited by lowerQIndex
 
         int tempStart = originalqIq.indexOf(this.dataset.getData().getMinX()) + 1;
-//        System.out.println("index of plotted data mapped into original " + originalqIq.indexOf(this.dataset.getData().getMinX()));
-//        System.out.println("lowerqlimit " + lowerQIndexLimit);
+
         if (tempStart < lowerQIndexLimit){
             this.startAt = lowerQIndexLimit;
         } else {

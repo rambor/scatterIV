@@ -32,7 +32,6 @@ public class SVD extends IndirectFT {
      * @param dmax
      * @param qmax
      * @param lambda
-     * @param includeBackground
      * @param stdmin
      * @param stdscale
      */
@@ -42,7 +41,6 @@ public class SVD extends IndirectFT {
             double dmax,
             double qmax,
             double lambda,
-            boolean includeBackground,
             double stdmin,
             double stdscale){
 

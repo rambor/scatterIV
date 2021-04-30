@@ -715,6 +715,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         status.setText("Estimating signal and performing subtraction... please wait");
         for(int i=0; i<collection.getTotalDatasets(); i++){
             Dataset tempData = collection.getDataset(i);
+
             AutoRg temp = new AutoRg(tempData.getAllData(), excludePoints);
             signals.set(tempData.getId(), new Signals(tempData.getId(), 0, temp.getI_zero(), temp.getRg(), temp.getI_zero_error(), temp.getRg_error()));
             publish(i);

@@ -221,7 +221,6 @@ public class SignalPlot extends SwingWorker<Void, Integer> {
                         plotRg.addSeries(new XYSeries(dataInUse.getFileName()));
                         if (area > threshold) {
                             AutoRg tempRg = new AutoRg(tempData, startAtPoint + 1);
-
                             plotRg.getSeries(seriesCount).add(i, tempRg.getRg());
                         } else {
                             plotRg.getSeries(seriesCount).add(i, 0);

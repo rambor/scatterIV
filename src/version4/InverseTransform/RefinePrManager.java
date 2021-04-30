@@ -125,7 +125,7 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
 
         final double upperLambda = 300*lambda;
         double startLamba = lambda;
-        double keptlamba = lambda;
+        //double keptlamba;
         double dellamba = (upperLambda - startLamba)/101;
         double del_r = Math.PI/upperq;
 
@@ -144,15 +144,15 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
             } else if (useL2 && !useSVD) {  // use Moore Method
                 tempIFT = new DirectSineIntegralTransform(this.standardizedSeries, scaled_q_times_Iq_Errors, dmax, upperq, startLamba, standardizedMin, standardizedScale, useBackgroundInFit);
             } else if (useSVD) {  // use Moore Method
-                tempIFT = new SVD(this.standardizedSeries, scaled_q_times_Iq_Errors, dmax, upperq, startLamba, useBackgroundInFit, standardizedMin, standardizedScale);
+                tempIFT = new SVD(this.standardizedSeries, scaled_q_times_Iq_Errors, dmax, upperq, startLamba, standardizedMin, standardizedScale);
             } else {
-                tempIFT = new SVD(this.standardizedSeries, scaled_q_times_Iq_Errors, dmax, upperq, startLamba, useBackgroundInFit, standardizedMin, standardizedScale);
+                tempIFT = new SVD(this.standardizedSeries, scaled_q_times_Iq_Errors, dmax, upperq, startLamba, standardizedMin, standardizedScale);
             }
             double prscore = tempIFT.scoreDistribution(del_r);
             if (prscore < initialScore){
-                keptlamba = startLamba;
+                //keptlamba = startLamba;
                 initialScore = prscore;
-                lambda = keptlamba;
+                lambda = startLamba;
             }
             startLamba += dellamba;
         }
@@ -306,7 +306,6 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
             try {
                 activeSet = qIq.createCopy(0, totalItems-1); // possibly scaled by rescaleFactor
                 this.priors = priors.clone();
-                //errorActiveSet = allError.createCopy(0, totalItems-1); // possibly scaled by rescaleFactor
             } catch (CloneNotSupportedException e) {
                 e.printStackTrace();
             }
@@ -345,7 +344,7 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
 
             XYSeries randomSeries = new XYSeries("Random-");
             XYSeries randomErrorSeries = new XYSeries("Random-");
-            //System.out.println("TOTAL RUNS " + totalRuns);
+
             for (int i=0; i < totalRuns; i++){
 
                 randomSeries.clear();
@@ -408,9 +407,9 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
                 } else if (useL2 && !useSVD) {  // use Moore Method
                     tempIFT = new DirectSineIntegralTransform(randomSeries, randomErrorSeries, dmax, upperq, lambda, standardizedMin, standardizedScale, useBackgroundInFit);
                 } else if (useSVD) {  // use Moore Method
-                    tempIFT = new SVD(randomSeries, randomErrorSeries, dmax, upperq, lambda, useBackgroundInFit, standardizedMin, standardizedScale);
+                    tempIFT = new SVD(randomSeries, randomErrorSeries, dmax, upperq, lambda, standardizedMin, standardizedScale);
                 } else {
-                    tempIFT = new SVD(randomSeries, randomErrorSeries, dmax, upperq, lambda, useBackgroundInFit, standardizedMin, standardizedScale);
+                    tempIFT = new SVD(randomSeries, randomErrorSeries, dmax, upperq, lambda, standardizedMin, standardizedScale);
                 }
 
                 // Calculate Residuals
@@ -585,9 +584,9 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
             } else if (useL2 && !useSVD) {  // use Glatter like regularization
                 tempIFT = new DirectSineIntegralTransform(keptqIq, keptErrorSeries, dmax, upperq, lambda, standardizedMin, standardizedScale, useBackgroundInFit);
             } else if (useSVD) {  // use Moore Method
-                tempIFT = new SVD(keptqIq, keptErrorSeries, dmax, upperq, lambda, useBackgroundInFit, standardizedMin, standardizedScale);
+                tempIFT = new SVD(keptqIq, keptErrorSeries, dmax, upperq, lambda, standardizedMin, standardizedScale);
             } else {
-                tempIFT = new SVD(keptqIq, keptErrorSeries, dmax, upperq, lambda, useBackgroundInFit, standardizedMin, standardizedScale);
+                tempIFT = new SVD(keptqIq, keptErrorSeries, dmax, upperq, lambda, standardizedMin, standardizedScale);
             }
 
             // for chi_estimate calculations, nonStandardized datasets must be specified

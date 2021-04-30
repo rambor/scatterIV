@@ -1077,21 +1077,14 @@ double topB = 1000;
         double diffTolerance = 0.000001;
         double inv_card;
         final double pi_inv_dmax = Math.PI/dmax; // cardinal points are at increments of PI/dmax
-        final double dmax_inv_pi = 1.0/pi_inv_dmax;
         double error_value=0;
         // Number of Shannon bins, excludes the a_o
         int bins = ns, count=0, total = data.getItemCount();
         // ns is over-estimated as it includes a q-value that is not actually measured
         // so, how to calculate chi?
-        //SimpleMatrix tempResiduals = a_matrix.mult(am_vector).minus(y_vector);
+        // SimpleMatrix tempResiduals = a_matrix.mult(am_vector).minus(y_vector);
         // calculate residuals
         makeResiduals();
-//        residuals = new XYSeries("residuals");
-//        for(int i=0; i < rows; i++){
-//            XYDataItem item = data.getDataItem(i);
-//            double diff = tempResiduals.get(i,0);
-//            residuals.add(item.getX(), diff);
-//        }
 
         n_chipoints = 0; //1.0/(double)(bins-1);
         double cardinal, test_q = 0, diff;
@@ -1119,22 +1112,21 @@ double topB = 1000;
         int startIndex = 1;
         double maxQ = data.getMaxX();
         ArrayList<Integer> chiIndices = new ArrayList<>();
-        Random randomGenerator = new Random();
+
         startIndex = (int)Math.floor(data.getMinX()/delta_q); //check first point
         if ( (startIndex & 1) == 0){ // if even, starting index is greater than startIndex + 1
             startIndex += 1;
         } else { // if odd
             startIndex += 2;
         }
-        int degreesOfFreedomcorrection = startIndex-1;
 
-        double  before, after, shannon_q = startIndex*delta_q;
+        double  before, after;//
         int startAt = 0;
         chiIndices.add(0);
         while (startIndex*delta_q < maxQ){
 
             if ( (startIndex & 1) != 0){
-                shannon_q = startIndex*delta_q;
+                double shannon_q = startIndex*delta_q;
                 for(int i = startAt; startAt<total; i++){
                     XYDataItem xyitem = data.getDataItem(i);
                     if (xyitem.getXValue() > shannon_q){ // find first value greater than shannon_q
@@ -1153,6 +1145,8 @@ double topB = 1000;
             }
             startIndex++;
         }
+
+
         for(int i=0; i<chiIndices.size();i++){
             error_value = 1.0/(standardVariance.getY(chiIndices.get(i)).doubleValue());
             diff = residuals.getY(chiIndices.get(i)).doubleValue();
@@ -1161,6 +1155,7 @@ double topB = 1000;
             chi += (diff*diff)*(error_value);
             n_chipoints += 1.0;
         }
+
 
         for (int i=1; i <= -bins && i*pi_inv_dmax <= qmax; i++){
 
@@ -1182,6 +1177,7 @@ double topB = 1000;
                 priorValue = data.getDataItem(count-1);
                 postValue = data.getDataItem(count);
                 if ((cardinal - priorValue.getXValue())*inv_card < diffTolerance) {// check if difference is smaller pre-cardinal
+                    System.out.println(i + " PRE ");
                     error_value = 1.0/(standardVariance.getY(count-1).doubleValue());
                     diff = residuals.getY(count - 1).doubleValue();
                     residuals_sum_squared += diff*diff;
@@ -1191,6 +1187,7 @@ double topB = 1000;
                     values.add(diff);
                 } else if ( Math.abs(postValue.getXValue() - cardinal)*inv_card < diffTolerance) {// check if difference is smaller post-cardinal
                     //error_value = 1.0/errors.getY(count).doubleValue()*inv_card*standardizedScale;
+                    System.out.println(i + " POST ");
                     error_value = 1.0/(standardVariance.getY(count).doubleValue());
                     diff = residuals.getY(count).doubleValue();
                     chi += (diff*diff)*(error_value);
@@ -1201,12 +1198,7 @@ double topB = 1000;
                 } else { // if difference is greater than 0.1% interpolate and also the cardinal is bounded
 
                     Interpolator tempI = new Interpolator(nonData, errors, cardinal); // interpolate intensity
-                    // diff = tempI.interpolatedValue - this.calculateQIQ(cardinal);
-//                    if (this.getClass().getName().contains("MooreTransform")){
-//                        diff = tempI.interpolatedValue - (standardizedScale*(coefficients[0] + coefficients[i]*dmax_inv_pi) + standardizedMin);
-//                    } else {
-                        diff = tempI.interpolatedValue - this.calculateQIQ(cardinal);
-//                    }
+                    diff = tempI.interpolatedValue - this.calculateQIQ(cardinal);
 
                     residuals_sum_squared += diff*diff;
                     residuals_sum += diff;
@@ -1224,8 +1216,8 @@ double topB = 1000;
         double residualsMean = residuals_sum/n_chipoints;
         double residuals_variance = residuals_sum_squared/n_chipoints - residualsMean*residualsMean;
         int aic_k = ns + 2;
-        //chi*=1.0/(double)n_chipoints;
 
+        //chi*=1.0/(double)n_chipoints;
         aic = 2.0*aic_k + chi + (2*aic_k*aic_k + 2*aic_k)/(n_chipoints - aic_k - 1);
 //        System.out.println(n_chipoints + " " + ns + " " + n_chipoints/ns + " " + (n_chipoints-2.0)/ns);
 //        System.out.println(dmax + " AIC " + aic + " chi " +chi/(double)(n_chipoints-2.0) + " " + n_chipoints + " " + chi/(double)aic_k + " :: " + chiIndices.size());

@@ -1040,7 +1040,6 @@ public class RealSpacePr {
 //                }
 //            }
 
-
             System.out.println("Finished datgnom: file " + base_name[0] + "_dg.out");
 
             File datFile = new File(WORKING_DIRECTORY.getWorkingDirectory() + "/"+base_name[0]+"_dg.out");

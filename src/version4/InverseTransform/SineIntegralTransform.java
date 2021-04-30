@@ -121,7 +121,6 @@ public class SineIntegralTransform extends IndirectFT {
             double stdscale){
 
         super(scaledqIqdataset, scaledqIqErrors, dmax, qmax, lambda, includeBackground, stdmin, stdscale);
-
         //this.standardizeErrors(); // extract variances from errors
         XYDataItem tempData;
         standardVariance = new XYSeries("standardized error");
@@ -181,7 +180,6 @@ public class SineIntegralTransform extends IndirectFT {
             boolean useBackground){
 
         super(dataset, errors, dmax, qmax, lambda, useBackground, stdmin, stdscale);
-
         //this.standardizeErrors(); // extract variances from errors
         standardVariance = new XYSeries("standardized error");
         int totalItems = data.getItemCount();
@@ -210,13 +208,13 @@ public class SineIntegralTransform extends IndirectFT {
      * Copy constructor.
      */
     public SineIntegralTransform(SineIntegralTransform toCopy) {
-        this(toCopy.data, toCopy.errors, toCopy.dmax, toCopy.qmax, toCopy.lambda, toCopy.includeBackground, toCopy.positiveOnly, toCopy.standardizedMin, toCopy.standardizedScale);
-        nonData = new XYSeries("nonstandard");
-
-        for (int i=0; i<this.data.getItemCount(); i++){
-            XYDataItem item = this.data.getDataItem(i);
-            nonData.add(item.getX(), item.getYValue()*standardizedScale+standardizedMin);
-        }
+        super(toCopy);
+        //this(toCopy.data, toCopy.errors, toCopy.dmax, toCopy.qmax, toCopy.lambda, toCopy.includeBackground, toCopy.positiveOnly, toCopy.standardizedMin, toCopy.standardizedScale);
+        //nonData = new XYSeries("nonstandard");
+//        for (int i=0; i<this.data.getItemCount(); i++){
+//            XYDataItem item = this.data.getDataItem(i);
+//            nonData.add(item.getX(), item.getYValue()*standardizedScale+standardizedMin);
+//        }
         //any no defensive copies to be created here?
         //what are the mutable object fields?
         this.del_r = toCopy.del_r;
@@ -1167,7 +1165,7 @@ public class SineIntegralTransform extends IndirectFT {
         for(int j=0; j< r_vector_size; j++){
             sum +=  coefficients[j+1];
         }
-        //System.out.println("SUM " + sum + " tempRgSum " + tempRgSum);
+
         //izero = tempRgSum*standardizedScale+standardizedMin;
         izero = sum*standardizedScale+standardizedMin;
         rAverage = xaverage/tempRgSum;
@@ -1192,23 +1190,6 @@ public class SineIntegralTransform extends IndirectFT {
             prDistributionForFitting.add(r_vector[index], value);
         }
         prDistribution.add(dmax, 0);
-
-//        for(int i=0; i<totalInDistribution; i++){ // values in r_vector represent the midpoint or increments of (i+0.5)*del_r
-//
-//            if ( i == 0 ) { // interleaved r-value (even)
-//                prDistribution.add(0, 0);
-//                //prDistributionForFitting.add(0,0);
-//            } else if (i == (totalInDistribution-1)) {
-//                prDistribution.add(dmax, 0);
-//                //prDistributionForFitting.add(dmax,0);
-//            } else { // odd
-//                int index = i-1;
-//                double value = coefficients[index+1];
-//                prDistribution.add(r_vector[index], value);
-//                prDistributionForFitting.add(r_vector[index], value);
-//            }
-//            //System.out.println(i + " " + prDistribution.getX(i) + " " + prDistribution.getY(i));
-//        }
 
         // calculate total Diff
         scoreDistribution(del_r);

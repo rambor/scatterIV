@@ -27,7 +27,6 @@ public class SASSignalTrace {
     private double mod_max_at_x, max_at_x, max_at_y, max_abs_y, max_abs_at_x;
 
 
-
     public SASSignalTrace(String name){
         this.name = name;
         exposure_time = 0.0;
@@ -105,7 +104,12 @@ public class SASSignalTrace {
         }
     }
 
-
+    /**
+     * assume UV trace is already in the time domain, typiically, SEC-SAXS is by frame number
+     * if no conversion required, set exposure time to 1 and dead_time to 0
+     * @param exposure_time
+     * @param dead_time
+     */
     public void changeSASSignalDomain(double exposure_time, double dead_time){
         this.exposure_time = exposure_time;
         this.dead_time = dead_time;
@@ -141,13 +145,71 @@ public class SASSignalTrace {
     }
 
     /**
+     * traces should be aligned
+     *
+     */
+    public void autoSetBaseline(){
+        // find longest stretch of values near 1
+        int start_baseline=0;
+        int temp_start = 0;
+        int temp_end = 1;
+        int end_baseline = 1;
+        int baseline_length=1;
+        int count=0;
+
+        // since absorbance is aligned to signal, we analyse original signal series
+        double window = 0.007;
+        double upper = 1.0 + window;
+        double lower = 1.0 - window;
+
+        double adjust = exposure_time + dead_time;
+        int last_index = originalSignalSeries.getItemCount()-1;
+        double last_value = absorbanceTrace.getX(absorbanceTrace.getItemCount()-1).doubleValue();
+        while (originalSignalSeries.getX(originalSignalSeries.getItemCount()-1).doubleValue()*adjust > last_value){
+            last_index--;
+        }
+
+
+        for(int i=0; i < last_index; i++){
+            XYDataItem item = originalSignalSeries.getDataItem(i);
+
+            if (item.getYValue() < upper && item.getYValue() > lower){
+                if (count == 0){
+                    temp_start = i;
+                    temp_end = i;
+                    count = 1;
+                } else {
+                    temp_end = i;
+                    count += 1;
+                }
+            } else if (count > 0) { // if above fails and count > 0, reset
+                if (count > baseline_length){ // keep details if longer stretch
+                    baseline_length = count;
+                    start_baseline = temp_start;
+                    end_baseline = temp_end;
+                }
+                count = 0;
+            } else {
+                count = 0;
+            }
+        }
+
+        if (count > baseline_length){ // keep details if longer stretch
+            start_baseline = temp_start;
+            end_baseline = temp_end;
+        }
+
+        this.alignBaseLines(start_baseline*adjust, end_baseline*adjust);
+    }
+
+    /**
      * startIndex and endIndex is actual value from the domain (not indices)
+     * in this case should be in units of time, so index*time_constant
      *
      * @param startIndex
      * @param endIndex
      */
     public void alignBaseLines(double startIndex, double endIndex){
-
         System.out.println(startIndex + " :: " + endIndex);
 
         ArrayList<Double> absorbanceValues = new ArrayList<>();
@@ -168,7 +230,6 @@ public class SASSignalTrace {
             }
         }
 
-
         for(int i=0; i<signalSeries.getItemCount(); i++){
             item = signalSeries.getDataItem(i);
             if (item.getXValue() > startIndex && item.getXValue() < endIndex){
@@ -186,7 +247,7 @@ public class SASSignalTrace {
         baseline_absorbance = Functions.median(absorbanceValues);
         baseline_saxs = Functions.median(saxsValues);
         //double diff = sumSASY/countSAS - sumAbsY/countAbs;
-        double diff = baseline_saxs - baseline_absorbance;
+        //double diff = baseline_saxs - baseline_absorbance;
 
         for(int i=0; i<absorbanceTrace.getItemCount(); i++){
             item = absorbanceTrace.getDataItem(i);
@@ -198,11 +259,15 @@ public class SASSignalTrace {
             signalSeries.updateByIndex(i, item.getYValue() - baseline_saxs);
         }
 
-
         //max_abs_y += diff;
         max_abs_y -= baseline_absorbance;
     }
 
+    /**
+     * Using peak aligned curves
+     * for each point in SAXS signal, interpolate its UV signal so that the two curves are matched for X-values
+     *
+     */
     public void create_interpolation_set(){
 
         // first and last interpolated values of SAS-SEC should be bordered by at least 4 points
@@ -290,23 +355,21 @@ public class SASSignalTrace {
 
     /**
      * convolved x-values is not frame number but time
-     * @param amp
      * @param convolved_values
      */
-    public void normalizeAvailableIzeros(double amp, XYSeries convolved_values, int[] indices_in_use){
+    public void normalizeAvailableIzeros(XYSeries convolved_values, int[] indices_in_use){
 
         double calc;
 
-        int total = secFile.getTotalFrames();
-        XYSeries signalSeries = secFile.getSignalSeries();
+        int in_use;
+        normalizedIzeroes = new XYSeries("normalized Izeroes");
 
-        double invAmp = 1.0/amp;
         for(int i=0; i<indices_in_use.length; i++){
-            calc = secFile.getIzerobyIndex(indices_in_use[i])/(convolved_values.getY(i).doubleValue()*invAmp);
-            System.out.println(i + " " + calc + " " + convolved_values.getY(i) + " " +  secFile.getIzerobyIndex(indices_in_use[i]));
+            in_use = indices_in_use[i];
+            calc = secFile.getIzerobyIndex(in_use)/convolved_values.getY(i).doubleValue();
+            normalizedIzeroes.add(in_use, calc);
+            //System.out.println(i + " " + calc + " " + convolved_values[i] + " " +  secFile.getIzerobyIndex(indices_in_use[i]) + " " + signalSeries.getY(indices_in_use[i]) + " " + calc2);
         }
-
-        System.out.println("Totals " + total + " " + signalSeries.getItemCount());
     }
 
 
@@ -317,7 +380,6 @@ public class SASSignalTrace {
     public void normalizeAvailableIzeros(double[] convolved_values, int[] indices_in_use){
 
         double calc;
-
         int in_use;
         XYSeries signalSeries = secFile.getSignalSeries();
         normalizedIzeroes = new XYSeries("normalized Izeroes");
