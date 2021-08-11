@@ -823,7 +823,7 @@ public class SECReport {
 
     private BufferedImage makeLog10PlotSScaled(String title){
 
-        log10OfAllText = "*B.* Overlay of SAXS curves of subtracted frames. Each frame is colored based on the following table.";
+        log10OfAllText = "*B.* Overlay of SAXS curves of subtracted frames. Each frame is scaled and colored.";
 
         ArrayList<Double> qvalues = secFile.getQvalues();
         ArrayList<Double> target = secFile.getSubtractedFrameAt(startIndex);
@@ -959,7 +959,11 @@ public class SECReport {
     }
 
     public void setScaleFactors(ArrayList<Double> scaleFactors){
-        this.scaleFactors = scaleFactors;
+        //this.scaleFactors = scaleFactors;
+        this.scaleFactors = new ArrayList<>();
+        for(int i=0; i<scaleFactors.size(); i++){
+            this.scaleFactors.add(scaleFactors.get(i));
+        }
     }
 
     private NumberAxis getRangeAxis(String quote, double ilower, double iupper){
