@@ -657,6 +657,7 @@ public class SECTool extends JDialog {
                 if (averageCheckBox.isSelected() && (frameToMergeEnd- frameToMergeStart) > 2){
 
                     ScaleManagerSAS peakToMerge = new ScaleManagerSAS(frameToMergeStart, frameToMergeEnd, secFile, progressBar, status, true);
+                    peakToMerge.setUpperLowerQLimits(Double.parseDouble(qminSECField.getText()), Double.parseDouble(qmaxSECField.getText()));
                     String nameofnew = (saveAsTextField.getText().length() < 3) ? (secFile.getFilebase() + "_"+ Scatter.collectionSelected.getTotalDatasets()) : saveAsTextField.getText().replaceAll("\\W","_");
 
                     disableAllButtons();
@@ -1552,7 +1553,6 @@ plot.setRangeGridlinesVisible(false);
 
         sasChart.getTitle().setVerticalAlignment(VerticalAlignment.BOTTOM);
 
-//        sasChart.setBackgroundPaint(Color.black);
         intensityChartPanel.setHorizontalAxisTrace(false);
         intensityChartPanel.setVerticalAxisTrace(false);
 
@@ -1576,7 +1576,6 @@ plot.setRangeGridlinesVisible(false);
                 return (String) xyDataset.getSeriesKey(i);
             }
         });
-
 
         intensityChartPanel.setMouseZoomable(true);
         intensityChartPanel.setHorizontalAxisTrace(false);
