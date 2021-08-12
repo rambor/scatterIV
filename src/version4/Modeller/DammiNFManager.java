@@ -110,17 +110,18 @@ public class DammiNFManager {
         //ExecutorService executor = Executors.newFixedThreadPool(numberOfCPUs);
         ScheduledExecutorService executor = Executors.newScheduledThreadPool(numberOfCPUs);
 
-        File f = new File(gnomFile);
-        File newGnom = new File(newDir.toPath()+"/" +f.getName());
+        File selectedFile = new File(gnomFile);
+        File newGnom = new File(newDir.toPath()+"/" + selectedFile.getName());
 
         try {
-            Files.copy(f.toPath(), newGnom.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            Files.copy(selectedFile.toPath(), newGnom.toPath(), StandardCopyOption.REPLACE_EXISTING);
             // if refining, copy damstart file to new directory also
             if (damRefine){
                 Files.copy((new File(damstartFile)).toPath(), (new File(newDir.toPath()+"/damstart.pdb")).toPath(), StandardCopyOption.REPLACE_EXISTING);
             }
 
         } catch (IOException e) {
+
             e.printStackTrace();
         }
 
