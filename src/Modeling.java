@@ -81,8 +81,9 @@ public class Modeling implements ChangeListener, PropertyChangeListener {
                 if (chooser.showOpenDialog(contentPanel) == JFileChooser.APPROVE_OPTION){
                     workingDirectory.setWorkingDirectory(chooser.getCurrentDirectory().toString());
                     workingDirLabel.setText("in :: " + workingDirectory.getWorkingDirectory());
-                    String nameit = (chooser.getSelectedFile().toString().length() > 30) ? chooser.getSelectedFile().getName() : chooser.getSelectedFile().toString();
-                    outFileLabel.setText(nameit);
+                    //String nameit = (chooser.getSelectedFile().toString().length() > 30) ? chooser.getSelectedFile().getName() : chooser.getSelectedFile().toString();
+
+                    outFileLabel.setText(chooser.getSelectedFile().toPath().toString());
                 }
             }
         });

@@ -1026,6 +1026,7 @@ public class RealSpacePr {
             ProcessBuilder pr = new ProcessBuilder(atsas+"/"+datgnom, "-r", Constants.Scientific1dot3e1.format(rg), "-o", base_name[0]+"_dg.out", WORKING_DIRECTORY.getWorkingDirectory()+ "/" + dat_file_name);
             pr.directory(new File(WORKING_DIRECTORY.getWorkingDirectory()));
             Process ps = pr.start();
+            ps.waitFor();
 
 //            BufferedReader input = new BufferedReader(new InputStreamReader(ps.getInputStream()));
 //            String line=null;
@@ -1039,6 +1040,7 @@ public class RealSpacePr {
 //                    gnomdmax = row[1];
 //                }
 //            }
+
 
             System.out.println("Finished datgnom: file " + base_name[0] + "_dg.out");
 
@@ -1066,7 +1068,7 @@ public class RealSpacePr {
 
             modeler.setWorkingDir(WORKING_DIRECTORY.getWorkingDirectory());
 
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
             System.out.println("Problem running datgnom from " + atsas);
             status.setText("Problem running datgnom from " + atsas);
             System.out.println(e.toString());
