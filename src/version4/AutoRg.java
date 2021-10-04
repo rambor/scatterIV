@@ -80,7 +80,7 @@ public class AutoRg {
         // find the index of the upper q-value that is less than lowerqlimit
         // in this case find the index for which q_i < 0.15
         int lastAtLimit = 0;
-        while(qSquaredData.getX(lastAtLimit).doubleValue() < lowerqlimitSquared){
+        while(qSquaredData.getX(lastAtLimit).doubleValue() < lowerqlimitSquared && lastAtLimit < (qSquaredData.getItemCount()-1)){
             lastAtLimit++;
         }
         int last = lastAtLimit;
