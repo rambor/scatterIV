@@ -59,6 +59,8 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     private ArrayList<XYSeries> subtractedSetsErrors;
     private ArrayList keptBufferIndices;
 
+    Map<String, Integer> corruptedFrames;
+
     TreeSet<Integer> bufferRejects;
     TreeSet<Integer> keptBuffers;
 
@@ -363,6 +365,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         int total = baseSet.getItemCount();
         int notFoundIndex = 0;
 
+        corruptedFrames = new HashMap<>();
 
         for(int i=0; i<total; i++){
             XYDataItem baseItem = baseSet.getDataItem(i);
@@ -381,13 +384,24 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             if (good){
                 qvalues.add(baseItem.getX());
             } else {
-                System.out.println("Rejected qvalue :: " + baseItem.getX() + " => " + collection.getDataset(notFoundIndex).getFileName());
+                String frameName = collection.getDataset(notFoundIndex).getFileName();
+                if (corruptedFrames.containsKey(frameName)){
+                    corruptedFrames.replace(frameName, corruptedFrames.get(frameName) + 1);
+                } else {
+                    corruptedFrames.put(frameName, 1);
+                }
             }
 
         }
 
         if (qvalues.size()/(double)total < 0.6){
-            notice = " too few values in common => " + String.format("%.2f of TOTAL :: %s ", qvalues.size()/(double)total, qvalues.size());
+
+            StringBuilder filesToCheck = new StringBuilder();
+            for (Map.Entry<String, Integer> cf : corruptedFrames.entrySet()){
+                filesToCheck.append(String.format("frame => %s missing %d q-values %n", cf.getKey(), cf.getValue()));
+            }
+            notice = " too few values in common => " + String.format("%.2f of TOTAL :: %s %n", qvalues.size()/(double)total, qvalues.size());
+            notice += filesToCheck;
             return false;
         }
 

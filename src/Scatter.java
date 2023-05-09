@@ -22,7 +22,7 @@ public class Scatter {
     private static String ATSAS_DIRECTORY="";
     private static String THRESHOLD="";
 
-    public static String version = "IV.j";
+    public static String version = "IV.k";
     public static WorkingDirectory WORKING_DIRECTORY;
 
     public MergeReport mergeReport; //singleton
