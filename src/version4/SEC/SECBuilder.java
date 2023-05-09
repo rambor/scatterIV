@@ -361,14 +361,18 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
 
         XYSeries baseSet = collection.getDataset(0).getAllData();
         int total = baseSet.getItemCount();
+        int notFoundIndex = 0;
+
 
         for(int i=0; i<total; i++){
             XYDataItem baseItem = baseSet.getDataItem(i);
             boolean good = true;
             for(int d=1; d<collection.getTotalDatasets(); d++){
                 Dataset testset = collection.getDataset(d);
-                if (testset.getInUse() && testset.getAllData().indexOf(baseItem.getX()) < 0){
+
+                if (good && testset.getInUse() && testset.getAllData().indexOf(baseItem.getX()) < 0){
                         good = false;
+                        notFoundIndex = d;
                         break;
                 }
             }
@@ -376,13 +380,14 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
             // if I make it all the way, add it to q-values
             if (good){
                 qvalues.add(baseItem.getX());
+            } else {
+                System.out.println("Rejected qvalue :: " + baseItem.getX() + " => " + collection.getDataset(notFoundIndex).getFileName());
             }
+
         }
 
         if (qvalues.size()/(double)total < 0.6){
-
-
-            notice = " too few values in common " + qvalues.size()/(double)total;
+            notice = " too few values in common => " + String.format("%.2f of TOTAL :: %s ", qvalues.size()/(double)total, qvalues.size());
             return false;
         }
 
