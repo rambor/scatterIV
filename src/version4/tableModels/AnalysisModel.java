@@ -68,35 +68,40 @@ public class AnalysisModel extends AbstractTableModel implements ChangeListener,
 
     @Override
     public void setValueAt(Object obj, int row, int col){
-        Dataset dataset = datalist.get(row);
 
-        if (col == 12) {
-            if (!isNumber((String) obj)) {
-                status.setText("Scale factor " + (dataset.getId() + 1) + " is not a number. Enter a number.");
-                return;
-            } else {
-                status.setText("*");
+        try {
+            Dataset dataset = datalist.get(row);
+            if (col == 12) {
+                if (!isNumber((String) obj)) {
+                    status.setText("Scale factor " + (dataset.getId() + 1) + " is not a number. Enter a number.");
+                    return;
+                } else {
+                    status.setText("*");
+                }
+
+                dataset.setScaleFactor(Double.parseDouble((String) obj)); // what should this trigger?
+                dataset.scalePlottedLog10IntensityData();
+
+            } else if (col == 3) {
+                LogIt.log(Level.INFO, "Copying " + dataset.getFileName()+ " to " + (String)obj);
+                dataset.copyAndRenameDataset((String)obj, currentWorkingDirectory.getWorkingDirectory());
+                status.setText("Renamed(copied) original file");
+            } else if (col == 4){
+                dataset.setStart((Integer)obj);
+            } else if (col == 5){
+                dataset.setEnd((Integer)obj);
+            } else if (col ==0) {
+                Symbol temp = (Symbol)obj;
+                dataset.setColor(temp.getColor());
+                dataset.setStroke(temp.getStroke());
+                dataset.setPointSize(temp.getPointSize());
+                // rebuild plot
             }
-
-            dataset.setScaleFactor(Double.parseDouble((String) obj)); // what should this trigger?
-            dataset.scalePlottedLog10IntensityData();
-
-        } else if (col == 3) {
-            LogIt.log(Level.INFO, "Copying " + dataset.getFileName()+ " to " + (String)obj);
-            dataset.copyAndRenameDataset((String)obj, currentWorkingDirectory.getWorkingDirectory());
-            status.setText("Renamed(copied) original file");
-        } else if (col == 4){
-            dataset.setStart((Integer)obj);
-        } else if (col == 5){
-            dataset.setEnd((Integer)obj);
-        } else if (col ==0) {
-            Symbol temp = (Symbol)obj;
-            dataset.setColor(temp.getColor());
-            dataset.setStroke(temp.getStroke());
-            dataset.setPointSize(temp.getPointSize());
-            // rebuild plot
+            fireTableCellUpdated(row, col);
+        } catch(ArrayIndexOutOfBoundsException e) {
+            System.out.println("Index out of bounds " +  row);
         }
-        fireTableCellUpdated(row, col);
+
     }
 
     @Override

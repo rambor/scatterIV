@@ -193,7 +193,6 @@ public class FileListBuilder {
             }
         });
 
-
         // sort on custom Comparator
         Arrays.sort(foundFiles, new Comparator<File>() {
 

@@ -75,7 +75,7 @@ public class SubtractionReport {
             tempD.setColor(new Color(r*inv,g*inv,b*inv, 0.25f));
         }
 
-        System.out.println("total in colledction " + collectionInuse.getTotalDatasets());
+        System.out.println("total in collection " + collectionInuse.getTotalDatasets());
         median = medianDatasets(collectionInuse).get(0);
         average = weightedAverageDatasets(collectionInuse).get(0);
     }
@@ -383,25 +383,26 @@ public class SubtractionReport {
             for(int i=0; i<totalInCollection; i++){
 
                 Dataset targetDataset = collectionInuse.getDataset(i);
-                if (targetDataset.getInUse()){
 
-                    AutoRg tempRg = new AutoRg(targetDataset.getAllData(), pointsToExclude);
-                    // only add non-Zero values if autoRg is successful
-                    if (tempRg.getRg() > 0){
-                        guinierIzeroSeries.add(targetDataset.getId(),tempRg.getI_zero());
-                        guinierRgSeries.add(targetDataset.getId(),tempRg.getRg());
-                    }
+                if (targetDataset.getInUse()  && targetDataset.getOriginalPositiveOnlyData().getItemCount() > 100){
 
-                    String reciIzero = String.format("%1.2E +- %1.1E",tempRg.getI_zero(), tempRg.getI_zero_error());
-                    String reciRg = String.format("%.2f +- %.2f",tempRg.getRg(), tempRg.getRg_error());
-                    String hex = String.format("#%02x%02x%02x", targetDataset.getColor().getRed(), targetDataset.getColor().getGreen(), targetDataset.getColor().getBlue());
-                    // make table of values I(0) Rg filenames
-                    int lengthOfFilename = targetDataset.getFileName().length();
-                    String escaped = escape(targetDataset.getFileName());
-                    if (lengthOfFilename > 20){
-                        escaped = escape(targetDataset.getFileName().substring(0,20));
-                    }
-                    rgIzeroRows.add(String.format("{color:%s} %s %s %s %s", hex, Report.rightJustifyText(Integer.toString(targetDataset.getId()), 6, ' '), Report.centerText(reciIzero,20, ' '), Report.centerText(reciRg,20, ' '), escaped)); // qmin
+                        AutoRg tempRg = new AutoRg(targetDataset.getAllData(), pointsToExclude);
+                        // only add non-Zero values if autoRg is successful
+                        if (tempRg.getRg() > 0){
+                            guinierIzeroSeries.add(targetDataset.getId(),tempRg.getI_zero());
+                            guinierRgSeries.add(targetDataset.getId(),tempRg.getRg());
+                        }
+
+                        String reciIzero = String.format("%1.2E +- %1.1E",tempRg.getI_zero(), tempRg.getI_zero_error());
+                        String reciRg = String.format("%.2f +- %.2f",tempRg.getRg(), tempRg.getRg_error());
+                        String hex = String.format("#%02x%02x%02x", targetDataset.getColor().getRed(), targetDataset.getColor().getGreen(), targetDataset.getColor().getBlue());
+                        // make table of values I(0) Rg filenames
+                        int lengthOfFilename = targetDataset.getFileName().length();
+                        String escaped = escape(targetDataset.getFileName());
+                        if (lengthOfFilename > 20){
+                            escaped = escape(targetDataset.getFileName().substring(0,20));
+                        }
+                        rgIzeroRows.add(String.format("{color:%s} %s %s %s %s", hex, Report.rightJustifyText(Integer.toString(targetDataset.getId()), 6, ' '), Report.centerText(reciIzero,20, ' '), Report.centerText(reciRg,20, ' '), escaped)); // qmin
                 }
             }
 
@@ -556,6 +557,8 @@ public class SubtractionReport {
         double upperRight = rightSeries.getMaxY();
         double lowerRight = rightSeries.getMinY();
 
+
+
         leftCollection.addSeries(leftSeries);
         rightCollection.addSeries(rightSeries);
 
@@ -594,7 +597,17 @@ public class SubtractionReport {
         plot.getDomainAxis().setStandardTickUnits(NumberAxis.createIntegerTickUnits());
         plot.getDomainAxis().setAutoRange(true);
 
-        plot.getDomainAxis().setRange(leftSeries.getMinX(), leftSeries.getMaxX());
+        try{
+            plot.getDomainAxis().setRange(leftSeries.getMinX()-1, leftSeries.getMaxX()+1);
+        } catch (IllegalArgumentException e){
+            e.printStackTrace();
+            if (leftSeries.getMinX() == leftSeries.getMaxX()){
+                plot.getDomainAxis().setRange(leftSeries.getMaxX()-1, leftSeries.getMaxX()+1);
+            } else {
+                plot.getDomainAxis().setRange(0, 1);
+            }
+        }
+
 
         plot.configureDomainAxes();
         plot.configureRangeAxes();

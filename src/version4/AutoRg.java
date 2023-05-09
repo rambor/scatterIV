@@ -37,7 +37,7 @@ public class AutoRg {
     public AutoRg(XYSeries data, int startAt){
         inputData = data;
         this.autoRgTransformIt(startAt);
-        this.autoRg();
+        this.autoRg(); // throws index out of bounds exception
     }
 
 

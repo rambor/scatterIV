@@ -134,6 +134,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
                 ArrayList<XYSeries> subtraction = subtract(samples.getDataset(i).getAllData(), samples.getDataset(i).getAllDataError(), averageBuffer, averageBufferError);
                 //int newIndex = subtractedCollection.getDatasetCount();
+
                 subtractedCollection.addDataset( new Dataset(
                         subtraction.get(0),  //data
                         subtraction.get(1),  //error
@@ -169,7 +170,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
                 for (int i = 0; i < total; i++) {
 
-                    if (samples.getDataset(i).getInUse()) {
+                    if (samples.getDataset(i).getInUse() ) {
 
                         ArrayList<XYSeries> subtraction = subtract(samples.getDataset(i).getAllData(), samples.getDataset(i).getAllDataError(), medianBuffer, medianBufferError);
                         int newIndex = subtractedCollection.getTotalDatasets();
@@ -213,6 +214,8 @@ public class Subtraction extends SwingWorker<String, Integer> {
                 for (int i = 0; i < total; i++) {
 
                     if (samples.getDataset(i).getInUse()) {
+
+
                         ArrayList<XYSeries> subtraction = subtract(samples.getDataset(i).getAllData(), samples.getDataset(i).getAllDataError(), medianBuffer, medianBufferError);
                         int newIndex = subtractedCollection.getTotalDatasets();
 

@@ -32,7 +32,9 @@ import java.awt.geom.Point2D;
 import java.awt.geom.Rectangle2D;
 import java.io.File;
 import java.util.ArrayList;
-import java.util.concurrent.ExecutionException;
+import java.util.Arrays;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class Subtract {
     private JPanel contentPane;
@@ -67,6 +69,7 @@ public class Subtract {
     private JTextField sampleEndtextField;
     private JTextField bufferStartField;
     private JTextField bufferEndField;
+    private JButton stopSubtractButton;
     public DefaultListModel<SampleBufferElement> bufferFilesModel;
     public DefaultListModel<SampleBufferElement> sampleFilesModel;
 
@@ -83,6 +86,8 @@ public class Subtract {
     private JList samplesList;
     private Collection samplesCollection;
     private Collection buffersCollection;
+
+    private final AtomicBoolean subtracting = new AtomicBoolean(false);
 
     private static int selectedStart, selectedEnd, selectedBufferStart, selectedBufferEnd;
 
@@ -592,18 +597,22 @@ public class Subtract {
                 final boolean finalSingles = singles;
                 final boolean mergeByAverage = averageCheckBox.isSelected();
 
+
                 new Thread() {
                     public void run() {
 
+                        subtracting.set(true);
+
                         for(int i=0; i<buffersCollection.getTotalDatasets(); i++){
                             buffersCollection.getDataset(i).setInUse(selectedBufferIndices.get(i));
-                            System.out.println(i + " " + selectedBufferIndices.get(i));
+                            //System.out.println(i + " " + selectedBufferIndices.get(i));
                         }
 
                         for(int i=0; i<samplesCollection.getTotalDatasets(); i++){
                             samplesCollection.getDataset(i).setInUse(selectedIndices.get(i));
                         }
 
+                        // swing worker thread
                         Subtraction subTemp = new Subtraction(buffersCollection, samplesCollection, finalQmin, finalQmax, mergeByAverage, finalSingles, scaleBefore, cpuCores, Scatter.useAutoRg, status, progressBar);
 
                         subTemp.setBinsAndCutoff(Double.parseDouble(comboBoxSubtractBins.getSelectedItem().toString()), Double.parseDouble(subtractionCutOff.getSelectedItem().toString()));
@@ -611,14 +620,17 @@ public class Subtract {
                         subTemp.setCollectionToUpdate(Scatter.collectionSelected);
 
                         subTemp.run();
+
                         try {
                             subTemp.get();
                         } catch (InterruptedException | ExecutionException e1) {
                             e1.printStackTrace();
+                            subTemp.cancel(true);
                         }
 
                     }
                 }.start();
+
             }
         });
 
@@ -800,6 +812,14 @@ public class Subtract {
                         }
                     }.start();
                 }
+            }
+        });
+
+
+        stopSubtractButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+
             }
         });
     }

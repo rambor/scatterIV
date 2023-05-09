@@ -380,7 +380,9 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         }
 
         if (qvalues.size()/(double)total < 0.6){
-            notice = " too few values in common ";
+
+
+            notice = " too few values in common " + qvalues.size()/(double)total;
             return false;
         }
 
