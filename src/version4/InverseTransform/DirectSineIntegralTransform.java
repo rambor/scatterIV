@@ -305,7 +305,7 @@ public class DirectSineIntegralTransform extends IndirectFT {
         }
 
         totalInDistribution = prDistribution.getItemCount();
-        scoreDistribution(del_r);
+        scoreDistribution();
         setHeaderDetails();
         setSplineFunction();
     }
@@ -376,17 +376,24 @@ public class DirectSineIntegralTransform extends IndirectFT {
 
     @Override
     void createDesignMatrix(XYSeries datasetInuse) {
-        int divisor = 3;
+        //int divisor = 4;
+        del_r = Math.PI/qmax/4.0;//dmax/(double)(r_vector_size);
+        bin_width = del_r;
 
-        ns = (int) Math.ceil(qmax*dmax*INV_PI)  ;  //
-        r_vector_size = ns*divisor-1; // subtract 1 to exclude dmax from r-vector array
+        // last bin that exludes dmax
+        ns = (int)Math.floor(dmax/bin_width);// +1 to include dmax
+
+        //ns = (int) Math.ceil(qmax*dmax*INV_PI)  ;  //
+        r_vector_size = ns;//ns*divisor-1; // subtract 1 to exclude dmax from r-vector array
 
         coeffs_size = this.includeBackground ? r_vector_size + 1 : r_vector_size;   //+1 for constant background, +1 to include dmax in r_vector list
 
         rows = datasetInuse.getItemCount();    // rows
         //del_r = Math.PI/qmax; // dmax is based del_r*ns
-        del_r = dmax/(double)(ns*divisor);
-        bin_width = dmax/(double)ns; // bin_width is only defined by shannon number estimate
+//        del_r = dmax/(double)(ns*divisor);
+//        bin_width = dmax/(double)ns; // bin_width is only defined by shannon number estimate
+//        del_r = Math.PI/qmax;//dmax/(double)(r_vector_size);
+//        bin_width = del_r;
 
         // if I think I can squeeze out one more Shannon Number, then I need to define del_r by dmax/ns+1
         //double del_r = dmax/(double)ns;
@@ -397,7 +404,7 @@ public class DirectSineIntegralTransform extends IndirectFT {
         for(int i=0; i < r_vector_size; i++){ // last bin should be dmax
             r_vector[i] = (i+1)*del_r; // dmax is not represented in this set
         }
-
+        System.out.println("last value " + r_vector[r_vector_size-1] + " dmax :: " + dmax);
         /*
          * create A matrix (design Matrix)
          */
