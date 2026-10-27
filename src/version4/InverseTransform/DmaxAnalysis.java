@@ -56,6 +56,7 @@ public final class DmaxAnalysis {
             sb.append(String.format("qmax %.4f 1/A%s%n", qmax, qmaxScan == null ? " (fixed)" : " (automatic)"));
             sb.append(String.format("dmax: suggested %.1f A (data-supported band %.1f-%.1f A, most probable %.1f A)%n",
                     dmax, dmaxScan.lowestAdequate, dmaxScan.largestAdequate, dmaxScan.best));
+            sb.append(String.format("      likelihood peak %.1f A (KDE, h = %.1f A)%n", dmaxScan.likelihoodPeak(DmaxSelector.KDE_BANDWIDTH), DmaxSelector.KDE_BANDWIDTH));
             sb.append(String.format("      68%% range %.0f-%.0f A, 95%% range %.0f-%.0f A%n",
                     dmaxScan.interval68[0], dmaxScan.interval68[1], dmaxScan.interval95[0], dmaxScan.interval95[1]));
             sb.append("Best dmax per method:\n");

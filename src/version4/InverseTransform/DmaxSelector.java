@@ -69,6 +69,8 @@ public class DmaxSelector {
      * nothing bounds dmax from above, and the suggestion falls back to lowestAdequate.
      */
     public static double SUGGESTED_DELTA = 4.0;
+    /** Gaussian kernel width (A) for the smoothed dmax likelihood, as in Rambo (2025) */
+    public static double KDE_BANDWIDTH = 2.5;
     /**
      * weight of the positivity term added to every score (0 switches it off). The term is
      *     -2 ln Pr(P(r) >= 0 in every Shannon bin after the peak | data, dmax)
@@ -186,6 +188,49 @@ public class DmaxSelector {
                 if (acc >= level) break;
             }
             return new double[]{lo, hi};
+        }
+
+        /**
+         * smoothed likelihood over dmax: Gaussian KDE (width h) of the consensus probability p(d),
+         * L(x) = sum_i p(d_i) exp(-(x - d_i)^2 / 2h^2) / (sqrt(2 pi) h), evaluated every dx across the
+         * grid; integrates to 1. Returns {x, L}.
+         */
+        public double[][] likelihood(double h, double dx) {
+            return kde(probability, h, dx);
+        }
+
+        /** the same KDE of one method's probability, scaled by 1/(number of included methods) */
+        public double[][] methodLikelihood(int m, double h, double dx) {
+            int nIn = 0;
+            for (boolean b : included) if (b) nIn++;
+            double[][] k = kde(methodProbability[m], h, dx);
+            for (int i = 0; i < k[1].length; i++) k[1][i] /= Math.max(1, nIn);
+            return k;
+        }
+
+        /** dmax at the maximum of the smoothed likelihood */
+        public double likelihoodPeak(double h) {
+            double[][] k = likelihood(h, 0.1);
+            int arg = 0;
+            for (int i = 1; i < k[1].length; i++) if (k[1][i] > k[1][arg]) arg = i;
+            return k[0][arg];
+        }
+
+        private double[][] kde(double[] p, double h, double dx) {
+            double lo = dmax[0], hi = dmax[dmax.length - 1];
+            int n = (int) Math.floor((hi - lo)/dx + 1e-9) + 1;
+            double[] x = new double[n], L = new double[n];
+            double norm = 1/(Math.sqrt(2*Math.PI)*h);
+            for (int i = 0; i < n; i++) {
+                x[i] = lo + i*dx;
+                double s = 0;
+                for (int j = 0; j < dmax.length; j++) {
+                    double u = (x[i] - dmax[j])/h;
+                    s += p[j]*Math.exp(-0.5*u*u);
+                }
+                L[i] = s*norm;
+            }
+            return new double[][]{x, L};
         }
 
         /** best dmax of one method */

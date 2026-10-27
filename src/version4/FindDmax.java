@@ -38,6 +38,7 @@ import java.awt.*;
 import java.awt.geom.Ellipse2D;
 import java.awt.geom.Rectangle2D;
 import java.io.File;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -47,6 +48,7 @@ import java.util.concurrent.ExecutionException;
 
 /**
  * Finds qmax and dmax by consensus over several indirect Fourier transforms.
+ *
  * For every trial dmax each selected method chooses its own regularization by Bayesian evidence and
  * scores the fit on the -2 ln(likelihood) scale (evidence, or AIC_eff for L1 and SVD), plus the
  * positivity term -2 ln Pr(P(r) >= 0 after the peak). Each method's scores become a probability
@@ -54,8 +56,10 @@ import java.util.concurrent.ExecutionException;
  * dmax is the lowest one whose consensus score is within 2 of the best. qmax (optional) is the last
  * Shannon channel before the methods' P(r) start to ripple. The ensemble P(r) at the chosen values
  * is shown with its total uncertainty (data noise + spread between methods).
+ *
  * Panels: consensus dmax curves | ensemble P(r)
  *         qmax selection        | report
+ *
  * The UI is built in code: delete FindDmax.form, which bound the previous version's fields.
  * The computation lives in version4.InverseTransform.DmaxAnalysis.
  */
@@ -92,11 +96,11 @@ public class FindDmax extends JDialog {
     private final JButton saveButton = new JButton("Save figure\u2026");
     private final JProgressBar progressBar = new JProgressBar();
     private final JLabel statusLabel = new JLabel(" ");
-    private final JPanel consensusPanel = chartHolder(), prPanel = chartHolder(), qmaxPanel = chartHolder();
+    private final JPanel consensusPanel = chartHolder(), likelihoodPanel = chartHolder(), prPanel = chartHolder(), qmaxPanel = chartHolder();
     private final JTextArea reportArea = new JTextArea();
 
     private DmaxAnalysis.Result lastResult;
-    private JFreeChart consensusChart, prChart, qmaxChart;   // current charts, for export
+    private JFreeChart consensusChart, likelihoodChart, prChart, qmaxChart;   // current charts, for export
 
     public FindDmax(RealSpace dataset, double currentqmax, WorkingDirectory workingDirectory) {
         this.dataset = dataset;
@@ -136,11 +140,20 @@ public class FindDmax extends JDialog {
                 "With 'auto' qmax, data are added one Shannon channel at a time",
                 "until the transforms start to ripple (noise or buffer mismatch)."));
 
-        JPanel center = new JPanel(new GridLayout(2, 2, 4, 4));
-        center.add(titled(consensusPanel, "dmax consensus"));
-        center.add(titled(prPanel, "Ensemble P(r)"));
-        center.add(titled(qmaxPanel, "qmax selection"));
-        center.add(titled(new JScrollPane(reportArea), "Report"));
+        // top: consensus | likelihood | P(r);  bottom: qmax | report (two columns wide)
+        JPanel center = new JPanel(new GridBagLayout());
+        GridBagConstraints gc = new GridBagConstraints();
+        gc.fill = GridBagConstraints.BOTH;
+        gc.weightx = 1;
+        gc.weighty = 1;
+        gc.insets = new Insets(2, 2, 2, 2);
+        gc.gridy = 0;
+        gc.gridx = 0; center.add(titled(consensusPanel, "dmax consensus"), gc);
+        gc.gridx = 1; center.add(titled(likelihoodPanel, "dmax likelihood"), gc);
+        gc.gridx = 2; center.add(titled(prPanel, "Ensemble P(r)"), gc);
+        gc.gridy = 1;
+        gc.gridx = 0; center.add(titled(qmaxPanel, "qmax selection"), gc);
+        gc.gridx = 1; gc.gridwidth = 2; center.add(titled(new JScrollPane(reportArea), "Report"), gc);
 
         JPanel content = new JPanel(new BorderLayout(4, 4));
         content.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
@@ -152,7 +165,7 @@ public class FindDmax extends JDialog {
         frame = new JFrame("Find dmax \u2013 " + datasetName());
         frame.setContentPane(content);
         frame.getRootPane().setDefaultButton(startButton);
-        frame.setPreferredSize(new Dimension(1200, 820));
+        frame.setPreferredSize(new Dimension(1500, 860));
         frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         frame.pack();
         frame.setLocationRelativeTo(null);
@@ -354,9 +367,11 @@ public class FindDmax extends JDialog {
         reportArea.setText(datasetName() + "\n\n" + r.report());
         reportArea.setCaretPosition(0);
         consensusChart = consensusChart(r.dmaxScan);
+        likelihoodChart = likelihoodChart(r.dmaxScan);
         prChart = prChart(r);
         qmaxChart = (r.qmaxScan == null) ? null : qmaxChart(r.qmaxScan);
         setChart(consensusPanel, consensusChart);
+        setChart(likelihoodPanel, likelihoodChart);
         setChart(prPanel, prChart);
         setChart(qmaxPanel, qmaxChart);
     }
@@ -426,6 +441,60 @@ public class FindDmax extends JDialog {
         x.setRange(s.dmax[0], s.dmax[s.dmax.length - 1]);
         NumberAxis y = (NumberAxis) plot.getRangeAxis();
         y.setRange(-1, 30);
+        return chart;
+    }
+
+    /**
+     * the consensus as a likelihood over dmax (as in Rambo 2025): Gaussian KDE (h = KDE_BANDWIDTH) of
+     * the averaged probability p(d), each included method's share drawn faintly underneath, the
+     * data-supported band shaded, and markers at the peak and at the suggested dmax
+     */
+    private JFreeChart likelihoodChart(DmaxSelector.DmaxScan s) {
+        double h = DmaxSelector.KDE_BANDWIDTH, dx = 0.25;
+        double[][] L = s.likelihood(h, dx);
+        XYSeries kde = new XYSeries("likelihood (KDE, h = " + h + " \u212B)");
+        for (int i = 0; i < L[0].length; i++) kde.add(L[0][i], L[1][i]);
+        XYSeriesCollection kc = new XYSeriesCollection(kde);
+        XYLineAndShapeRenderer kr = new XYLineAndShapeRenderer(true, false);
+        kr.setSeriesPaint(0, INK);
+        kr.setSeriesStroke(0, new BasicStroke(3.0f));
+
+        XYSeriesCollection perMethod = new XYSeriesCollection();
+        XYLineAndShapeRenderer mr = new XYLineAndShapeRenderer(true, false);
+        int k = 0;
+        for (int m = 0; m < s.methods.length; m++) {
+            if (!s.included[m]) continue;
+            double[][] Lm = s.methodLikelihood(m, h, dx);
+            XYSeries series = new XYSeries(s.methods[m]);
+            for (int i = 0; i < Lm[0].length; i++) series.add(Lm[0][i], Lm[1][i]);
+            perMethod.addSeries(series);
+            mr.setSeriesPaint(k, withAlpha(METHOD_COLORS.getOrDefault(s.methods[m], MUTED), 170));
+            mr.setSeriesStroke(k, new BasicStroke(1.2f));
+            k++;
+        }
+
+        JFreeChart chart = ChartFactory.createXYLineChart(null, "dmax (\u212B)", "likelihood", kc,
+                PlotOrientation.VERTICAL, true, true, false);
+        XYPlot plot = chart.getXYPlot();
+        styleChart(chart);
+        plot.setRenderer(0, kr);
+        plot.setDataset(1, perMethod);
+        plot.setRenderer(1, mr);
+        plot.setDatasetRenderingOrder(DatasetRenderingOrder.REVERSE);   // KDE (dataset 0) on top
+
+        IntervalMarker band = new IntervalMarker(s.lowestAdequate, s.largestAdequate);
+        band.setPaint(BAND);
+        plot.addDomainMarker(band, org.jfree.ui.Layer.BACKGROUND);
+        double peak = s.likelihoodPeak(h);
+        plot.addDomainMarker(labelledMarker(s.suggested, String.format("suggested %.1f \u212B", s.suggested), INK, false));
+        if (Math.abs(peak - s.suggested) > 0.5) {
+            plot.addDomainMarker(labelledMarker(peak, String.format("peak %.1f", peak), MUTED, true));
+        }
+        NumberAxis x = (NumberAxis) plot.getDomainAxis();
+        x.setAutoRangeIncludesZero(false);
+        x.setRange(s.dmax[0], s.dmax[s.dmax.length - 1]);
+        NumberAxis y = (NumberAxis) plot.getRangeAxis();
+        y.setTickLabelsVisible(false);
         return chart;
     }
 
@@ -537,7 +606,7 @@ public class FindDmax extends JDialog {
     /* ------------------------------------------------------------------ export */
 
     /** figure size in inches and resolution used for PNG and PDF export */
-    public static double FIGURE_WIDTH_IN = 11.0, FIGURE_HEIGHT_IN = 8.0;
+    public static double FIGURE_WIDTH_IN = 15.0, FIGURE_HEIGHT_IN = 8.5;
     public static int FIGURE_DPI = 300;
 
     /** asks for a file and writes the 2x2 figure (charts + report) as PNG or PDF */
@@ -602,14 +671,17 @@ public class FindDmax extends JDialog {
         g.drawString(String.format("%s   dmax %.1f \u212B   q %.4f\u2013%.4f \u212B\u207B\u00B9", datasetName(),
                 lastResult.dmax, lastResult.qmin, lastResult.qmax), (float) (pad + 4), (float) (pad + 16));
         double top = header;
-        double cw = (w - 3*pad)/2, ch = (h - top - 3*pad)/2;
+        double cw = (w - 4*pad)/3, ch = (h - top - 3*pad)/2, y2 = top + 2*pad + ch;
         Rectangle2D[] cells = {
-                new Rectangle2D.Double(pad, top + pad, cw, ch), new Rectangle2D.Double(2*pad + cw, top + pad, cw, ch),
-                new Rectangle2D.Double(pad, top + 2*pad + ch, cw, ch), new Rectangle2D.Double(2*pad + cw, top + 2*pad + ch, cw, ch)};
-        String[] titles = {"dmax consensus", "Ensemble P(r)", "qmax selection", "Report"};
-        JFreeChart[] charts = {consensusChart, prChart, qmaxChart, null};
+                new Rectangle2D.Double(pad, top + pad, cw, ch),
+                new Rectangle2D.Double(2*pad + cw, top + pad, cw, ch),
+                new Rectangle2D.Double(3*pad + 2*cw, top + pad, cw, ch),
+                new Rectangle2D.Double(pad, y2, cw, ch),
+                new Rectangle2D.Double(2*pad + cw, y2, 2*cw + pad, ch)};
+        String[] titles = {"dmax consensus", "dmax likelihood", "Ensemble P(r)", "qmax selection", "Report"};
+        JFreeChart[] charts = {consensusChart, likelihoodChart, prChart, qmaxChart, null};
         Font titleFont = new Font(Font.SANS_SERIF, Font.BOLD, 13);
-        for (int i = 0; i < 4; i++) {
+        for (int i = 0; i < cells.length; i++) {
             Rectangle2D c = cells[i];
             g.setColor(INK);
             g.setFont(titleFont);
@@ -617,7 +689,7 @@ public class FindDmax extends JDialog {
             Rectangle2D area = new Rectangle2D.Double(c.getX(), c.getY() + title, c.getWidth(), c.getHeight() - title);
             if (charts[i] != null) {
                 charts[i].draw(g, area);
-            } else if (i == 2) {
+            } else if (i == 3) {
                 g.setColor(MUTED);
                 g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
                 g.drawString("qmax fixed by the user", (float) (area.getCenterX() - 60), (float) area.getCenterY());
