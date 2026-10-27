@@ -27,6 +27,7 @@ public class LangevinResult {
     public double scale, background;
     public double[] temperature;  // temperature used while sampling, per replica
     public double[] chi2Min;      // best reduced chi^2 reached in the quench, per replica
+    public double[] chi2Best;     // lowest instantaneous reduced chi^2 after the error floor is removed (profile scans)
     public double[] chi2Target;   // reduced chi^2 the temperature was tuned to, per replica
 
     // histograms, [param][bin]
@@ -55,6 +56,10 @@ public class LangevinResult {
     public DataPreparation.Report preparation;
     /** 1 - chi2 / chi2(zero model); close to 1 for any meaningful fit */
     public double fitExplainedFraction;
+    /** discrete species (e.g. empty / filled cores); null when there is a single species */
+    public String[] speciesNames;
+    public double[] speciesIntensityFraction, speciesVolumeFraction, speciesNumberFraction, speciesNumberFractionStd;
+    public double[][] speciesMeanParams;   // volume-weighted mean parameters per species [species][param]
     /** residual randomness: lag-1 autocorrelation, runs-test z (negative = too few sign changes), longest run and its p */
     public double residualLag1, runsZ, longestRunP;
     public int longestRun;
@@ -90,6 +95,17 @@ public class LangevinResult {
         for (int k = 0; k < dim; k++) {
             sb.append(String.format("REMARK 265 %-11s %9.3f %10.3f %10.3f %10.3f %10.3f %10.3f%n",
                     parameterNames[k], intensityMean[k], intensityStd[k], volumeMean[k], volumeStd[k], numberMean[k], numberStd[k]));
+        }
+        if (speciesNames != null) {
+            sb.append("REMARK 265\nREMARK 265 SPECIES            NUMBER-FRACTION  (+- REPL)  VOLUME-FRACTION  INTENSITY-FRACTION   MEAN PARAMS (VOL-WEIGHTED)\n");
+            for (int k = 0; k < speciesNames.length; k++) {
+                StringBuilder mp = new StringBuilder();
+                for (int p = 0; p < dim; p++) mp.append(String.format(" %s=%.2f", parameterNames[p], speciesMeanParams[k][p]));
+                sb.append(String.format("REMARK 265 %-16s %10.3f   (%.3f) %15.3f %18.3f  %s%n", speciesNames[k],
+                        speciesNumberFraction[k], speciesNumberFractionStd[k], speciesVolumeFraction[k],
+                        speciesIntensityFraction[k], mp));
+            }
+            sb.append("REMARK 265\n");
         }
         sb.append(String.format("REMARK 265 RESIDUALS  LAG-1 AUTOCORR %.2f   RUNS-TEST Z %.2f   LONGEST RUN %d (P = %.3f)%n",
                 residualLag1, runsZ, longestRun, longestRunP));

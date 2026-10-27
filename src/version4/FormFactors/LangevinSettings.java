@@ -127,6 +127,41 @@ public class LangevinSettings {
     public double pointsPerChannel = 4.0;
     public double dmax = Double.NaN;
 
+    /**
+     * Core-shell spheroid (CORESHELL_SPHEROID): scattering length densities (any consistent units; only ratios
+     * matter) and an optional shell-thickness window. Hollow shell: coreDensity = solventDensity.
+     *   shellThickness > 0 : thickness bounds become shellThickness * (1 +- shellTolerance), overriding the
+     *                        third min/max parameter
+     */
+    public double solventDensity = 9.42;   // water, 1e-6 / A^2 (X-ray)
+    public double shellDensity = 12.0;
+    public double coreDensity = 10.5;
+    public double shellThickness = Double.NaN;
+    public double shellTolerance = 0.10;
+    /**
+     * Mixture of core contents, e.g. {9.42, 14.5} = empty (buffer) and nucleic-acid-filled. Each particle carries
+     * one species; species are Gibbs-sampled with the geometry and their fractions are reported. null = single
+     * species with coreDensity.
+     */
+    public double[] coreDensities = null;
+    public String[] speciesNames = null;
+    /** Gibbs update of particle species every n steps; fraction of particles reconsidered per update */
+    public int speciesUpdateEvery = 5;
+    public double speciesFlipRate = 0.01;
+    /**
+     * Two species only: hold the NUMBER fraction of species 0 at this value (0..1) with a stiff penalty
+     * (fractionPenalty/2)(f - f*)^2 acting on labels and geometry. Used by SpeciesProfile. NaN = free.
+     */
+    public double fixedSpeciesFraction = Double.NaN;
+    /**
+     * Two species that share ONE geometry distribution (empty and filled capsids: same shell, contents independent of
+     * size). Each particle is then a number mixture p*empty + (1-p)*filled with p = fixedSpeciesFraction; estimate p
+     * with SpeciesProfile. Without this, species-specific geometry can trade size against filling and the number
+     * fraction is not identifiable.
+     */
+    public boolean sharedGeometry = false;
+    public double fractionPenalty = 1e6;
+
     /** independent runs with different seeds; spread between them gives error bars on the distribution */
     public int replicas = 1;
     public long seed = 20161027L;
@@ -137,4 +172,21 @@ public class LangevinSettings {
     public double tableStep = 1e-3;
 
     public int totalSteps() { return annealSteps + equilibrationSteps + sampleSteps; }
+
+    /** field-by-field copy (arrays are cloned) */
+    public LangevinSettings copy() {
+        LangevinSettings c = new LangevinSettings();
+        try {
+            for (java.lang.reflect.Field f : LangevinSettings.class.getFields()) {
+                Object v = f.get(this);
+                if (v instanceof double[]) v = ((double[]) v).clone();
+                else if (v instanceof int[]) v = ((int[]) v).clone();
+                else if (v instanceof String[]) v = ((String[]) v).clone();
+                f.set(c, v);
+            }
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+        return c;
+    }
 }

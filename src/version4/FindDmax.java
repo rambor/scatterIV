@@ -89,12 +89,18 @@ public class FindDmax extends JDialog {
     private final JCheckBox autoQmaxBox = new JCheckBox("auto", true);
     private final JCheckBox positivityBox = new JCheckBox("penalize P(r) < 0", true);
     private final JCheckBox autoLowQBox = new JCheckBox("auto low-q trim", true);
+    private final JComboBox<IndirectFT.SampleType> sampleBox = new JComboBox<>(IndirectFT.SampleType.values());
     private final Map<String, JCheckBox> methodBoxes = new LinkedHashMap<>();
     private final JButton startButton = new JButton("Start");
     private final JButton applyButton = new JButton("Apply qmax");
     private final JButton closeButton = new JButton("Close");
     private final JButton saveButton = new JButton("Save figure\u2026");
     private final JProgressBar progressBar = new JProgressBar();
+    /** fit counters written by the worker threads, read by progressTimer on the event thread */
+    private final java.util.concurrent.atomic.AtomicInteger fitsDone = new java.util.concurrent.atomic.AtomicInteger(),
+            fitsTotal = new java.util.concurrent.atomic.AtomicInteger();
+    private volatile String stage = "";
+    private final javax.swing.Timer progressTimer = new javax.swing.Timer(150, e -> refreshProgress());
     private final JLabel statusLabel = new JLabel(" ");
     private final JPanel consensusPanel = chartHolder(), likelihoodPanel = chartHolder(), prPanel = chartHolder(), qmaxPanel = chartHolder();
     private final JTextArea reportArea = new JTextArea();
@@ -189,6 +195,11 @@ public class FindDmax extends JDialog {
         row1.add(Box.createHorizontalStrut(16));
         row1.add(positivityBox);
         row1.add(autoLowQBox);
+        row1.add(Box.createHorizontalStrut(16));
+        row1.add(new JLabel("sample"));
+        sampleBox.setSelectedItem(IndirectFT.SAMPLE_TYPE);
+        sampleBox.setToolTipText("Q_R calibration for MW and the volume used to normalize P(r)");
+        row1.add(sampleBox);
 
         JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
         row2.add(new JLabel("Methods:"));
@@ -207,7 +218,7 @@ public class FindDmax extends JDialog {
 
     private JPanel statusBar() {
         JPanel p = new JPanel(new BorderLayout(8, 0));
-        progressBar.setPreferredSize(new Dimension(180, 16));
+        progressBar.setPreferredSize(new Dimension(300, 18));
         p.add(statusLabel, BorderLayout.CENTER);
         p.add(progressBar, BorderLayout.EAST);
         return p;
@@ -255,11 +266,17 @@ public class FindDmax extends JDialog {
         if (data[0].getItemCount() < 10) { statusLabel.setText("Too few data points"); return; }
         final boolean positivity = positivityBox.isSelected();
         final boolean autoLowQ = autoLowQBox.isSelected();
+        IndirectFT.SAMPLE_TYPE = (IndirectFT.SampleType) sampleBox.getSelectedItem();
 
         setRunning(true);
         new SwingWorker<DmaxAnalysis.Result, String>() {
             @Override protected DmaxAnalysis.Result doInBackground() {
-                return DmaxAnalysis.run(data[0], data[1], lo, hi, step, fixedQmax, methods, positivity, autoLowQ, this::publish);
+                DmaxSelector.ProgressListener fits = new DmaxSelector.ProgressListener() {
+                    @Override public void started(int total) { fitsDone.set(0); fitsTotal.set(total); }
+                    @Override public void fitDone() { fitsDone.incrementAndGet(); }
+                };
+                return DmaxAnalysis.run(data[0], data[1], lo, hi, step, fixedQmax, methods, positivity, autoLowQ,
+                        msg -> { stage = msg; fitsTotal.set(0); publish(msg); }, fits);
             }
             @Override protected void process(List<String> chunks) {
                 statusLabel.setText(chunks.get(chunks.size() - 1));
@@ -280,6 +297,32 @@ public class FindDmax extends JDialog {
                 }
             }
         }.execute();
+    }
+
+    /**
+     * stage-by-stage progress: during a scan the bar fills with the finished fits (one fit = one
+     * method at one trial dmax or qmax, including its regularization search); between scans, when
+     * the amount of work is not known, it is indeterminate
+     */
+    private void refreshProgress() {
+        int total = fitsTotal.get(), done = Math.min(fitsDone.get(), Math.max(total, 0));
+        String label = stage.replaceAll(" \\(.*\\)$", "");
+        if (total > 0) {
+            progressBar.setIndeterminate(false);
+            progressBar.setMaximum(total);
+            progressBar.setValue(done);
+            progressBar.setString(String.format("%s: %d/%d", shortStage(label), done, total));
+        } else {
+            progressBar.setIndeterminate(true);
+            progressBar.setString(shortStage(label));
+        }
+    }
+
+    /** first words of a stage message, short enough for the bar */
+    private static String shortStage(String s) {
+        if (s == null || s.isEmpty()) return "working";
+        String[] w = s.split(" ");
+        return (w.length <= 3) ? s : w[0] + " " + w[1] + " " + w[2];
     }
 
     /** shows the error and its full stack trace in the Report panel (and on stderr) */
@@ -307,7 +350,14 @@ public class FindDmax extends JDialog {
     private void setRunning(boolean running) {
         startButton.setEnabled(!running);
         applyButton.setEnabled(!running && lastResult != null);
+        fitsDone.set(0);
+        fitsTotal.set(0);
+        stage = "";
+        progressBar.setValue(0);
+        progressBar.setStringPainted(running);
+        progressBar.setString(running ? "starting" : "");
         progressBar.setIndeterminate(running);
+        if (running) progressTimer.start(); else progressTimer.stop();
     }
 
     /**
@@ -501,6 +551,10 @@ public class FindDmax extends JDialog {
     /** ensemble Shannon bins (mean +/- 2 sigma total) over the members' P(r) curves */
     private JFreeChart prChart(DmaxAnalysis.Result r) {
         EnsembleIFT ens = r.ensemble;
+        // P(r) normalized to the particle volume from V_c (area = V, A^3), so the axis has units (A^2)
+        double norm = (ens == null) ? Double.NaN : ens.getVolumeNormalizationFactor();
+        boolean normalized = !Double.isNaN(norm) && !Double.isInfinite(norm) && norm > 0;
+        final double F = normalized ? norm : 1.0;
         XYSeriesCollection curves = new XYSeriesCollection();
         XYLineAndShapeRenderer lr = new XYLineAndShapeRenderer(true, false);
         int k = 0;
@@ -517,7 +571,7 @@ public class FindDmax extends JDialog {
                 } catch (RuntimeException ex) {
                     continue;
                 }
-                if (!Double.isNaN(v)) s.add(rr, v);
+                if (!Double.isNaN(v)) s.add(rr, v*F);
             }
             curves.addSeries(s);
             Color c = METHOD_COLORS.getOrDefault(r.names.get(m), MUTED);
@@ -526,7 +580,10 @@ public class FindDmax extends JDialog {
             k++;
         }
 
-        JFreeChart chart = ChartFactory.createXYLineChart(null, "r (Å)", "P(r)", curves,
+        String yLabel = normalized
+                ? String.format("P(r), \u212B\u00B2 (area = V = %.0f \u212B\u00B3)", ens.getVolumeFromVc().value)
+                : "P(r) (arbitrary units)";
+        JFreeChart chart = ChartFactory.createXYLineChart(null, "r (\u212B)", yLabel, curves,
                 PlotOrientation.VERTICAL, true, true, false);
         XYPlot plot = chart.getXYPlot();
         styleChart(chart);
@@ -534,7 +591,7 @@ public class FindDmax extends JDialog {
 
         if (ens != null) {
             YIntervalSeries bins = new YIntervalSeries("ensemble ± 2σ");
-            for (int b = 0; b < ens.nBins; b++) bins.add(ens.r[b], ens.mean[b], ens.mean[b] - 2*ens.sigma[b], ens.mean[b] + 2*ens.sigma[b]);
+            for (int b = 0; b < ens.nBins; b++) bins.add(ens.r[b], F*ens.mean[b], F*(ens.mean[b] - 2*ens.sigma[b]), F*(ens.mean[b] + 2*ens.sigma[b]));
             YIntervalSeriesCollection bc = new YIntervalSeriesCollection();
             bc.addSeries(bins);
             XYErrorRenderer er = new XYErrorRenderer();
@@ -552,7 +609,7 @@ public class FindDmax extends JDialog {
         plot.addRangeMarker(new ValueMarker(0.0, MUTED, new BasicStroke(1f)));
         NumberAxis x = (NumberAxis) plot.getDomainAxis();
         x.setRange(0, r.dmax*1.03);
-        ((NumberAxis) plot.getRangeAxis()).setTickLabelsVisible(false);
+        ((NumberAxis) plot.getRangeAxis()).setTickLabelsVisible(normalized);   // units only when normalized
         return chart;
     }
 

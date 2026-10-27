@@ -1,6 +1,5 @@
 package version4.FormFactors;
 
-
 /**
  * Shared, read-only lookup table for the homogeneous-sphere amplitude
  *

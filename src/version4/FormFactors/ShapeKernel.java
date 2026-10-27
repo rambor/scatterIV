@@ -27,6 +27,33 @@ public interface ShapeKernel {
     /** volume of the particle for log-parameters u[off .. off+dim) */
     double volume(double[] u, int off);
 
+    /**
+     * The constant by which the raw orientation-averaged intensity was divided to make P(0) = 1 (i.e. the
+     * particle's forward-scattering power, contrast^2 * volume^2 for a homogeneous body). Used to convert the
+     * intensity-weighted particle ensemble to volume-fraction (weight V / N) and number (weight 1 / N)
+     * distributions. Default: V^2 (unit contrast).
+     */
+    default double forwardScatteringPower(double[] u, int off) {
+        double v = volume(u, off);
+        return v * v;
+    }
+
+    // ---- discrete species (e.g. empty vs filled cores). Single-species kernels need not override these.
+
+    /** number of discrete particle species the kernel distinguishes (e.g. core contents) */
+    default int speciesCount() { return 1; }
+
+    /** name of species s */
+    default String speciesName(int s) { return "all"; }
+
+    /** evaluate for a given species; default ignores the species */
+    default void evaluate(int species, double[] u, int uOff, double[] q, double[] P, int pOff, double[] dP, int dOff, double[] scratch) {
+        evaluate(u, uOff, q, P, pOff, dP, dOff, scratch);
+    }
+
+    /** forward-scattering power for a given species; default ignores the species */
+    default double forwardScatteringPower(int species, double[] u, int off) { return forwardScatteringPower(u, off); }
+
     /** largest effective radius any particle inside the bounds can have (sizes the lookup table) */
     double maxEffectiveRadius(double[] upperBounds);
 

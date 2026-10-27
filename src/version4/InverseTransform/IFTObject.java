@@ -98,7 +98,7 @@ public class IFTObject implements Runnable {
         }
 
         this.dataset.setStandardizationMean(tempIFT.getStandardizedLocation(), tempIFT.getStandardizedScale());
-        this.dataset.setPrDistribution(tempIFT.getPrDistribution());
+        this.dataset.setPrDistribution(tempIFT.getPrDistributionNormalizedToVolume());
         this.dataset.setIndirectFTModel(tempIFT);
     }
 

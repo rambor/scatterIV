@@ -204,8 +204,6 @@ public class FileListBuilder {
             }
 
             private int extractNumber(String name) {
-                int i = 0;
-
                 try {
                     String tempName = FilenameUtils.removeExtension(name);
                     //int s = name.indexOf('_')+1;
@@ -213,12 +211,11 @@ public class FileListBuilder {
                     //String number = name.substring(s, e);
                     String number = tempName.substring(prefix.length(), tempName.length());
 
-                    i = Integer.parseInt(number);
+                    return Integer.parseInt(number);
                 } catch(Exception e) {
-                    i = 0; // if filename does not match the format
+                    return 0; // if filename does not match the format
                     // then default to 0
                 }
-                return i;
             }
         });
 

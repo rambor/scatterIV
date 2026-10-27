@@ -32,6 +32,12 @@ import java.util.stream.IntStream;
  */
 public class DmaxSelector {
 
+    /** progress of the fitting: started(total) once per scan, fitDone() after every fit (any thread) */
+    public interface ProgressListener {
+        void started(int totalFits);
+        void fitDone();
+    }
+
     /** one transform method: fit at (dmax, qmax), choosing its own regularization */
     public interface Method {
         IndirectFT fit(XYSeries data, XYSeries errors, double dmax, double qmax, double cHat);
@@ -252,6 +258,12 @@ public class DmaxSelector {
 
     /** scores every method at every trial dmax (qmax fixed) and builds the consensus */
     public static DmaxScan scanDmax(XYSeries data, XYSeries errors, double qmax, double[] dmaxGrid, Map<String, Method> methods) {
+        return scanDmax(data, errors, qmax, dmaxGrid, methods, null);
+    }
+
+    /** as above, reporting each finished fit to the listener (may be null) */
+    public static DmaxScan scanDmax(XYSeries data, XYSeries errors, double qmax, double[] dmaxGrid, Map<String, Method> methods,
+                                    ProgressListener listener) {
         XYSeries d = IndirectFT.truncateSeries(data, qmax), e = IndirectFT.truncateSeries(errors, qmax);
         final double q = d.getMaxX();
         final double cHat = referenceCHat(d, e, dmaxGrid[dmaxGrid.length - 1], q);
@@ -268,7 +280,21 @@ public class DmaxSelector {
         for (double[] row : rg) Arrays.fill(row, Double.NaN);
         for (double[] row : i0) Arrays.fill(row, Double.NaN);
         for (double[] row : pos) Arrays.fill(row, Double.NaN);
+        if (listener != null) listener.started(M*n);
         jobs.forEach(job -> {
+            try {
+                scanJob(job, n, q, cHat, dmaxGrid, ms, d, e, score, osc, z, rg, i0, pos);
+            } finally {
+                if (listener != null) listener.fitDone();
+            }
+        });
+        return new DmaxScan(q, cHat, dmaxGrid.clone(), names, score, osc, z, rg, i0, pos);
+    }
+
+    /** one (method, dmax) cell of the scan */
+    private static void scanJob(int job, int n, double q, double cHat, double[] dmaxGrid, Method[] ms, XYSeries d, XYSeries e,
+                                double[][] score, double[][] osc, double[][] z, double[][] rg, double[][] i0, double[][] pos) {
+        {
             int m = job/n, i = job % n;
             if (Math.ceil(q*dmaxGrid[i]/Math.PI) < MIN_SHANNON_CHANNELS) return;   // too few channels
             IndirectFT f = fitOrNull(ms[m], d, e, dmaxGrid[i], q, cHat);
@@ -281,8 +307,7 @@ public class DmaxSelector {
             z[m][i] = f.prNegZ;
             rg[m][i] = f.getRg();
             i0[m][i] = f.getIzeroParticle().value;
-        });
-        return new DmaxScan(q, cHat, dmaxGrid.clone(), names, score, osc, z, rg, i0, pos);
+        }
     }
 
     /** -2 ln Pr(every Shannon bin after the peak is >= 0), see POSITIVITY_WEIGHT; NaN if no covariance */
@@ -365,6 +390,12 @@ public class DmaxSelector {
      * at every qmax, so its oscillation does not mark where the data stop carrying information.
      */
     public static QmaxScan selectQmax(XYSeries data, XYSeries errors, double dmax, Map<String, Method> methods) {
+        return selectQmax(data, errors, dmax, methods, null);
+    }
+
+    /** as above, reporting each finished fit to the listener (may be null) */
+    public static QmaxScan selectQmax(XYSeries data, XYSeries errors, double dmax, Map<String, Method> methods,
+                                      ProgressListener listener) {
         Map<String, Method> use = new LinkedHashMap<>(methods);
         use.remove("Moore-L2");
         if (use.isEmpty()) use = new LinkedHashMap<>(methods);   // only Moore selected: use it rather than nothing
@@ -389,10 +420,15 @@ public class DmaxSelector {
         pre.forEach(k -> cHat[k] = referenceCHat(dk[k], ek[k], dmax, qv[k]));
         IntStream jobs = IntStream.range(0, K*M);
         if (PARALLEL) jobs = jobs.parallel();
+        if (listener != null) listener.started(K*M);
         jobs.forEach(job -> {
-            int k = job/M, m = job % M;
-            IndirectFT f = (Math.ceil(qv[k]*dmax/Math.PI) < MIN_SHANNON_CHANNELS) ? null : fitOrNull(ms[m], dk[k], ek[k], dmax, qv[k], cHat[k]);
-            osc[k][m] = (f == null) ? Double.NaN : f.prOscillation;
+            try {
+                int k = job/M, m = job % M;
+                IndirectFT f = (Math.ceil(qv[k]*dmax/Math.PI) < MIN_SHANNON_CHANNELS) ? null : fitOrNull(ms[m], dk[k], ek[k], dmax, qv[k], cHat[k]);
+                osc[k][m] = (f == null) ? Double.NaN : f.prOscillation;
+            } finally {
+                if (listener != null) listener.fitDone();
+            }
         });
         double[] med = new double[K];
         for (int k = 0; k < K; k++) {

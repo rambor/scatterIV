@@ -22,7 +22,7 @@ public class Scatter {
     private static String ATSAS_DIRECTORY="";
     private static String THRESHOLD="";
 
-    public static String version = "IV.k";
+    public static String version = "IV.v";
     public static WorkingDirectory WORKING_DIRECTORY;
 
     public MergeReport mergeReport; //singleton
@@ -58,6 +58,9 @@ public class Scatter {
     private JLabel MSSXLabel;
     private JPanel mSSXButtonPanel;
     private JLabel ssxIcon;
+    private JPanel formsPanel;
+    private JLabel formsIcon;
+    private JLabel formsLabel;
     public static Collection collectionSelected;
     public static Color background;
     public static boolean useAutoRg = true;
@@ -74,6 +77,7 @@ public class Scatter {
     private Settings settingsTab;
     private Modeling modeling;
     private Subtract subtractTab;
+    private FormFactors formFactorsTab;
     private static int cpuCores;
 
     public Scatter(){
@@ -87,6 +91,8 @@ public class Scatter {
         settingsTab.setFields(WORKING_DIRECTORY, status);
         modeling = Modeling.getInstance();
         modeling.setFields(WORKING_DIRECTORY, status);
+
+        formFactorsTab = new FormFactors(WORKING_DIRECTORY, mainProgressBar, status);
 
         cpuCores = Runtime.getRuntime().availableProcessors();
         Vector comboBoxItemsCPU = new Vector();
@@ -120,7 +126,6 @@ public class Scatter {
 
         mSSX = new MSSX(status, mainProgressBar, WORKING_DIRECTORY);
 
-
         analysisPane.setBackground(Color.BLACK);
         analysisPane.setLayout(new BoxLayout(analysisPane, BoxLayout.PAGE_AXIS));
         analysisPane.add(analysisTab.getPanel());
@@ -149,8 +154,7 @@ public class Scatter {
 
                         try {
                             ReceivedDroppedFiles rec1 = new ReceivedDroppedFiles(files, collectionSelected, analysisTable.getModel(), status, convertNmToAngstromCheckBox.isSelected(), autoRgCheckBox.isSelected(), false, mainProgressBar, WORKING_DIRECTORY.getWorkingDirectory());
-//                        // add other attributes and then run
-//                        rec1.setModels(analysisModel, resultsModel, dataFilesModel, dataFilesList);
+                        // add other attributes and then run
                             rec1.setPDBParams(true, Settings.getInstance().getQmaxForPDB());
 
                             rec1.run();
@@ -160,7 +164,6 @@ public class Scatter {
                         } catch (ExecutionException e1) {
                             e1.printStackTrace();
                         }
-
                     }
                 }.start();
             }
@@ -171,13 +174,14 @@ public class Scatter {
          add side buttons in order as they appear in form
          */
         sideButtons = new ArrayList<>();
-        sideButtons.add(new SideButtonIcon(analysisButton, analIcon, analysisLabel));
-        sideButtons.add(new SideButtonIcon(prButtonPanel, prIcon, prButtonLabel));
-        sideButtons.add(new SideButtonIcon(secButton, secIcon, secLabel));
-        sideButtons.add(new SideButtonIcon(subtractPanel, subIcon, subtractLabel));
-        sideButtons.add(new SideButtonIcon(modelPanel, modelIcon, modelLabel));
-        sideButtons.add(new SideButtonIcon(SettingsPanel, settingsIcon, settingsLabel));
-        sideButtons.add(new SideButtonIcon(mSSXButtonPanel, ssxIcon, MSSXLabel));
+        sideButtons.add(new SideButtonIcon(analysisButton, analIcon, analysisLabel)); //0
+        sideButtons.add(new SideButtonIcon(prButtonPanel, prIcon, prButtonLabel));  // 1
+        sideButtons.add(new SideButtonIcon(secButton, secIcon, secLabel)); // 2
+        sideButtons.add(new SideButtonIcon(subtractPanel, subIcon, subtractLabel)); //3
+        sideButtons.add(new SideButtonIcon(modelPanel, modelIcon, modelLabel)); // 4
+        sideButtons.add(new SideButtonIcon(SettingsPanel, settingsIcon, settingsLabel)); // 5
+        sideButtons.add(new SideButtonIcon(mSSXButtonPanel, ssxIcon, MSSXLabel)); // 6
+        sideButtons.add(new SideButtonIcon(formsPanel, formsIcon, formsLabel)); // 7
 
         totalSideButtons = sideButtons.size();
         for(int i=0; i<totalSideButtons; i++){
@@ -296,6 +300,23 @@ public class Scatter {
             }
         });
 
+        formsPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                super.mouseEntered(e);
+                sideButtons.get(7).highlight(new Color(198,248,255));
+            }
+        });
+
+        formsPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseExited(MouseEvent e) {
+                super.mouseExited(e);
+                sideButtons.get(7).dehighlight();
+            }
+        });
+
+
         prButtonPanel.addMouseListener(new MouseAdapter() {
             @Override
             public void mousePressed(MouseEvent e) {
@@ -388,6 +409,19 @@ public class Scatter {
                 dehighlightSideButtons();
                 sideButtons.get(4).highlight(new Color(198,248,255));
                 analysisPane.add(modeling.getPanel());
+                analysisPane.revalidate();
+                analysisPane.repaint();
+            }
+        });
+
+        formsPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
+                analysisPane.removeAll();
+                dehighlightSideButtons();
+                sideButtons.get(7).highlight(new Color(198,248,255));
+                analysisPane.add(formFactorsTab.getPanel());
                 analysisPane.revalidate();
                 analysisPane.repaint();
             }

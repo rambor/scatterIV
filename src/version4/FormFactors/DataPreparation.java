@@ -245,7 +245,7 @@ public final class DataPreparation {
         double[] scale = new double[p];
         for (int k = 0; k < p; k++) {
             double s = 0;
-            for (double[] doubles : A) s += doubles[k] * doubles[k];
+            for (int j = 0; j < n; j++) s += A[j][k] * A[j][k];
             scale[k] = s > 0 ? 1.0 / Math.sqrt(s) : 1.0;
         }
         double[][] M = new double[p][p];
@@ -253,7 +253,7 @@ public final class DataPreparation {
         for (int a = 0; a < p; a++) {
             for (int c = a; c < p; c++) {
                 double s = 0;
-                for (double[] doubles : A) s += doubles[a] * doubles[c];
+                for (int j = 0; j < n; j++) s += A[j][a] * A[j][c];
                 M[a][c] = M[c][a] = s * scale[a] * scale[c];
             }
             double s = 0;

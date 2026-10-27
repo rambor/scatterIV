@@ -1,7 +1,8 @@
 package version4.FormFactors;
 
+
 /**
- * Homogeneous sphere, one parameter R, radius.
+ * Homogeneous sphere, one parameter R.
  *   P(q) = F(qR)^2   (normalised, P(0) = 1),  V = 4/3 pi R^3
  *   dP/dlnR = 2 F G   with G = x F'(x), x = qR
  */

@@ -39,9 +39,7 @@ import java.util.concurrent.Future;
  *
  * <h3>Differences to McSAS</h3>
  * McSAS moves one contribution at a time by random proposal + accept-if-better, has no regularisation
- * term and stops at chi^2 ~ 1.
- *
- * Scatter FormFactors all particles move at once along analytic gradients, the noise is
+ * term and stops at chi^2 ~ 1. Here all particles move at once along analytic gradients, the noise is
  * part of the objective (entropy), and the distribution is a stationary ensemble average.
  */
 public class LangevinFitter {
@@ -109,6 +107,13 @@ public class LangevinFitter {
         this.lo = new double[d];
         this.hi = new double[d];
         double rmax = 0;
+        if (family == ShapeFamily.CORESHELL_SPHEROID && settings.shellThickness > 0) {
+            // restrict the shell thickness to t (1 +- tolerance)
+            minParams = minParams.clone(); maxParams = maxParams.clone();
+            double tol = Math.max(1e-3, settings.shellTolerance);
+            minParams[2] = settings.shellThickness * (1 - tol);
+            maxParams[2] = settings.shellThickness * (1 + tol);
+        }
         for (int k = 0; k < d; k++) {
             if (!(minParams[k] > 0 && maxParams[k] > minParams[k])) throw new IllegalArgumentException("bad bounds for param " + k);
             lo[k] = Math.log(minParams[k]);
@@ -116,14 +121,15 @@ public class LangevinFitter {
             rmax = Math.max(rmax, maxParams[k]);
         }
         double qmax = q[nq - 1];
+        if (family == ShapeFamily.CORESHELL_SPHEROID) rmax = Math.max(maxParams[0], maxParams[1]) + maxParams[2];
         this.table = new FormFactorTable(qmax * rmax * 1.05 + 1.0, settings.tableStep);
-        this.kernel = family.create(table, qmax);
+        this.kernel = family.create(table, qmax, settings);
         double im = 0;
         for (double v : this.I) im = Math.max(im, Math.abs(v));
         this.iMax = im;
         this.sumLo = Math.log(kernel.volume(lo, 0));
         this.sumHi = Math.log(kernel.volume(hi, 0));
-        boolean rc = family == ShapeFamily.SPHEROID
+        boolean rc = family.hasSpheroidAxes()
                 && (settings.aspectRatioMin > 0 || settings.aspectRatioMax < Double.POSITIVE_INFINITY);
         this.ratioConstraint = rc;
         this.lnRatioLo = settings.aspectRatioMin > 0 ? Math.log(settings.aspectRatioMin) : Double.NEGATIVE_INFINITY;
@@ -171,6 +177,15 @@ public class LangevinFitter {
         // effective weights; shadow the outer arrays so the error-floor continuation applies everywhere
         final double[] invSig, w;
         final List<Callable<Void>> tasks = new ArrayList<>();
+        // discrete species (core contents): label per particle, potentials of every species, accumulators
+        final int nsp;
+        final boolean fixedFraction;
+        final double vref2 = Math.exp(sumLo + sumHi);   // (reference volume)^2 for number weights
+        final int[] spc;
+        final double[] potK;
+        final List<Callable<Void>> speciesTasks = new ArrayList<>();
+        final double[] spIntW, spVolW, spNumW;
+        final double[][] spParV;
 
         // accumulators
         final double[][] intHist, volHist, numHist;
@@ -185,6 +200,7 @@ public class LangevinFitter {
         double[] traceChi2, traceT;
         double lastChurn;
         double chi2Min = Double.NaN, chi2Target = Double.NaN;
+        double chi2Best = Double.POSITIVE_INFINITY;   // lowest chi2_red after the error floor is gone, before heating
         final AdaptiveMixturePrior prior;
         double tempUsed;
 
@@ -233,6 +249,13 @@ public class LangevinFitter {
             iSum = new double[d]; iSq = new double[d];
             vSum = new double[d]; vSq = new double[d]; nSum = new double[d]; nSq = new double[d];
 
+            nsp = kernel.speciesCount();
+            fixedFraction = nsp == 2 && set.fixedSpeciesFraction >= 0 && set.fixedSpeciesFraction <= 1;
+            spc = new int[N];
+            potK = new double[N * nsp];
+            spIntW = new double[nsp]; spVolW = new double[nsp]; spNumW = new double[nsp];
+            spParV = new double[nsp][d];
+
             int chunks = Math.max(1, Math.min(N, set.threads * 4));
             int per = (N + chunks - 1) / chunks;
             for (int start = 0; start < N; start += per) {
@@ -240,9 +263,29 @@ public class LangevinFitter {
                 final double[] scratch = new double[Math.max(1, kernel.scratchSize())];
                 tasks.add(() -> {
                     for (int i = s0; i < s1; i++)
-                        kernel.evaluate(u, i * d, q, P, i * nq, dP, i * d * nq, scratch);
+                        kernel.evaluate(spc[i], u, i * d, q, P, i * nq, dP, i * d * nq, scratch);
                     return null;
                 });
+                if (nsp > 1) {
+                    final double[] pAlt = new double[nq], dAlt = new double[d * nq];
+                    final double[] scr2 = new double[Math.max(1, kernel.scratchSize())];
+                    speciesTasks.add(() -> {
+                        for (int i = s0; i < s1; i++) {
+                            for (int k = 0; k < nsp; k++) {
+                                double v = 0;
+                                if (k == spc[i]) {
+                                    int off = i * nq;
+                                    for (int j = 0; j < nq; j++) v -= c[j] * P[off + j];
+                                } else {
+                                    kernel.evaluate(k, u, i * d, q, pAlt, 0, dAlt, 0, scr2);
+                                    for (int j = 0; j < nq; j++) v -= c[j] * pAlt[j];
+                                }
+                                potK[i * nsp + k] = v;
+                            }
+                        }
+                        return null;
+                    });
+                }
             }
         }
 
@@ -269,6 +312,13 @@ public class LangevinFitter {
                 }
                 if (kernel.sortParameters()) Arrays.sort(u, i * d, i * d + d);
                 if (ratioConstraint) applyRatio(i);
+                spc[i] = nsp > 1 ? rng.nextInt(nsp) : 0;
+            }
+            if (fixedFraction) {
+                // start with round(f N) particles of species 0 (the penalty then drives the NUMBER fraction to f)
+                int n0 = (int) Math.round(set.fixedSpeciesFraction * N);
+                for (int i = 0; i < N; i++) spc[i] = i < n0 ? 0 : 1;
+                for (int i = N - 1; i > 0; i--) { int j = rng.nextInt(i + 1); int tmp = spc[i]; spc[i] = spc[j]; spc[j] = tmp; }
             }
 
             final int A = set.annealSteps, E = set.equilibrationSteps, S = set.sampleSteps;
@@ -402,12 +452,18 @@ public class LangevinFitter {
                 }
                 double T = Math.exp(logT);
                 traceChi2[t] = chi2red;
+                if (t >= (int) Math.ceil(0.67 * A) && t < A) chi2Best = Math.min(chi2Best, chi2red);
                 traceT[t] = T;
 
                 // ---- sampling (current state, before the move) -----------------------------
                 if (t >= A + E && ((t - A - E) % Math.max(1, set.sampleEvery) == 0)) {
                     accumulate(s, b, chi2red);
                 }
+
+                // ---- species (core contents): mean-field Gibbs update against the same potential
+                // dF/dmu(u, k) = -sum_j c_j P_k(q_j; u); p(k | u) ∝ exp(-V_k / T), argmin while T ~ 0.
+                // Only a fraction of particles is reconsidered per update so the ensemble changes gradually.
+                if (nsp > 1 && t % Math.max(1, set.speciesUpdateEvery) == 0) speciesGibbs(T, logT <= logTmin + 1e-9);
 
                 // ---- drift -----------------------------------------------------------------
                 for (int i = 0; i < N; i++) {
@@ -421,6 +477,10 @@ public class LangevinFitter {
                     }
                     driftNorm[i] = Math.sqrt(norm2);
                 }
+
+                // ---- fixed number fraction (profile scans): penalty (kappa/2)(f_num - f*)^2 acts on geometry too,
+                // because the number weight 1/N_fs of a particle depends on its size
+                if (fixedFraction) addFractionPenaltyDrift();
 
                 // ---- distribution-shape prior: drift lambda*T*grad ln G_theta, theta re-fitted by EM
                 if (prior != null && t >= A) {
@@ -599,7 +659,7 @@ public class LangevinFitter {
             return false;
         }
 
-        /** adds T * ln(KDE density) to pot[], Gaussian kernel, Scott's rule - bandwidth per dimension */
+        /** adds T * ln(KDE density) to pot[], Gaussian kernel, Scott bandwidth per dimension */
         private void addEntropyTerm(double T) {
             double[] bw = new double[d];
             double fac = Math.pow(N, -1.0 / (d + 4));
@@ -625,6 +685,8 @@ public class LangevinFitter {
         }
 
         private void copyParticle(int from, int to) {
+            // with a fixed species fraction the destination keeps its label so the counts cannot drift
+            if (!fixedFraction) spc[to] = spc[from];
             for (int k = 0; k < d; k++) {
                 double x = u[from * d + k] + set.birthDeathJitter * gaussian();
                 u[to * d + k] = reflect(x, lo[k], hi[k]);
@@ -657,6 +719,112 @@ public class LangevinFitter {
                 u[ic] = reflect(0.5 * (sm + dr), lo[1], hi[1]);
                 vel[ia] = 0.5 * (vs - vd);
                 vel[ic] = 0.5 * (vs + vd);
+            }
+        }
+
+        private void speciesGibbs(double T, boolean zeroT) {
+            try {
+                for (Future<Void> f : pool.invokeAll(speciesTasks)) f.get();
+            } catch (InterruptedException e) {
+                cancelled = true; Thread.currentThread().interrupt(); return;
+            } catch (ExecutionException e) {
+                throw new RuntimeException(e.getCause());
+            }
+            if (fixedFraction) addFractionPenaltyToLabelPotentials();
+            double[] p = new double[nsp];
+            for (int i = 0; i < N; i++) {
+                if (rng.nextDouble() >= set.speciesFlipRate) continue;
+                double vmin = Double.POSITIVE_INFINITY;
+                int kmin = 0;
+                for (int k = 0; k < nsp; k++) if (potK[i * nsp + k] < vmin) { vmin = potK[i * nsp + k]; kmin = k; }
+                if (zeroT || !(T > 0)) { spc[i] = kmin; continue; }
+                double sum = 0;
+                for (int k = 0; k < nsp; k++) { p[k] = Math.exp(-(potK[i * nsp + k] - vmin) / T); sum += p[k]; }
+                double r = rng.nextDouble() * sum;
+                int k = 0;
+                while (k < nsp - 1 && (r -= p[k]) > 0) k++;
+                spc[i] = k;
+            }
+        }
+
+        /** number weight 1/N_fs of particle i with label k (scaled; only ratios matter) */
+        private double numberWeight(int i, int k) {
+            return 1.0 / (kernel.forwardScatteringPower(k, u, i * d) / (vref2));
+        }
+
+        /** current number fraction of species 0 and the sums behind it: {f, W0, W} */
+        private double[] numberFraction() {
+            double w0 = 0, w = 0;
+            for (int i = 0; i < N; i++) { double wi = numberWeight(i, spc[i]); w += wi; if (spc[i] == 0) w0 += wi; }
+            return new double[]{w0 / w, w0, w};
+        }
+
+        private void addFractionPenaltyToLabelPotentials() {
+            double[] fw = numberFraction();
+            double W0 = fw[1], W = fw[2], kap = set.fractionPenalty, ft = set.fixedSpeciesFraction;
+            for (int i = 0; i < N; i++) {
+                double wc = numberWeight(i, spc[i]);
+                double base0 = W0 - (spc[i] == 0 ? wc : 0), base = W - wc;
+                for (int k = 0; k < nsp; k++) {
+                    double wk = numberWeight(i, k);
+                    double fk = (base0 + (k == 0 ? wk : 0)) / (base + wk);
+                    potK[i * nsp + k] += N * 0.5 * kap * (fk - ft) * (fk - ft);
+                }
+            }
+        }
+
+        private void addFractionPenaltyDrift() {
+            double[] fw = numberFraction();
+            double f = fw[0], W = fw[2], kap = set.fractionPenalty, ft = set.fixedSpeciesFraction;
+            double h = 1e-5;
+            double pre = -N * kap * (f - ft);
+            for (int i = 0; i < N; i++) {
+                int k0 = spc[i];
+                double wi = numberWeight(i, k0);
+                double ind = (k0 == 0 ? 1.0 : 0.0) - f;
+                for (int k = 0; k < d; k++) {
+                    int idx = i * d + k;
+                    double keep = u[idx];
+                    u[idx] = keep + h; double lp = Math.log(kernel.forwardScatteringPower(k0, u, i * d));
+                    u[idx] = keep - h; double lm = Math.log(kernel.forwardScatteringPower(k0, u, i * d));
+                    u[idx] = keep;
+                    double dlnN = (lp - lm) / (2 * h);
+                    double df = -wi * dlnN * ind / W;     // d f / d u_ik
+                    drift[idx] += pre * df;
+                }
+            }
+        }
+
+        /**
+         * Count-preserving label moves (fixed species fraction, two species): pair a species-0 particle i with a
+         * species-1 particle j and swap their labels. Gain = [V1(i) - V0(i)] + [V0(j) - V1(j)]. At T ~ 0 the
+         * best pairs with negative gain are swapped; at T > 0 random pairs are accepted with Metropolis
+         * probability. At most speciesFlipRate * N swaps per update.
+         */
+        private void speciesSwaps(double T, boolean zeroT) {
+            int nSw = Math.max(1, (int) Math.round(set.speciesFlipRate * N));
+            if (zeroT || !(T > 0)) {
+                Integer[] zeros = new Integer[N], ones = new Integer[N];
+                int n0 = 0, n1 = 0;
+                for (int i = 0; i < N; i++) { if (spc[i] == 0) zeros[n0++] = i; else ones[n1++] = i; }
+                // benefit of turning a 0 into 1 (most negative first), and of a 1 into 0
+                Integer[] z = Arrays.copyOf(zeros, n0), o = Arrays.copyOf(ones, n1);
+                Arrays.sort(z, (x, y) -> Double.compare(potK[x * nsp + 1] - potK[x * nsp], potK[y * nsp + 1] - potK[y * nsp]));
+                Arrays.sort(o, (x, y) -> Double.compare(potK[x * nsp] - potK[x * nsp + 1], potK[y * nsp] - potK[y * nsp + 1]));
+                for (int k = 0; k < Math.min(nSw, Math.min(n0, n1)); k++) {
+                    int i = z[k], j = o[k];
+                    double gain = (potK[i * nsp + 1] - potK[i * nsp]) + (potK[j * nsp] - potK[j * nsp + 1]);
+                    if (gain >= 0) break;
+                    spc[i] = 1; spc[j] = 0;
+                }
+            } else {
+                for (int k = 0; k < nSw; k++) {
+                    int i = rng.nextInt(N), j = rng.nextInt(N);
+                    if (spc[i] == spc[j]) continue;
+                    if (spc[i] == 1) { int tmp = i; i = j; j = tmp; }   // i: species 0, j: species 1
+                    double gain = (potK[i * nsp + 1] - potK[i * nsp]) + (potK[j * nsp] - potK[j * nsp + 1]);
+                    if (gain < 0 || rng.nextDouble() < Math.exp(-gain / T)) { spc[i] = 1; spc[j] = 0; }
+                }
             }
         }
 
@@ -730,12 +898,16 @@ public class LangevinFitter {
                 fitSq[j] += f * f;
             }
             int[] bin = new int[d];
-            // particle = equal share of I(0) ∝ phi*V  ->  volume weight 1/V, number weight 1/V^2
-            // (weights are rescaled by a reference volume to stay well inside double range)
+            // particle = equal share of I(0) = n * N_fs (N_fs = forward-scattering power, V^2 for a homogeneous
+            // body): number weight 1/N_fs, volume weight V/N_fs (both rescaled by a reference volume)
             double vref = Math.exp(0.5 * (sumLo + sumHi));
             for (int i = 0; i < N; i++) {
                 double V = kernel.volume(u, i * d) / vref;
-                double vw = 1.0 / V, nw = vw * vw;
+                int sp = spc[i];
+                double Nfs = kernel.forwardScatteringPower(sp, u, i * d) / (vref * vref);
+                double nw = 1.0 / Nfs, vw = V * nw;
+                spIntW[sp] += 1.0; spVolW[sp] += vw; spNumW[sp] += nw;
+                for (int k = 0; k < d; k++) spParV[sp][k] += vw * Math.exp(u[i * d + k]);
                 for (int k = 0; k < d; k++) {
                     double uk = u[i * d + k];
                     int bi = (int) ((uk - lo[k]) / (hi[k] - lo[k]) * B);
@@ -752,8 +924,8 @@ public class LangevinFitter {
                 for (int pi = 0; pi < pairs.length; pi++) pairHist[pi][bin[pairs[pi][0]]][bin[pairs[pi][1]]] += vw;
                 iW += 1.0; vW += vw; nW += nw;
                 sumV += V * vref;
-                sumInvV += vw;
-                sumInvV2 += nw;
+                sumInvV += vw * V;    // sum of volume-weighted V (relative to vref)
+                sumInvV2 += nw * V;   // sum of number-weighted V
             }
         }
     }
@@ -870,10 +1042,12 @@ public class LangevinFitter {
         res.background = bS / ns;
         res.temperature = new double[R];
         res.chi2Min = new double[R];
+        res.chi2Best = new double[R];
         res.chi2Target = new double[R];
         for (int r = 0; r < R; r++) {
             res.temperature[r] = reps.get(r).tempUsed;
             res.chi2Min[r] = reps.get(r).chi2Min;
+            res.chi2Best[r] = reps.get(r).chi2Best;
             res.chi2Target[r] = reps.get(r).chi2Target;
         }
 
@@ -898,11 +1072,10 @@ public class LangevinFitter {
             res.numberMean[k] = nS[k] / nW;
             res.numberStd[k] = Math.sqrt(Math.max(0, nQ[k] / nW - res.numberMean[k] * res.numberMean[k]));
         }
-        // with w_I = 1, w_v = 1/V, w_n = 1/V^2 (V relative to vref):
-        //   <V>_v = sum(w_v V)/sum(w_v) = N_samples / sum(1/V),   <V>_n = sum(1/V) / sum(1/V^2)
+        // <V>_v = sum(w_v V)/sum(w_v),  <V>_n = sum(w_n V)/sum(w_n)   (V relative to vref)
         double vref = Math.exp(0.5 * (sumLo + sumHi));
-        res.volumeAverageVolume = iW / sumInvV * vref;
-        res.numberAverageVolume = sumInvV / sumInvV2 * vref;
+        res.volumeAverageVolume = sumInvV / vW * vref;
+        res.numberAverageVolume = sumInvV2 / nW * vref;
         res.intensityAverageVolume = sumV / iW;
 
         if (r0.prior != null) {
@@ -913,6 +1086,34 @@ public class LangevinFitter {
             res.priorSummary = sb.toString();
         }
         res.preparation = preparation;
+        // ---- species fractions (mean +- spread over replicas) and volume-weighted mean parameters per species
+        int nsp = r0.nsp;
+        if (nsp > 1) {
+            res.speciesNames = new String[nsp];
+            for (int k = 0; k < nsp; k++) res.speciesNames[k] = kernel.speciesName(k);
+            res.speciesIntensityFraction = new double[nsp]; res.speciesVolumeFraction = new double[nsp];
+            res.speciesNumberFraction = new double[nsp]; res.speciesNumberFractionStd = new double[nsp];
+            res.speciesMeanParams = new double[nsp][d];
+            double[][] nf = new double[R][nsp];
+            for (int r = 0; r < R; r++) {
+                Replica rp = reps.get(r);
+                double ti = 0, tv = 0, tn = 0;
+                for (int k = 0; k < nsp; k++) { ti += rp.spIntW[k]; tv += rp.spVolW[k]; tn += rp.spNumW[k]; }
+                for (int k = 0; k < nsp; k++) {
+                    res.speciesIntensityFraction[k] += rp.spIntW[k] / ti / R;
+                    res.speciesVolumeFraction[k] += rp.spVolW[k] / tv / R;
+                    nf[r][k] = rp.spNumW[k] / tn;
+                    res.speciesNumberFraction[k] += nf[r][k] / R;
+                    for (int p = 0; p < d; p++)
+                        res.speciesMeanParams[k][p] += rp.spVolW[k] > 0 ? rp.spParV[k][p] / rp.spVolW[k] / R : 0;
+                }
+            }
+            if (R > 1) for (int k = 0; k < nsp; k++) {
+                double m = res.speciesNumberFraction[k], v = 0;
+                for (int r = 0; r < R; r++) v += (nf[r][k] - m) * (nf[r][k] - m);
+                res.speciesNumberFractionStd[k] = Math.sqrt(v / (R - 1));
+            }
+        }
         // ---- mode diagnostic: how far is the final particle cloud from the best K-component Gaussian
         // mixture (all parameters, ln-space), K = 1..3. Large KL_1 that drops at K = 2 -> two populations.
         {

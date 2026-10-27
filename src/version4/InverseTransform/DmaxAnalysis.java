@@ -70,8 +70,14 @@ public final class DmaxAnalysis {
                     sb.append(String.format("  %-11s weight %.2f%s%n", names.get(m), ensemble.weights[m],
                             ensemble.exclusionReason[m] == null ? "" : "  (" + ensemble.exclusionReason[m] + ")"));
                 }
-                IndirectFT.Estimate i0 = ensemble.getIzeroParticle(), rg = ensemble.getRg(), vp = ensemble.getPorodVolume(qmax);
-                sb.append(String.format("  I(0) %s%n  Rg   %s A%n  Vp(qmax) %s A^3%n", i0, rg, vp));
+                IndirectFT.Estimate i0 = ensemble.getIzeroParticle(), rg = ensemble.getRg();
+                IndirectFT.Estimate mw = ensemble.getMolecularWeightQR(), vv = ensemble.getVolumeFromVc();
+                sb.append(String.format("  I(0) %s%n  Rg   %s A%n", i0, rg));
+                sb.append(String.format("  MW from Q_R = Vc^2/Rg (%s): %.1f +/- %.1f kDa%n", IndirectFT.SAMPLE_TYPE.name().toLowerCase(),
+                        mw.value/1000, mw.sigma/1000));
+                sb.append(String.format("  V = %.2f A^3/Da x MW = %.0f +/- %.0f A^3 (P(r) normalized to this volume)%n",
+                        IndirectFT.VOLUME_PER_DALTON, vv.value, vv.sigma));
+
                 int prior = 0;
                 for (int k = 0; k < ensemble.nBins; k++) if (ensemble.isPriorDominated(k)) prior++;
                 sb.append(String.format("  %d of %d bins set by model choice rather than data%n", prior, ensemble.nBins));
@@ -116,6 +122,13 @@ public final class DmaxAnalysis {
     public static Result run(XYSeries qIq, XYSeries qSigma, double dmaxLo, double dmaxHi, double step,
                              double fixedQmax, Set<String> methodNames, boolean positivity, boolean autoLowQ,
                              Consumer<String> progress) {
+        return run(qIq, qSigma, dmaxLo, dmaxHi, step, fixedQmax, methodNames, positivity, autoLowQ, progress, null);
+    }
+
+    /** as above; fits reports every finished fit of each scan (for a progress bar), may be null */
+    public static Result run(XYSeries qIq, XYSeries qSigma, double dmaxLo, double dmaxHi, double step,
+                             double fixedQmax, Set<String> methodNames, boolean positivity, boolean autoLowQ,
+                             Consumer<String> progress, DmaxSelector.ProgressListener fits) {
         Consumer<String> say = (progress == null) ? s -> {} : progress;
         GuinierTrim.Result guinier = null;
         int start = 0;
@@ -124,13 +137,13 @@ public final class DmaxAnalysis {
             guinier = GuinierTrim.trim(qIq, qSigma);
             start = guinier.startIndex;
         }
-        Result r = runOnce(from(qIq, start), from(qSigma, start), dmaxLo, dmaxHi, step, fixedQmax, methodNames, positivity, say);
+        Result r = runOnce(from(qIq, start), from(qSigma, start), dmaxLo, dmaxHi, step, fixedQmax, methodNames, positivity, say, fits);
         int extra = validateLowQ(r, qIq, qSigma, start);
         if (extra > 0 && autoLowQ) {
             say.accept(String.format("%d more low-q point%s disagree with P(r): rerunning", extra, extra == 1 ? "" : "s"));
             start += extra;
             List<String> earlier = r.log;
-            r = runOnce(from(qIq, start), from(qSigma, start), dmaxLo, dmaxHi, step, fixedQmax, methodNames, positivity, say);
+            r = runOnce(from(qIq, start), from(qSigma, start), dmaxLo, dmaxHi, step, fixedQmax, methodNames, positivity, say, fits);
             r.log.add(0, String.format("first pass removed %d point(s) by Guinier; P(r) model flagged %d more", guinier.startIndex, extra));
             r.log.addAll(0, earlier);
             extra = validateLowQ(r, qIq, qSigma, start);
@@ -163,7 +176,8 @@ public final class DmaxAnalysis {
     }
 
     private static Result runOnce(XYSeries qIq, XYSeries qSigma, double dmaxLo, double dmaxHi, double step,
-                                  double fixedQmax, Set<String> methodNames, boolean positivity, Consumer<String> say) {
+                                  double fixedQmax, Set<String> methodNames, boolean positivity, Consumer<String> say,
+                                  DmaxSelector.ProgressListener counter) {
         if (Double.isNaN(step) || step <= 0) step = niceStep(dmaxLo, dmaxHi);
         double[] grid = DmaxSelector.grid(dmaxLo, dmaxHi, step);
         DmaxSelector.POSITIVITY_WEIGHT = positivity ? 1.0 : 0.0;
@@ -179,20 +193,20 @@ public final class DmaxAnalysis {
         DmaxSelector.QmaxScan qs = null;
         if (!Double.isNaN(fixedQmax)) {
             say.accept(String.format("Scanning dmax %.0f-%.0f A at qmax %.4f", dmaxLo, dmaxHi, fixedQmax));
-            ds = DmaxSelector.scanDmax(qIq, qSigma, fixedQmax, grid, methods);
+            ds = DmaxSelector.scanDmax(qIq, qSigma, fixedQmax, grid, methods, counter);
             log.add(ds.summary());
         } else {
             say.accept(String.format("Scanning dmax %.0f-%.0f A using all data (q <= %.4f)", dmaxLo, dmaxHi, qIq.getMaxX()));
-            ds = DmaxSelector.scanDmax(qIq, qSigma, qIq.getMaxX(), grid, methods);
+            ds = DmaxSelector.scanDmax(qIq, qSigma, qIq.getMaxX(), grid, methods, counter);
             log.add(ds.summary());
             for (int it = 0; it < 3; it++) {
                 say.accept(String.format("Selecting qmax at dmax %.0f A", ds.suggested));
-                qs = DmaxSelector.selectQmax(qIq, qSigma, ds.suggested, methods);
+                qs = DmaxSelector.selectQmax(qIq, qSigma, ds.suggested, methods, counter);
                 log.add(qs.summary());
                 if (Math.abs(qs.qmax - ds.qmax) < 1e-9) break;
                 double prev = ds.suggested;
                 say.accept(String.format("Rescanning dmax at qmax %.4f", qs.qmax));
-                ds = DmaxSelector.scanDmax(qIq, qSigma, qs.qmax, grid, methods);
+                ds = DmaxSelector.scanDmax(qIq, qSigma, qs.qmax, grid, methods, counter);
                 log.add(ds.summary());
                 if (Math.abs(ds.suggested - prev) <= step) break;
             }

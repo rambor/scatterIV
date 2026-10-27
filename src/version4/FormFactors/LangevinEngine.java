@@ -12,6 +12,7 @@ import org.jfree.chart.renderer.xy.XYStepRenderer;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 import version4.Dataset;
+import version4.FormFactors.ModelType;
 
 import javax.swing.*;
 import java.awt.*;
@@ -37,6 +38,10 @@ import java.util.List;
  *   PROLATE_ELLIPSOID  -> spheroid (a, c) with c/a >= 1.2 unless settings give another window
  *   OBLATE_ELLIPSOID   -> spheroid (a, c) with c/a <= 1/1.2 unless settings give another window
  *   ELLIPSOID          -> triaxial ellipsoid (a <= b <= c)
+ *   CORESHELL, CORESHELL_PROLATE_ELLIPSOID, CORESHELL_OBLATE_ELLIPSOID
+ *                      -> core-shell spheroid (core a, core c, shell t); contrasts from settings.solventDensity,
+ *                         shellDensity, coreDensity; restrict t with settings.shellThickness / shellTolerance
+ *                         (e.g. 14, 0.10). Prolate/oblate windows act on the core aspect ratio.
  * Bounds: minParams/maxParams may hold one value (used for every axis, as in FormFactorEngine) or one per parameter.
  */
 public class LangevinEngine extends SwingWorker<LangevinResult, Void> {
@@ -76,6 +81,17 @@ public class LangevinEngine extends SwingWorker<LangevinResult, Void> {
                 break;
             case ELLIPSOID:
                 family = ShapeFamily.TRIAXIAL_ELLIPSOID;
+                break;
+            case CORESHELL:
+                family = ShapeFamily.CORESHELL_SPHEROID;   // core aspect ratio free
+                break;
+            case CORESHELL_PROLATE_ELLIPSOID:
+                family = ShapeFamily.CORESHELL_SPHEROID;
+                if (settings.aspectRatioMin <= 0 && settings.aspectRatioMax == Double.POSITIVE_INFINITY) settings.aspectRatioMin = 1.2;
+                break;
+            case CORESHELL_OBLATE_ELLIPSOID:
+                family = ShapeFamily.CORESHELL_SPHEROID;
+                if (settings.aspectRatioMin <= 0 && settings.aspectRatioMax == Double.POSITIVE_INFINITY) settings.aspectRatioMax = 1.0 / 1.2;
                 break;
             default:
                 throw new IllegalArgumentException("Langevin fitter does not support " + model + " yet");
@@ -126,6 +142,12 @@ public class LangevinEngine extends SwingWorker<LangevinResult, Void> {
         this.residualsPanel = residualsPanel;
         this.distributionPanel = distributionPanel;
         this.tracePanel = tracePanel;
+    }
+
+    /** convenience: restrict the shell thickness to t (1 +- relTol), as the old setCompleteness(..., thickness) did */
+    public static void restrictShell(LangevinSettings s, double thickness, double relTol) {
+        s.shellThickness = thickness;
+        s.shellTolerance = relTol;
     }
 
     /** stops the fit at the next step; the partial result is discarded */

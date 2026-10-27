@@ -246,6 +246,44 @@ public class EnsembleIFT {
         return combine(e);
     }
 
+    /** model-averaged MW from Q_R = V_c^2/Rg (no Porod invariant) */
+    public IndirectFT.Estimate getMolecularWeightQR() {
+        IndirectFT.Estimate[] v = new IndirectFT.Estimate[members.length];
+        for (int m = 0; m < members.length; m++) v[m] = members[m].getMolecularWeightQR();
+        return combine(v);
+    }
+
+    /** model-averaged volume from V_c: IndirectFT.VOLUME_PER_DALTON x MW(Q_R) */
+    public IndirectFT.Estimate getVolumeFromVc() {
+        IndirectFT.Estimate[] v = new IndirectFT.Estimate[members.length];
+        for (int m = 0; m < members.length; m++) v[m] = members[m].getVolumeFromVc();
+        return combine(v);
+    }
+
+    /** factor turning the ensemble bins (and members' calculatePofRAtR) into P(r) with area V */
+    public double getVolumeNormalizationFactor() {
+        double area = 0;
+        for (int k = 0; k < nBins; k++) area += mean[k]*binWidth;
+        double v = getVolumeFromVc().value;
+        return (area != 0 && !Double.isNaN(v)) ? v/area : Double.NaN;
+    }
+
+    /** ensemble Shannon bins scaled so that sum h_k * bin_width = V (A^2 per bin; area A^3) */
+    public XYSeries getDistributionForFittingNormalizedToVolume() {
+        double f = getVolumeNormalizationFactor();
+        XYSeries s = new XYSeries("EnsemblePrNormalizedToVolume");
+        for (int k = 0; k < nBins; k++) s.add(r[k], mean[k]*f);
+        return s;
+    }
+
+    /** total sd per bin on the same volume scale */
+    public XYSeries getDistributionSigmaNormalizedToVolume() {
+        double f = getVolumeNormalizationFactor();
+        XYSeries s = new XYSeries("EnsemblePrSigmaNormalizedToVolume");
+        for (int k = 0; k < nBins; k++) s.add(r[k], sigma[k]*f);
+        return s;
+    }
+
     public String summary() {
         StringBuilder sb = new StringBuilder();
         for (int m = 0; m < members.length; m++) {

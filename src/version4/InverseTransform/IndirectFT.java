@@ -1050,6 +1050,140 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
         return ratio(dot(k0, m.w), gradientOf(m, k0), dot(k1, m.w), gradientOf(m, k1), 1.0);
     }
 
+    /* ---------------------------------------------------------------------------------
+     *  Volume from V_c (no Porod invariant): Q_R = V_c^2 / Rg -> MW -> V, and P(r) normalized to V
+     *  (Rambo & Tainer 2013, Nature 496, 477). With the model I(q) = sum w_i sinc(q r_i):
+     *     A = sum w_i,  B = sum w_i / r_i^2,  C = sum w_i r_i^2
+     *     V_c = A / B,  Rg^2 = C / (2A),  Q_R = V_c^2 / Rg = sqrt(2) A^(5/2) / (B^2 sqrt(C))
+     *  All are sums over the fitted coefficients: closed form, cheap, no q-integration, and the
+     *  uncertainty comes from one gradient, so the correlation of V_c and Rg is included.
+     * --------------------------------------------------------------------------------- */
+
+    /** Q_R -> MW calibration, MW = (Q_R / c)^k with V_c in A^2, Rg in A, MW in Da */
+    public enum SampleType {
+        PROTEIN(0.1231, 1.0), RNA(0.00934, 0.808);
+        public final double c, k;
+        SampleType(double c, double k) { this.c = c; this.k = k; }
+    }
+
+    /** sample type for the Q_R calibration */
+    public static SampleType SAMPLE_TYPE = SampleType.PROTEIN;
+    /** A^3 per Da converting MW to the normalization volume (1.6: hydrated, matches V_p = 1.6 MW) */
+    public static double VOLUME_PER_DALTON = 1.6;
+
+    /** Q_R = V_c^2 / Rg (A^3), both from this fit's model */
+    public Estimate getQR() {
+        SincModel m = sincModel();
+        int n = m.r.length;
+        double[] kA = ones(n), kB = new double[n], kC = new double[n];
+        for (int i = 0; i < n; i++) { double r2 = m.r[i]*m.r[i]; kB[i] = 1.0/r2; kC[i] = r2; }
+        double A = dot(kA, m.w), B = dot(kB, m.w), C = dot(kC, m.w);
+        if (!(A > 0 && B > 0 && C > 0)) return new Estimate(Double.NaN, Double.NaN);
+        double qr = Math.sqrt(2.0)*Math.pow(A, 2.5)/(B*B*Math.sqrt(C));
+        // d ln Q_R = 2.5 dA/A - 2 dB/B - 0.5 dC/C
+        double[] gA = gradientOf(m, kA), gB = gradientOf(m, kB), gC = gradientOf(m, kC);
+        if (gA == null || gB == null || gC == null) return new Estimate(qr, Double.NaN);
+        double[] g = new double[gA.length];
+        for (int j = 0; j < g.length; j++) g[j] = qr*(2.5*gA[j]/A - 2.0*gB[j]/B - 0.5*gC[j]/C);
+        double var = covarianceOf(g, g);
+        return new Estimate(qr, var >= 0 ? Math.sqrt(var) : Double.NaN);
+    }
+
+    /** MW from Q_R, (Q_R / c)^k in Da, for SAMPLE_TYPE */
+    public Estimate getMolecularWeightQR() {
+        Estimate qr = getQR();
+        double c = SAMPLE_TYPE.c, k = SAMPLE_TYPE.k;
+        double mw = Math.pow(qr.value/c, k);
+        return new Estimate(mw, Double.isNaN(qr.sigma) ? Double.NaN : mw*k*qr.sigma/qr.value);
+    }
+
+    /** particle volume from V_c: VOLUME_PER_DALTON x MW(Q_R), A^3 (no Porod invariant) */
+    public Estimate getVolumeFromVc() {
+        Estimate mw = getMolecularWeightQR();
+        return new Estimate(VOLUME_PER_DALTON*mw.value, VOLUME_PER_DALTON*mw.sigma);
+    }
+
+    /**
+     * P(r) normalized to the particle volume V = getVolumeFromVc(): P(r) in A^2 with integral P dr = V (A^3),
+     * sampled at the r values of prDistribution (drop-in replacement for getPrDistribution() when plotting).
+     * <p>
+     * The values come from calculatePofRAtR, not from prDistribution itself, because prDistribution is held in
+     * class-specific units (Moore: P(r); histogram classes: bin heights with their own 1/(4 pi del_r)), which is
+     * why plots of getPrDistribution() change scale when the transform method changes. The curve's area is
+     * integrated numerically, so the result is exact for every transform whatever its internal units.
+     */
+    public XYSeries getPrDistributionNormalizedToVolume() {
+        XYSeries out = new XYSeries("PrDistributionNormalizedToVolume");
+        double f = getVolumeNormalizationFactor();
+        if (prDistribution == null || Double.isNaN(f)) return out;
+        for (int i = 0; i < prDistribution.getItemCount(); i++) {
+            double r = prDistribution.getX(i).doubleValue();
+            out.add(r, f*pofrOrZero(r));
+        }
+        return out;
+    }
+
+    /** the same volume-normalized P(r) on a uniform grid of points+1 values from 0 to dmax (smooth curve for plots) */
+    public XYSeries getPrDistributionNormalizedToVolume(int points) {
+        XYSeries out = new XYSeries("PrDistributionNormalizedToVolume");
+        double f = getVolumeNormalizationFactor();
+        if (Double.isNaN(f) || points < 2) return out;
+        for (int i = 0; i <= points; i++) {
+            double r = dmax*i/points;
+            out.add(r, f*pofrOrZero(r));
+        }
+        return out;
+    }
+
+    /** the Shannon bins (prDistributionForFitting) scaled so that sum h_k * bin_width = V */
+    public XYSeries getShannonBinsNormalizedToVolume() {
+        return scaledToArea(prDistributionForFitting, getVolumeFromVc().value, true, "ShannonBinsNormalizedToVolume");
+    }
+
+    /** factor that turns this fit's P(r) (calculatePofRAtR(r, 1) units) into the volume-normalized P(r) */
+    public double getVolumeNormalizationFactor() {
+        double area = getPofRArea();
+        double v = getVolumeFromVc().value;
+        return (area > 0 && !Double.isNaN(v)) ? v/area : Double.NaN;
+    }
+
+    /** integral of calculatePofRAtR(r, 1) over [0, dmax] (midpoint rule, 2000 panels) */
+    public double getPofRArea() {
+        int n = 2000;
+        double h = dmax/n, a = 0;
+        for (int i = 0; i < n; i++) a += pofrOrZero((i + 0.5)*h);
+        return a*h;
+    }
+
+    /** calculatePofRAtR(r, 1), 0 outside (0, dmax) or where the transform cannot evaluate it */
+    private double pofrOrZero(double r) {
+        if (!(r > 0 && r < dmax)) return 0;
+        try {
+            double v = calculatePofRAtR(r, 1.0);
+            return Double.isNaN(v) || Double.isInfinite(v) ? 0 : v;
+        } catch (RuntimeException e) {
+            return 0;
+        }
+    }
+
+    /** copy of s scaled to the given area (histogram: sum y * bin_width; curve: trapezoid) */
+    private XYSeries scaledToArea(XYSeries s, double area, boolean histogram, String key) {
+        XYSeries out = new XYSeries(key);
+        if (s == null || s.getItemCount() == 0 || Double.isNaN(area)) return out;
+        double a = 0;
+        if (histogram) {
+            for (int i = 0; i < s.getItemCount(); i++) a += s.getY(i).doubleValue()*bin_width;
+        } else {
+            for (int i = 1; i < s.getItemCount(); i++) {
+                a += 0.5*(s.getY(i).doubleValue() + s.getY(i - 1).doubleValue())*(s.getX(i).doubleValue() - s.getX(i - 1).doubleValue());
+            }
+        }
+        if (a == 0) return out;
+        double f = area/a;
+        for (int i = 0; i < s.getItemCount(); i++) out.add(s.getX(i).doubleValue(), s.getY(i).doubleValue()*f);
+        return out;
+    }
+
     /** correlation length l_c = V_p / (2 pi V_c), in A (Porod volume with the given cut-off) */
     public Estimate getCorrelationLength(double qLimit) {
         Estimate vp = getPorodVolume(qLimit), vc = getVolumeOfCorrelation();

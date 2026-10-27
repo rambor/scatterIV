@@ -638,7 +638,7 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
             // for chi_estimate calculations, nonStandardized datasets must be specified
             this.dataset.setIndirectFTModel(tempIFT); // also calculate chi2 using data passed in on the instance
             //this.dataset.updateIndirectFTModel(tempIFT);
-            this.dataset.setPrDistribution(tempIFT.getPrDistribution());
+            this.dataset.setPrDistribution(tempIFT.getPrDistributionNormalizedToVolume());
             this.dataset.calculateIntensityFromModel(true);
             try {
                 // requires (q, Iq) not (q, q*Iq)
