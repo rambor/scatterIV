@@ -1,394 +1,168 @@
 package version4;
 
-import org.apache.commons.math3.util.FastMath;
-import org.jfree.data.statistics.Statistics;
 import org.jfree.data.xy.XYDataItem;
 import org.jfree.data.xy.XYSeries;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import version4.InverseTransform.GuinierTrim;
 
 /**
- * Created by robertrambo on 24/05/2017.
+ * Automatic Guinier analysis for a newly opened dataset (drop-in replacement, same public API).
+ *
+ * The work is done by version4.InverseTransform.GuinierTrim:
+ *  - weighted fit of ln I(q) = ln I(0) - (Rg^2/3) q^2, weights (I/sigma)^2, so noisy points near the
+ *    beamstop count for little instead of as much as the best-measured ones;
+ *  - Rg found self-consistently (window q*Rg <= upper limit, iterated), with no fixed q limits or
+ *    window sizes, so it works from Rg ~ 5 A to several hundred A;
+ *  - leading points removed only when that fixes the fit: the misfit (relative to point-to-point
+ *    noise) must drop significantly as they are removed, which separates a low-q defect
+ *    (aggregation upturn, beamstop dip) from the bend of an elongated particle;
+ *  - a least-median-of-squares line over the final window gives an independent robust Rg;
+ *  - upper end of the window starts at qRg = 1.3 and shrinks (to 0.8) while the last points bend
+ *    away from the line, which keeps elongated particles from being biased low.
+ *
+ * Errors: pass them when available (the 3-argument constructor). Without them, sigma is estimated
+ * from the local point-to-point scatter of I(q) (second differences over a sliding window).
+ *
+ * Failure (no Guinier region found) leaves Rg = 0 as before; getMessage() says why.
  */
 public class AutoRg {
 
-    private XYSeries qSquaredData;
+    /** points either side used for the scatter-based error estimate */
+    public static int ERROR_ESTIMATE_HALF_WINDOW = 10;
 
-    private XYSeries inputData;
-
-    private double rg=0;
-    private double i_zero=0;
-    private double i_zero_error;  //Izero Error
-    private double rg_error;  //Rg Error
-    private double correlation_coefficient;
-    private Number qminFinal;
-    private Number qmaxFinal;
-    private int keptStartAt=0;
-
+    private final XYSeries inputData;
+    private double rg = 0, i_zero = 0, i_zero_error, rg_error, correlation_coefficient, chi2Reduced = Double.NaN;
+    private double qRgLow = Double.NaN, qRgHigh = Double.NaN, robustRg = Double.NaN;
+    private Number qminFinal, qmaxFinal;
+    private int keptStartAt = 0, keptEndAt = 0, trimmed = 0;
+    private boolean errorsEstimated;
+    private String message;
 
     /**
-     * Data must not be previously transformed
-     * Should only contain positive values as we will take the log of the number
-     * @param data full range of putative Guinier region
-     * @param startAt initial guess, must be greater than 0
+     * @param data    I(q), not transformed; non-positive intensities are skipped
+     * @param startAt first point to consider, 1-based (as from the spinner)
      */
-    public AutoRg(XYSeries data, int startAt){
+    public AutoRg(XYSeries data, int startAt) {
+        this(data, null, startAt);
+    }
+
+    /**
+     * @param data    I(q)
+     * @param errors  sigma(q) for the same q values (matched by q), or null to estimate from scatter
+     * @param startAt first point to consider, 1-based
+     */
+    public AutoRg(XYSeries data, XYSeries errors, int startAt) {
         inputData = data;
-        this.autoRgTransformIt(startAt);
-        this.autoRg(); // throws index out of bounds exception
-    }
+        int first = Math.max(0, startAt - 1);
+        int n = data.getItemCount();
 
-
-    /**
-     * transforms data to q^2 vs ln I(q)
-     * @param startAt index from spinner
-     */
-    private void autoRgTransformIt(int startAt){
-        qSquaredData = new XYSeries("qq");
-
-        int total = inputData.getItemCount();
-
-        int starthere = startAt-1;
-        XYDataItem tempItem;
-        for (int i=starthere; i<total; i++){
-            tempItem = inputData.getDataItem(i);
-            if (tempItem.getYValue() > 0){  // no negative values
-                qSquaredData.add(tempItem.getXValue()*tempItem.getXValue(), Math.log(tempItem.getYValue()));
-            }
-        }
-    }
-
-
-    /**
-     * Failure results in Rg = 0;
-     */
-    private void autoRg() {
-        //int last = data.getItemCount()-1;
-        double temp_resi, tempMedian, median = Double.POSITIVE_INFINITY;
-        double tempRg;
-
-        XYDataItem lastItem, item;
-//        ArrayList<Double> resList = new ArrayList<>();
-        ArrayList<Double> rgList = new ArrayList<>();
-
-        // calculate line between first and last points
-        double lowerqlimitSquared = 0.15*0.15; // q2
-        double qRgUp = 1.31*1.31;
-
-        // find the index of the upper q-value that is less than lowerqlimit
-        // in this case find the index for which q_i < 0.15
-        int lastAtLimit = 0;
-        while(qSquaredData.getX(lastAtLimit).doubleValue() < lowerqlimitSquared && lastAtLimit < (qSquaredData.getItemCount()-1)){
-            lastAtLimit++;
-        }
-        int last = lastAtLimit;
-        // get a rough estimate of Rg using data within qmax = 0.15;
-        // only use the first and last points to define the line
-        // shrinking window, try all pairs up to a limit
-        int first = 1;
-        XYDataItem tempDataItem = qSquaredData.getDataItem(first);
-        double slope;
-        double intercept;
-        //ArrayList<Double> resList = new ArrayList<>(last);
-        List resList = Arrays.asList(new Double[last+1]);
-        // calculate a progressively shrinking line using only first and last point
-        int rescount;
-        int smallestWindow = 17;
-        while( tempDataItem.getXValue() < lowerqlimitSquared && first < (lastAtLimit-10)){  // minimum line is defined by 7 points
-            // fit line to first and last point, calculate Rg, determine gRg limit
-            while (last > first+smallestWindow) {
-                lastItem = qSquaredData.getDataItem(last);
-                // calculate line using only first and last points
-                slope = (lastItem.getYValue() - tempDataItem.getYValue())/(lastItem.getXValue() - tempDataItem.getXValue());
-                intercept = lastItem.getYValue() - slope *lastItem.getXValue();
-                tempRg = -3.0* slope;
-                // use the line to calculate residuals
-                if (tempRg > 0 && lastItem.getXValue()*tempRg < 0.95){  // means we have a reasonable limit
-//                    resList.clear();
-                    rescount =0;
-                    for(int i=first; i<last; i++){
-                        item = qSquaredData.getDataItem(i);
-                        temp_resi = item.getYValue() - (slope *item.getXValue() + intercept);
-//                        resList.add(temp_resi*temp_resi);
-                        resList.set(rescount, temp_resi*temp_resi);
-                        rescount++;
-                    }
-                    // get median
-                    tempMedian = Statistics.calculateMedian(resList.subList(0,rescount), true);
-                    //tempMedian = Statistics.calculateMedian(resList, true);
-                    if (tempMedian < median){
-                        //rgList.add(FastMath.sqrt(tempRg));
-                        rgList.add(tempRg);
-                        median = tempMedian;
-                    }
-                }
-                last -= 5; // remove the last point
-            }
-            last = lastAtLimit;
-            //
-            first +=3; // set first to next point
-            tempDataItem = qSquaredData.getDataItem(first);
-            // could average the 3 neighboring points?
-        }
-
-        tempRg = FastMath.sqrt(Statistics.calculateMedian(rgList, true)); // rough estimate of Rg
-
-        //create vector
-        double xvalue;
-        double c0, c1;
-
-        double minResidual = Double.POSITIVE_INFINITY;
-        double[] x_range;
-        double[] y_range;
-        double[] residuals3;
-        //rg = Math.sqrt(-3.0*slope);
-        double rg2 = tempRg*tempRg;
-
-        int endAt = 0;
-        int startAtLimit = 0;
-
-        // how many points are within upperlimit?
-        int itemCount = qSquaredData.getItemCount();
-        for(int i=0; i < itemCount; i++){
-            XYDataItem dat = qSquaredData.getDataItem(i);
-            xvalue = dat.getXValue();
-
-            if ((xvalue*rg2 <= qRgUp)) {
-                endAt++;
+        // q*I and q*sigma over [first, n) for q > 0, with a map back to the input indices
+        double[] sigma = (errors == null) ? scatterErrors(data) : null;
+        errorsEstimated = (errors == null);
+        XYSeries qIq = new XYSeries("qIq"), qSig = new XYSeries("qSigma");
+        int[] map = new int[n];
+        int m = 0;
+        for (int i = first; i < n; i++) {
+            XYDataItem item = data.getDataItem(i);
+            double q = item.getXValue();
+            if (!(q > 0)) continue;
+            double s;
+            if (errors != null) {
+                int j = errors.indexOf(item.getX());
+                s = (j < 0) ? Double.NaN : errors.getY(j).doubleValue();
             } else {
-                break;
+                s = sigma[i];
             }
+            if (!(s > 0)) continue;
+            qIq.add(q, q*item.getYValue());
+            qSig.add(q, q*s);
+            map[m++] = i;
+        }
+        if (m < 12) {
+            message = "too few points for a Guinier analysis";
+            return;
         }
 
-        int sizeOfArray = endAt - startAtLimit + 1;
-        // perform least median square fitting
-        double sumX=0, sumY=0, sumXY=0, sumXX=0, sumYY=0;
-
-        double errorIntercept;
-        double errorSlope;
-
-        if (sizeOfArray > 5){ // using a window of fixed size (13 data points), fit repeated lines
-            int window = 31;
-            x_range = new double[window];
-            y_range = new double[window];
-            // double[] keptResiduals = new double[0];
-            keptStartAt=startAtLimit;
-            double keptSlope=0, keptIntercept=0;
-
-            int upTO = startAtLimit + window;
-            residuals3 = new double[endAt];
-            double[] keptResiduals = new double[endAt];
-
-            while(upTO < endAt){
-
-                for (int i = 0; i < window; i++) {
-                    XYDataItem dat = qSquaredData.getDataItem(i+startAtLimit);
-                    x_range[i] = dat.getXValue();  // q^2
-                    y_range[i] = dat.getYValue();  // ln(I(q))
-                }
-
-                double[] param3 = Functions.leastSquares(x_range, y_range);
-                c1 = param3[0];
-                c0 = param3[1];
-
-                if (c1 < 0){ // slope has to be negative
-                    for (int v = 0; v < endAt; v++) { // determine residuals for all points in qSquared up to endAt
-                        XYDataItem dat = qSquaredData.getDataItem(v);
-                        residuals3[v] = Math.pow((dat.getYValue() - (c1 * dat.getXValue() + c0)), 2);
-                    }
-
-                    Arrays.sort(residuals3);
-                    double median_test = Functions.median(residuals3);
-
-                    if (median_test < minResidual) {
-                        minResidual = median_test;
-                        System.arraycopy(residuals3, 0, keptResiduals, 0, endAt);
-                        keptStartAt = startAtLimit;
-                        keptSlope = c1;
-                        keptIntercept = c0;
-                    }
-                }
-
-                startAtLimit++;
-                upTO = startAtLimit + window;
-            }
-
-            double s_o = 1.4826 * (1.0 + 5.0 / (endAt - 2 - 1)) * Math.sqrt(minResidual);
-            double inv_s_o = 1.0/s_o;
-
-            // create final dataset for final fit
-            int count = 0;
-            ArrayList<Integer> keepers = new ArrayList<Integer>();
-
-            XYDataItem dataItem;
-            for (int i = 0; i < endAt; i++) { // get the indices of the data items to keep
-                dataItem = qSquaredData.getDataItem(i);
-                //if (Math.abs((dataItem.getYValue() - (keptSlope * dataItem.getXValue() + keptIntercept))) * inv_sigma < 2.5) {
-                if (Math.abs((dataItem.getYValue() - (keptSlope * dataItem.getXValue() + keptIntercept))) * inv_s_o < 2.5) {
-                    // decide which ln[I(q)] values to keep
-                    keepers.add(i);
-                    count++;
-                }
-            }
-
-            // determines values to keep for fitting to determine Rg and I(zero)
-            double[] final_x = new double[count];
-            double[] final_y = new double[count];
-            XYSeries finalDataSetForFit = new XYSeries("FinalDataset");
-
-            for (int i = 0; i < count; i++) {
-                dataItem=qSquaredData.getDataItem(keepers.get(i));
-                finalDataSetForFit.add(dataItem);
-                final_x[i] = dataItem.getXValue();
-                final_y[i] = dataItem.getYValue();
-                sumX+=dataItem.getXValue();
-                sumY+=dataItem.getYValue();
-                sumXX+=dataItem.getXValue()*dataItem.getXValue();
-                //final_w[i] = errors.getY(keep).doubleValue();
-                sumYY+=dataItem.getYValue()*dataItem.getYValue();
-                sumXY+=dataItem.getXValue()*dataItem.getYValue();
-            }
-
-            double[] param3 = Functions.leastSquares(final_x, final_y);
-            slope = param3[0];
-            intercept = param3[1];
-            errorSlope = param3[2];
-            errorIntercept = param3[3];
-
-            if (slope < 0){
-                rg = Math.sqrt(-3.0 * slope);
-                i_zero = Math.exp(intercept);
-                i_zero_error=i_zero* errorIntercept;  //Izero Error
-                rg_error=1.5* errorSlope *Math.sqrt(1.0/3.0*1.0/rg);  //Rg Error
-                correlation_coefficient = Math.abs(count*sumXY - sumX*sumY)/(Math.sqrt((count*sumXX-sumX*sumX)*(count*sumYY-sumY*sumY)));
-            } else {
-                rg = 0;
-                i_zero = 0;
-                i_zero_error = 0;
-                rg_error = 0;
-                correlation_coefficient = 0;
-            }
-
-            double startLowq = Math.sqrt(final_x[0]);
-            for(int i=0; i<inputData.getItemCount(); i++){
-                if (inputData.getX(i).doubleValue() >= startLowq){
-                    qminFinal = inputData.getX(i);
-                    keptStartAt = i;
-                    break;
-                }
-            }
-
-            startLowq = Math.sqrt(final_x[final_x.length-1]);
-            for(int i=0; i<inputData.getItemCount(); i++){
-                if (inputData.getX(i).doubleValue() >= startLowq){
-                    qmaxFinal = inputData.getX(i);
-                    break;
-                }
-            }
-
-        } else {  // not enough points, so just fit a line to what we have
-            // ignore first three points, take the next 5 and fit
-            int arrayLimit = 7, arrayIndex=0;
-            x_range = new double[arrayLimit];
-            y_range = new double[arrayLimit];
-            //w_range = new double[5];
-
-            for (int i = 3; i < itemCount; i++) {
-                XYDataItem dat = qSquaredData.getDataItem(i);
-                xvalue = dat.getXValue(); // q^2
-                //x^2
-                if (arrayIndex < arrayLimit) {
-                    // x_data[i] = Math.pow(xvalue, 2);
-                    x_range[arrayIndex] = xvalue;  // q^2
-                    // ln(y)
-                    y_range[arrayIndex] = dat.getYValue();  // ln(I(q))
-                    // ln(y)*error*y
-                    // w_range[arrayIndex] = yvalue * errors.getY(i).doubleValue() * Math.exp(yvalue);
-                    // original data
-                    sumX+=dat.getXValue();
-                    sumY+=dat.getYValue();
-                    sumXX+=dat.getXValue()*dat.getXValue();
-                    //final_w[i] = errors.getY(keep).doubleValue();
-                    sumYY+=dat.getYValue()*dat.getYValue();
-                    sumXY+=dat.getXValue()*dat.getYValue();
-                    arrayIndex++;
-                } else {
-                    break;
-                }
-            }
-            // fit line and use as default fit
-            double[] param3 = Functions.leastSquares(x_range, y_range);
-            slope = param3[0];
-            intercept = param3[1];
-            errorSlope = param3[2];
-            errorIntercept = param3[3];
-
-            if (slope < 0){
-                rg = Math.sqrt(-3.0 * slope);
-                i_zero = Math.exp(intercept);
-                i_zero_error=i_zero* errorIntercept;  //Izero Error
-                rg_error=1.5* errorSlope *Math.sqrt(1/3.0*1/rg);  //Rg Error
-                correlation_coefficient = Math.abs(arrayIndex*sumXY - sumX*sumY)/(Math.sqrt((arrayIndex*sumXX-sumX*sumX)*(arrayIndex*sumYY-sumY*sumY)));
-            } else { // if it fails, get a zero Rg
-                rg = 0;
-                i_zero = 1;
-                i_zero_error = 1;
-                rg_error = 100;
-                correlation_coefficient = 0;
-            }
-
-
-            double startLowq = Math.sqrt(x_range[0]);
-            for(int i=0; i<inputData.getItemCount(); i++){
-                if (inputData.getX(i).doubleValue() >= startLowq){
-                    qminFinal = inputData.getX(i);
-                    break;
-                }
-            }
-
-            startLowq = Math.sqrt(x_range[x_range.length-1]);
-            for(int i=0; i<inputData.getItemCount(); i++){
-                if (inputData.getX(i).doubleValue() >= startLowq){
-                    qmaxFinal = inputData.getX(i);
-                    break;
-                }
-            }
+        GuinierTrim.Result g = GuinierTrim.trim(qIq, qSig);
+        if (Double.isNaN(g.rg) || !(g.rg > 0)) {
+            message = (g.message == null) ? "no Guinier region found" : g.message;
+            return;
         }
+        rg = g.rg;
+        rg_error = g.rgSigma;
+        i_zero = g.izero;
+        i_zero_error = g.izeroSigma;
+        chi2Reduced = g.chi2Reduced;
+        robustRg = g.robustRg;
+        qRgLow = g.qRgLow;
+        qRgHigh = g.qRgHigh;
+        keptStartAt = map[g.startIndex];
+        keptEndAt = map[g.endIndex];
+        trimmed = g.startIndex;
+        qminFinal = data.getX(keptStartAt);
+        qmaxFinal = data.getX(keptEndAt);
+        message = g.message;
+        correlation_coefficient = correlation(keptStartAt, keptEndAt);
     }
 
-    /**
-     * Failure of autoRg returns zero
-     * @return
-     */
-    public double getRg(){
-        return rg;
+    /** sigma from local scatter: r_i = I_i - (I_(i-1)+I_(i+1))/2 has variance ~1.5 sigma^2 */
+    private static double[] scatterErrors(XYSeries data) {
+        int n = data.getItemCount();
+        double[] r2 = new double[n], sigma = new double[n];
+        for (int i = 1; i < n - 1; i++) {
+            double r = data.getY(i).doubleValue() - 0.5*(data.getY(i - 1).doubleValue() + data.getY(i + 1).doubleValue());
+            r2[i] = r*r/1.5;
+        }
+        r2[0] = r2[1];
+        r2[n - 1] = r2[n - 2];
+        int h = ERROR_ESTIMATE_HALF_WINDOW;
+        for (int i = 0; i < n; i++) {
+            double s = 0;
+            int c = 0;
+            for (int j = Math.max(0, i - h); j <= Math.min(n - 1, i + h); j++) { s += r2[j]; c++; }
+            sigma[i] = Math.sqrt(s/c);
+        }
+        return sigma;
     }
 
-    public double getI_zero() {
-        return i_zero;
+    /** Pearson correlation of ln I vs q^2 over the final window (kept for compatibility) */
+    private double correlation(int a, int b) {
+        double sx = 0, sy = 0, sxx = 0, syy = 0, sxy = 0;
+        int c = 0;
+        for (int i = a; i <= b; i++) {
+            double I = inputData.getY(i).doubleValue();
+            if (!(I > 0)) continue;
+            double x = Math.pow(inputData.getX(i).doubleValue(), 2), y = Math.log(I);
+            sx += x; sy += y; sxx += x*x; syy += y*y; sxy += x*y;
+            c++;
+        }
+        double d = Math.sqrt((c*sxx - sx*sx)*(c*syy - sy*sy));
+        return (d > 0) ? Math.abs(c*sxy - sx*sy)/d : 0;
     }
 
-    public double getRg_error() {
-        return rg_error;
-    }
-
-    public double getI_zero_error() {
-        return i_zero_error;
-    }
-
-    public double getCorrelation_coefficient(){
-        return correlation_coefficient;
-    }
-
+    /** Failure of autoRg returns zero */
+    public double getRg() { return rg; }
+    public double getI_zero() { return i_zero; }
+    public double getRg_error() { return rg_error; }
+    public double getI_zero_error() { return i_zero_error; }
+    public double getCorrelation_coefficient() { return correlation_coefficient; }
+    /** index (into the input series) of the first point of the Guinier window */
     public int getStartIndex() { return keptStartAt; }
+    /** index (into the input series) of the last point of the Guinier window */
+    public int getEndIndex() { return keptEndAt; }
+    public Number getQminFinal() { return qminFinal; }
+    public Number getQmaxFinal() { return qmaxFinal; }
 
-    public Number getQminFinal() {
-        return qminFinal;
-    }
-
-    public Number getQmaxFinal(){
-        return qmaxFinal;
-    }
+    /** weighted reduced chi^2 of the Guinier fit (about 1 for a good fit with correct errors) */
+    public double getChi2Reduced() { return chi2Reduced; }
+    /** Rg from a least-median-of-squares line over the same window (independent check) */
+    public double getRobustRg() { return robustRg; }
+    /** qRg at the ends of the Guinier window */
+    public double getQRgLow() { return qRgLow; }
+    public double getQRgHigh() { return qRgHigh; }
+    /** leading points removed as inconsistent with Guinier behaviour (aggregation, beamstop, ...) */
+    public int getTrimmedPoints() { return trimmed; }
+    /** true when errors were estimated from the scatter of I(q) rather than supplied */
+    public boolean errorsWereEstimated() { return errorsEstimated; }
+    /** null when nothing noteworthy happened; otherwise a short explanation for the user */
+    public String getMessage() { return message; }
 }

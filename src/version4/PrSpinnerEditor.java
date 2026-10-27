@@ -171,7 +171,7 @@ public class PrSpinnerEditor extends DefaultCellEditor implements ChangeListener
             spinner.setModel(new SpinnerNumberModel(priorValue, 1, lastValue, 10));
         } else if (colID == 9) {
             dPriorValue = prModel.getDataset(rowID).getDmax();
-            spinner.setModel(new SpinnerNumberModel(dPriorValue, 10, 1000, 0.5));
+            spinner.setModel(new SpinnerNumberModel(dPriorValue, 10, 2000, 0.5));
             //spinner.setValue(dPriorValue);
         }
 

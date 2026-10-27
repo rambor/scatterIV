@@ -5,17 +5,18 @@ import javax.swing.table.AbstractTableModel;
 import java.awt.*;
 import java.io.File;
 import java.io.FilenameFilter;
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.Locale;
 import java.util.logging.Level;
 
 import version4.LogIt;
 import version4.tableModels.AnalysisModel;
 import version4.Collection;
 import version4.tableModels.DataFileElement;
-import version4.tableModels.ResultsModel;
 import version4.tableModels.SampleBufferElement;
 
 /*
@@ -24,14 +25,14 @@ import version4.tableModels.SampleBufferElement;
  */
 public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
 
-    private JLabel status;
-    private boolean convertToAng;
-    private boolean sortFiles;
-    private boolean doGuinier;
-    private JProgressBar bar;
+    private final JLabel status;
+    private final boolean convertToAng;
+    private final boolean sortFiles;
+    private final boolean doGuinier;
+    private final JProgressBar bar;
     private File[] files;
-    private Collection targetCollection;
-    private String workingDirectoryName;
+    private final Collection targetCollection;
+    private final String workingDirectoryName;
     private AbstractTableModel modelToUpdate;
 
     private DefaultListModel<SampleBufferElement> sampleBufferFilesModel;
@@ -71,34 +72,29 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
     @Override
     protected Void doInBackground() throws Exception {
 
+        if (files == null) {
+            files = new File[0];
+        }
         int totalFiles = files.length;
 
-        bar.setMaximum(totalFiles);
+        bar.setMaximum(Math.max(1, totalFiles));
         bar.setStringPainted(true);
         bar.setValue(0);
 
-        //System.out.println("TOTAL FILES " + totalFiles);
         Comparator<File> fileComparator = new Comparator<File>() {
             @Override
             public int compare(File o1, File o2) {
-                int n1 = extractNumber(o1.getName());
-                int n2 = extractNumber(o2.getName());
-                return n1 - n2;
+                return Integer.compare(extractNumber(o1.getName()), extractNumber(o2.getName()));
             }
 
             private int extractNumber(String name) {
-                int i = 0;
                 try {
-                    //int s = name.indexOf('_')+1;
-                    int s = name.lastIndexOf('_')+1;
+                    int s = name.lastIndexOf('_') + 1;
                     int e = name.lastIndexOf('.');
-                    String number = name.substring(s, e);
-                    i = Integer.parseInt(number);
-                } catch(Exception e) {
-                    i = 0; // if filename does not match the format
-                    // then default to 0
+                    return Integer.parseInt(name.substring(s, e));
+                } catch (Exception e) {
+                    return 0; // filename does not match the format, default to 0
                 }
-                return i;
             }
         };
 
@@ -107,63 +103,72 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
             Arrays.sort(files, fileComparator);
         }
 
+        int rejected = 0;
         for( int i = 0; i < totalFiles; i++ ) {
-            // call File loader function
-            // if true add loaded file object to collection
             if (files[i].isDirectory()){
-                //int sizeOfCollection = targetCollection.getDatasetCount();
                 File[] tempFiles = finder(files[i].getAbsolutePath());
 
-                // sort
                 if (sortFiles){
                     Arrays.sort(tempFiles, fileComparator);
                 }
 
-                for (int j=0; j < tempFiles.length; j++){
-                    //temp = loadDroppedFile(tempFiles[j], targetCollection.getDatasetCount());
-                    addToCollection(loadDroppedFile(tempFiles[j], targetCollection.getTotalDatasets()));
+                for (File tempFile : tempFiles) {
+                    if (!addToCollection(loadDroppedFile(tempFile, targetCollection.getTotalDatasets()))) {
+                        rejected++;
+                    }
                 }
 
             } else {
 
-                String[] filename = files[i].getName().split("\\.(?=[^\\.]+$)");
-                String ext = filename[1];
-                String filebase = filename[0];
+                String filebase = baseName(files[i]);
+                String ext = extension(files[i]);
                 if (ext.equals("pdb")){
                     // make Dataset from PDB file and add to collection
                     status.setText("Reading PDB file " + filebase + " => calculating P(r) - please wait ~ 1 min");
                     bar.setStringPainted(false);
                     bar.setIndeterminate(true);
-                    PDBFile tempPDB = new PDBFile(files[i], qmax, exclude, workingDirectoryName);
+                    try {
+                        PDBFile tempPDB = new PDBFile(files[i], qmax, exclude, workingDirectoryName);
 
-                    int newIndex = targetCollection.getTotalDatasets();
-                    targetCollection.createDataset(
-                            tempPDB.getIcalc(),  //data
-                            tempPDB.getError(),  //original
-                            filebase,
-                            true);
+                        int newIndex = targetCollection.getTotalDatasets();
+                        targetCollection.createDataset(
+                                tempPDB.getIcalc(),  //data
+                                tempPDB.getError(),  //original
+                                filebase,
+                                true);
 
-                    targetCollection.getDataset(newIndex).setIsPDB(tempPDB.getPrDistribution(), (int)tempPDB.getDmax(), tempPDB.getRg(), tempPDB.getIzero());
-                    bar.setIndeterminate(false);
+                        targetCollection.getDataset(newIndex).setIsPDB(tempPDB.getPrDistribution(), (int)tempPDB.getDmax(), tempPDB.getRg(), tempPDB.getIzero());
+                    } catch (Exception ex) {
+                        rejected++;
+                        status.setText("Could not read PDB file " + files[i].getName() + ": " + ex.getMessage());
+                        LogIt.log(Level.SEVERE, "Could not read PDB file " + files[i].getName() + ": " + ex.getMessage());
+                    } finally {
+                        bar.setIndeterminate(false);
+                        bar.setStringPainted(true);
+                    }
                 } else {
-                    //LoadedFile temp = loadDroppedFile(files[i], targetCollection.getDatasetCount());
-                    addToCollection(loadDroppedFile(files[i], targetCollection.getTotalDatasets()));
+                    if (!addToCollection(loadDroppedFile(files[i], targetCollection.getTotalDatasets()))) {
+                        rejected++;
+                    }
                 }
             }
-            publish(i);
+            publish(i + 1);
         }
 
         updateAbstractModel();
-        //updateModels(panelIndex);
+
         //update collection ids
         int total = targetCollection.getTotalDatasets();
         for(int h=0; h<total; h++){
             targetCollection.getDataset(h).setId(h);
         }
 
+        if (rejected > 0) {
+            final String message = rejected + " file" + (rejected == 1 ? " was" : "s were") + " skipped (see log)";
+            SwingUtilities.invokeLater(() -> status.setText(message));
+        }
+
         bar.setStringPainted(false);
-        //bar.setVisible(false);
-        System.gc();
         return null;
     }
 
@@ -175,51 +180,52 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
     }
 
 
-//    @Override
-//    protected void done() {
-//        try {
-//            //get();
-//            bar.setValue(0);
-//            bar.setStringPainted(false);
-//            status.setText("FINISHED");
-//
-//            if (panelIndex == 96 ){
-////                list.revalidate();
-////                list.repaint();
-////                list.validate();
-////                list.updateUI();
-//            }
-//            System.out.println("Done from done");
-//            get();
-//        } catch (ExecutionException | InterruptedException e) {
-//            e.printStackTrace();
-//        }
-//    }
-
-    private void updateAbstractModel(){
+    /**
+     * The list model mirrors the whole collection, so it is rebuilt from scratch here
+     * (callers no longer need to clear it first). Swing models are only changed on the
+     * Event Dispatch Thread.
+     */
+    private void updateAbstractModel() throws InterruptedException {
         if (modelToUpdate instanceof AnalysisModel){
-//            ((AnalysisModel) modelToUpdate).clear();
-//            for (int i = 0; i < targetCollection.getTotalDatasets(); i++) {
-//                ((AnalysisModel) modelToUpdate).addDataset(targetCollection.getDataset(i));
-//            }
-        } else if (sampleBufferFilesModel instanceof DefaultListModel){
-            //sampleBufferFilesModel.clear();
-            Color tempColor;
+            // AnalysisModel is updated elsewhere
+        } else if (sampleBufferFilesModel != null){
+
+            // snapshot the entries off the EDT, then swap them into the model on the EDT
+            final List<SampleBufferElement> elements = new ArrayList<>();
             for(int i=0; i< targetCollection.getTotalDatasets(); i++){
                 String name = targetCollection.getDataset(i).getFileName() + "_" + i;
-                tempColor = targetCollection.getDataset(i).getColor();
-                sampleBufferFilesModel.addElement(new SampleBufferElement(name, i, tempColor, targetCollection.getDataset(i)));
+                Color tempColor = targetCollection.getDataset(i).getColor();
+                elements.add(new SampleBufferElement(name, i, tempColor, targetCollection.getDataset(i)));
+            }
+
+            Runnable rebuild = () -> {
+                sampleBufferFilesModel.clear();
+                for (SampleBufferElement element : elements) {
+                    sampleBufferFilesModel.addElement(element);
+                }
+            };
+
+            if (SwingUtilities.isEventDispatchThread()) {
+                rebuild.run();
+            } else {
+                try {
+                    SwingUtilities.invokeAndWait(rebuild);
+                } catch (InvocationTargetException e) {
+                    throw new RuntimeException("Could not update the file list", e.getCause());
+                }
             }
         }
     }
 
 
-    private void addToCollection(LoadedFile tempFile){
-        // how to update results? Use a results object
-        // if new dataset is added, we will have to add a JLabel thing and rerender
-        // if updating, we could probably just change the value of the object which will automatically update value
+    /** @return true if the file was added to the collection */
+    private boolean addToCollection(LoadedFile tempFile){
 
-        if (tempFile.isValid()){ // do not add if it contains null intensities must throw exeption
+        if (tempFile == null) {
+            return false; // could not be read; loadDroppedFile has already logged why
+        }
+
+        if (tempFile.isValid()){ // do not add if it contains null intensities
 
             if (shortened){
                 targetCollection.createBareDataset(tempFile);
@@ -230,56 +236,59 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
             if (tempFile.hasJson()){
                 targetCollection.getLast().setSasObject(tempFile.getJSONString());
             }
+            return true;
 
         } else {
-            try {
-                throw new Exception("Rejecting File, contains Null Intensities: " + tempFile.filebase);
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+            LogIt.log(Level.WARNING, "Rejecting File, contains Null Intensities: " + tempFile.filebase);
+            return false;
         }
-
     }
 
 
     public File[] finder(String dirName){
         File dir = new File(dirName);
-        //System.out.println("DIRECTORY NAME IN FINDER : " + dirName + " " + dir.listFiles().length);
-        return dir.listFiles(new FilenameFilter() {
-            public boolean accept(File dir, String filename)
-            { return filename.endsWith(".dat"); }
-        } );
+        File[] found = dir.listFiles(new FilenameFilter() {
+            public boolean accept(File dir, String filename) {
+                return filename.toLowerCase(Locale.ROOT).endsWith(".dat");
+            }
+        });
+        return (found != null) ? found : new File[0]; // null if the folder can't be read
     }
 
     private LoadedFile loadDroppedFile(File file, int assignedfileIndex){
 
-        // how to handle different file formats?
-        // get file base and extension
-        String[] currentFile;
-        currentFile = file.getName().split("\\.(?=[^\\.]+$)");
-
-        String ext = (currentFile.length > 2) ? currentFile[2] : currentFile[1];
+        String ext = extension(file);
 
         try {
             if (ext.equals("brml")) {
                 status.setText("Bruker .brml  file detected ");
-                File tempFile;
-                tempFile = Bruker.makeTempDataFile(file, workingDirectoryName);
+                File tempFile = Bruker.makeTempDataFile(file, workingDirectoryName);
                 return new LoadedFile(tempFile, assignedfileIndex, convertToAng);
 
-            } else if (ext.equals("int") || ext.equals("dat") || ext.equals("fit") || ext.equals("Adat") || ext.equals("csv")) {
+            } else if (ext.equals("int") || ext.equals("dat") || ext.equals("fit") || ext.equals("adat") || ext.equals("csv")) {
                 return new LoadedFile(file, assignedfileIndex, convertToAng);
             } else {
-                // throw exception - incorrect file format
-                throw new Exception("Incorrect file format: Use either brml, dat, csv, Adat, or Bdat file formats: " + currentFile);
+                throw new Exception("Incorrect file format: Use either brml, dat, csv, Adat, or Bdat file formats: " + file.getName());
             }
 
         } catch (Exception ex) {
             status.setText(ex.getMessage());
             LogIt.log(Level.SEVERE, ex.getMessage());
         }
-        //add to collection
         return null;
+    }
+
+    /** Lower-case text after the last dot, or "" if there is none. */
+    private static String extension(File file) {
+        String name = file.getName();
+        int dot = name.lastIndexOf('.');
+        return (dot >= 0) ? name.substring(dot + 1).toLowerCase(Locale.ROOT) : "";
+    }
+
+    private static String baseName(File file) {
+        String name = file.getName();
+        int dot = name.lastIndexOf('.');
+        return (dot >= 0) ? name.substring(0, dot) : name;
     }
 
     public void setPDBParams(boolean exclude, double qmax){

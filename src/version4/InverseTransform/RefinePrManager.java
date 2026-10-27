@@ -50,6 +50,11 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
     private XYSeries keptErrorSeries;
     private XYSeries standardizedSeries;
     private XYSeries scaled_q_times_Iq_Errors;
+
+    private XYSeries averagedPr;
+    private XYSeries standardDeviationsPr;
+
+
     private double standardizedMin;
     private double standardizedScale;
     private AtomicInteger counter = new AtomicInteger(0);
@@ -108,6 +113,14 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
         //dataset.setStandardizationMean(this.standardizedMin, this.standardizedScale);
         this.median = dataset.getIndirectFTModel().calculateMedianResidual(standardizedSeries);
         System.out.println("start med " + this.median);
+
+        averagedPr = new XYSeries("Averaged PR");
+        standardDeviationsPr = new XYSeries("sigma PR");
+
+        for (int i= 0; i<dataset.getPrDistribution().getItemCount(); i++){
+            averagedPr.add(dataset.getPrDistribution().getDataItem(i));
+            standardDeviationsPr.add(dataset.getPrDistribution().getDataItem(i));
+        }
     }
 
 
@@ -129,7 +142,7 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
         double dellamba = (upperLambda - startLamba)/101;
         double del_r = Math.PI/upperq;
 
-        double initialScore = dataset.getIndirectFTModel().scoreDistribution(del_r);
+        double initialScore = dataset.getIndirectFTModel().scoreDistribution();
         //System.out.println("PRIOR [0] " + priorCoefficients[0]);
         while (startLamba < upperLambda){
             IndirectFT tempIFT;
@@ -148,7 +161,7 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
             } else {
                 tempIFT = new SVD(this.standardizedSeries, scaled_q_times_Iq_Errors, dmax, upperq, startLamba, standardizedMin, standardizedScale);
             }
-            double prscore = tempIFT.scoreDistribution(del_r);
+            double prscore = tempIFT.scoreDistribution();
             if (prscore < initialScore){
                 //keptlamba = startLamba;
                 initialScore = prscore;
@@ -345,6 +358,17 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
             XYSeries randomSeries = new XYSeries("Random-");
             XYSeries randomErrorSeries = new XYSeries("Random-");
 
+            double[] averages = new double[50];
+            double[] averagesSQ = new double[50];
+            for(int h=0; h < 50; h++){
+                averages[h] = 0;
+                averagesSQ[h] = 0;
+            }
+
+            double invC = 1;
+            int count = 1;
+            int randomSeriesSize = 0;
+
             for (int i=0; i < totalRuns; i++){
 
                 randomSeries.clear();
@@ -394,6 +418,7 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
                     } // end of checking if bin is empty
                 }
 
+                randomSeriesSize += randomSeries.getItemCount();
                 // calculate PofR using standardized dataset
                 IndirectFT tempIFT;
 
@@ -415,6 +440,12 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
                 // Calculate Residuals
                 tempMedian = tempIFT.calculateMedianResidual(activeSet); // squared residual using standardized data
 
+                for(int h=0; h < tempIFT.totalCoefficients; h++){
+                    averages[h] += tempIFT.coefficients[h];
+                    averagesSQ[h] += tempIFT.coefficients[h]*tempIFT.coefficients[h];
+                }
+                count = tempIFT.totalCoefficients;
+
                 if (tempMedian < getMedian()){ // minimize on medium residual in activeset
                     // keep current values
                     notifyUser(String.format("New median residual %1.5E < %1.4E at round %d", tempMedian, median, i));
@@ -422,6 +453,21 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
                 }
                 this.increment();
             }
+
+            // calculate stats
+            invC = 1.0/(double)totalRuns;
+            for(int h=0; h < count; h++){
+                averages[h] *= invC;
+                averagesSQ[h] *= invC;
+            }
+
+            System.out.println(" Variations " + numberOfCPUs + " " + totalRuns + " " + randomSeriesSize*invC );
+            for(int h=0; h < count; h++){
+                double stdev = Math.sqrt(averagesSQ[h] - averages[h] * averages[h]);
+                System.out.println(String.format("%d %.2f %.4f %.4f %.3f", h, averagedPr.getX(h).doubleValue(), averages[h], stdev, stdev/averages[h]));
+//                System.out.println(h + " " +  count + " " + averagedPr.getX(h).doubleValue() + " " + averages[h] + " " +  Math.sqrt(averagesSQ[h] - averages[h] * averages[h]));
+            }
+
         }
 
 

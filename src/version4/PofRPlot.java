@@ -240,7 +240,7 @@ public class PofRPlot {
             public void actionPerformed(ActionEvent e) {
                 //To change body of implemented methods use File | Settings | File Templates.
                 XYPlot plot = chart.getXYPlot();
-                BasicStroke temp = (BasicStroke)plot.getDomainAxis().getAxisLineStroke();
+               // BasicStroke temp = (BasicStroke)plot.getDomainAxis().getAxisLineStroke();
                 float value = axisStroke.getLineWidth() + 0.5f;
                 axisStroke = new BasicStroke(value);
                 plot.getDomainAxis().setAxisLineStroke(new BasicStroke(value));

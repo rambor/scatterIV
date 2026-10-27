@@ -50,7 +50,7 @@ public class Dataset {
     private double dMax;
     private double porodExponent = 0;
     private double porodExponentError = 0;
-    private double invariantQ;
+    private double invariantQ=0;
     private double porodVolumeQmax;
 
     private double averageR;
@@ -487,6 +487,7 @@ public class Dataset {
     }
 
     public int getPorodVolume(){
+
         return porodVolume;
     }
 
@@ -583,6 +584,7 @@ public class Dataset {
 
     public void setPorodVolume(int porodV){
         porodVolume=porodV;
+        System.out.println("POROD VOLUME : " + porodVolume);
         this.calculatePorodMass();
     }
 

@@ -233,7 +233,8 @@ public class PrModel extends AbstractTableModel implements ChangeListener, Prope
         prStatus.setText("");
 
         for (int i = 0; i < total; i++) {
-            if (collection.getDataset(i).getInUse()) {
+
+            if (collection.getDataset(i).getRealSpaceModel().getSelected()) {
 
                 RealSpace temp = collection.getDataset(i).getRealSpaceModel();
                 temp.setColor(collection.getDataset(i).getColor());
@@ -264,6 +265,7 @@ public class PrModel extends AbstractTableModel implements ChangeListener, Prope
                 }
 
                 // don't want to use kept series here
+                // what is setting qmin on realspacemodel?
                 datalist.add(collection.getDataset(i).getRealSpaceModel());
 
                 editable_cells.add(new ArrayList<>(columnNames.length));

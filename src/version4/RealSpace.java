@@ -1,14 +1,10 @@
 package version4;
 
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
-import org.apache.commons.math3.analysis.interpolation.LoessInterpolator;
-import org.jfree.data.statistics.Statistics;
 import org.jfree.data.xy.XYDataItem;
 import org.jfree.data.xy.XYSeries;
 import net.jafama.FastMath;
 
 import java.awt.*;
-import java.util.*;
 import version4.InverseTransform.*;
 
 /**
@@ -17,7 +13,7 @@ import version4.InverseTransform.*;
 public class RealSpace {
 
     private IndirectFT indirectFTModel;
-    private String filename;
+    private final String filename;
     private boolean selected;
     private int id;
     private int startAt;
@@ -54,8 +50,6 @@ public class RealSpace {
     private int pointSize;
     private BasicStroke stroke;
     private double kurtosis = 0;
-    private double l1_norm = 0;
-    private double kurt_l1_sum;
     private double totalScore=0;
     private Dataset dataset;
     private int lowerQIndexLimit=0;
@@ -91,9 +85,6 @@ public class RealSpace {
 //            e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
 //        }
 
-        // need to rescale allData for fitting?
-        double digits = Math.log10(averageIntensity(allData));
-
         originalqIq = new XYSeries("orignal qIq data");
 
         for(int i=0; i<totalAllData; i++){
@@ -102,18 +93,18 @@ public class RealSpace {
         }
 
 
-        fittedIq = new XYSeries(Integer.toString(this.id) + " Iq-" + filename);
-        fittedqIq = new XYSeries(Integer.toString(this.id) + " qIq-" + filename);
-        fittedError = new XYSeries(Integer.toString(this.id) + " fittedError-" + filename);
+        fittedIq = new XYSeries((this.id) + " Iq-" + filename);
+        fittedqIq = new XYSeries((this.id) + " qIq-" + filename);
+        fittedError = new XYSeries((this.id) + " fittedError-" + filename);
 
-        logData = new XYSeries(Integer.toString(this.id) + " log-" + filename);
-        calcIq = new XYSeries(Integer.toString(this.id) + " calc-" + filename);
-        calcqIq = new XYSeries(Integer.toString(this.id) + " calc-" + filename);
+        logData = new XYSeries((this.id) + " log-" + filename);
+        calcIq = new XYSeries((this.id) + " calc-" + filename);
+        calcqIq = new XYSeries((this.id) + " calc-" + filename);
 
-        refinedIq = new XYSeries(Integer.toString(this.id) + " refined-" + filename);
-        refinedError = new XYSeries(Integer.toString(this.id) + " refined-" + filename);
+        refinedIq = new XYSeries((this.id) + " refined-" + filename);
+        refinedError = new XYSeries((this.id) + " refined-" + filename);
 
-        prDistribution = new XYSeries(Integer.toString(this.id) + " Pr-" + filename);
+        prDistribution = new XYSeries((this.id) + " Pr-" + filename);
         this.color = dataset.getColor();
 
         pointSize = dataset.getPointSize();
@@ -130,7 +121,7 @@ public class RealSpace {
         double yValue;
 
         // transform all the data in allData
-        //check for negative values at start
+        // check for negative values at start
         double qlimit = 0.05;
 
         XYDataItem temp;
@@ -144,7 +135,7 @@ public class RealSpace {
             temp = allData.getDataItem(ii);
         }
 
-        lowerQIndexLimit = (lastNegative < 0) ? startAll : lastNegative+1;
+        lowerQIndexLimit = 1;
 
         for(int i=lowerQIndexLimit; i < totalAllData; i++){
             temp = allData.getDataItem(i);
@@ -169,7 +160,7 @@ public class RealSpace {
 
     /**
      * max value of original dataset
-     * @return
+     * @return maxCount
      */
     public int getMaxCount(){ return maxCount;}
 
@@ -188,7 +179,7 @@ public class RealSpace {
     }
 
     /**
-     * shoudl match spinner index
+     * should match spinner index
      * @param i
      */
     public void setStart(int i){
@@ -197,7 +188,7 @@ public class RealSpace {
 
     /**
      * set start value of the spinner
-     * @return
+     * @return startAt
      */
     public int getStart(){
         return startAt;
@@ -278,17 +269,14 @@ public class RealSpace {
             double kvalue = ns + 1 + 1 + 1; // lambda, dmax and noise
             double aic = 2.0*kvalue + ns*Math.log(chi2) + (2.0*kvalue*kvalue + 2*kvalue)/(totalPointsInUse - kvalue -1);
             double scoreIt = this.getIndirectFTModel().getPrScore();
-//            System.out.println(dmax + " chi2 " + chi2  + " AIC: " + aic + " DW " + kurtosis + " PSI " + scoreIt + " " +(0.1*aic + 993.1*kurtosis + 3*this.getIndirectFTModel().getPrScore()));
-            //double sum = (0.1*aic + 993.1*kurtosis + 3*scoreIt);
-//        totalScore = (Math.log10((0.93*aic + 39.1d*kurtosis + 37.0d*scoreIt)));
             totalScore = (Math.log10(0.1*aic + (4.0d*kurtosis + scoreIt)));
 
+            //System.out.println(dmax + " " + String.format("%.7f",totalScore) + " " + (aic) + " " + (kurtosis) + " " + scoreIt);
         } catch (java.lang.NullPointerException exception){
            // System.out.println("PR NULL Exception :: possible pdb :: " + exception.getMessage());
             totalScore = 1;
         }
 
-        //System.out.println(dmax + " " + String.format("%.7f",totalScore) + " " + (aic) + " " + (kurtosis) + " " + scoreIt);
         return totalScore;
     }
 
@@ -297,7 +285,6 @@ public class RealSpace {
     }
 
     public void setScale(float j){
-        float oldscale = (float) (1.0/this.scale);
         this.scale = j;
         /*
          * scale Pr distribution
@@ -437,11 +424,6 @@ public class RealSpace {
         return analysisToPrScaleFactor;
     }
 
-    public double getKurt_l1_sum() {
-        return kurtosis;
-        //return kurt_l1_sum;
-    }
-
     public double[] getCoefficients() {
         return indirectFTModel.getCoefficients();
     }
@@ -554,69 +536,6 @@ public class RealSpace {
         return Math.exp(intensity);
     }
 
-    /**
-     * calculate 2nd derivative at r-values determined by ShannonNumber + 1
-     * @param multiple
-     * @return
-     */
-    public double l1_norm_pddr(int multiple){
-        double inv_d = 1.0/this.dmax;
-        double r_value, pi_r_n_inv_d, pi_r_inv_d, cos_pi_r_n_inv_d, sin_pi_r_n_inv_d;
-        double pi_inv_d = Math.PI*inv_d;
-        double n_pi_inv_d;
-        double inv_2d = inv_d*0.5;
-        double a_i;
-
-        //int r_limit = r_vector.length;
-        int coeffs_size = this.getTotalFittedCoefficients();
-
-        double a_i_sum, product, l1_norm = 0.0;
-
-        double shannon = Math.ceil(multiple*1.0/Math.PI*this.dmax*this.fittedqIq.getMaxX());
-        double delta_r = this.dmax/shannon;
-        double[] r_vector = new double[(int)shannon + 1];
-
-        int k=0;
-        while (k*delta_r < this.dmax){
-            r_vector[k] = k*delta_r;
-            k += 1;
-        }
-        r_vector[(int)shannon] = this.dmax;
-
-        int r_limit = (int)shannon + 1;
-
-        double costerm, sinterm;
-// generic function to return 2nd derivative from IndirectFT class
-//        for (int r=0; r < r_limit; r++){
-//            r_value = r_vector[r];
-//            pi_r_inv_d = pi_inv_d*r_value;
-//
-//            costerm = 0;
-//            sinterm = 0;
-//
-//            for(int n=1; n < coeffs_size; n++){
-//
-//                a_i = this.mooreCoefficients[n];
-//                n_pi_inv_d = pi_inv_d*n;
-//
-//                pi_r_n_inv_d = pi_r_inv_d*n;
-//
-//                costerm += a_i*n_pi_inv_d*Math.cos(pi_r_n_inv_d);
-//                sinterm += a_i*n_pi_inv_d*n_pi_inv_d*Math.sin(pi_r_n_inv_d);
-//            }
-//
-//            l1_norm += Math.abs(2*costerm - r_value*sinterm);
-//        }
-
-        //System.out.println("l1_norm pddr " + (l1_norm/shannon));
-        return l1_norm/shannon;
-    }
-
-    public double max_kurtosis_shannon_sampled(){
-        return kurtosis;
-    }
-
-
 
     public void decrementLow(int spinnerValue){
 
@@ -643,9 +562,6 @@ public class RealSpace {
             int totalminus = total-1;
             fittedqIq.delete(0,totalminus);
             logData.delete(0,stopHere - 1);
-            //int totalminus = total-1;
-            //fittedqIq.delete(0,totalminus);
-            //logData.delete(0,stopHere);
         }
     }
 
@@ -689,7 +605,6 @@ public class RealSpace {
 
 
     public void incrementLow(int target){
-
         // add point to fittedqiq
         int diff = this.getStart() - target;
 
@@ -718,7 +633,6 @@ public class RealSpace {
 
 
     public void incrementHigh(int target){
-
         // add point to fittedqiq
         int diff = target - this.getStop();
 
@@ -833,8 +747,6 @@ public class RealSpace {
     }
 
 
-
-
     private double integralTransform(double rvalue, XYSeries extrapolatedQIqSeries){
 
         // create XYSeries
@@ -873,7 +785,6 @@ public class RealSpace {
     public void setStandardizationMean(double value, double stdev){
         this.standardizationMean = value;
         this.standardizationStDev = Math.abs(stdev);
-//        System.out.println("Standardized Mean " + value + " std scale " + stdev);
     }
 
     public double getStandardizationMean(){
@@ -905,9 +816,10 @@ public class RealSpace {
         this.raverage = (model.rAverage > 0) ? model.rAverage : this.raverage ;
         this.chi2 = this.indirectFTModel.getChiEstimate();
         this.kurtosis = this.indirectFTModel.getKurtosisEstimate(0);
+        this.dataset.setPorodVolumeReal((int)this.indirectFTModel.getPorodVolume().value);
 
-        if (this.dataset.getInvariantQ() > 0){
-            this.dataset.setPorodVolumeReal((int)(Constants.TWO_PI_2*dataset.getRealIzero()/this.dataset.getInvariantQ()));
+        if (this.dataset.getInvariantQ() == 0){
+            this.dataset.setInvariantQ(this.indirectFTModel.getPorodInvariant(this.indirectFTModel.defaultPorodCutoff()).value);
         }
 
         // set molecular mass usingn Vc - must use real space data range
@@ -915,8 +827,6 @@ public class RealSpace {
 
     private void calculateVCMW(){
         // using i-zero, Rg calculate extrapolated datasets
-
-
     }
 
     public IndirectFT getIndirectFTModel(){

@@ -152,12 +152,12 @@ public class FileObject {
      * @return file name for intensity file
      */
     public String writePRFile(Dataset dataset, JLabel status, String filename, String workingDirectoryName, boolean isRefined){
+
         RealSpace realspaceModel = dataset.getRealSpaceModel();
         XYSeries r_pr = new XYSeries("r_pr");
         XYDataItem tempXY;
 
         status.setText("Writing P(r) and plotted I(q) to file: " + filename);
-
 
         if (dataset.getRealSpaceModel().getRg() > 0 && dataset.getRealSpaceModel().getIzero() > 0){
             dataset.getRealSpaceModel().estimateErrors(); // this function sets the spline function in indirectFT object
@@ -170,7 +170,6 @@ public class FileObject {
             for(int r=0; r<totalr; r++){
                 r_pr.add(realspaceModel.getPrDistribution().getDataItem(r));
             }
-
         } else {
 
         }
@@ -438,6 +437,9 @@ public class FileObject {
         newLines += String.format("REMARK 265           RECI Rg ERROR (+/-) : %.3E %n", dataset.getGuinierRgerror());
         newLines += String.format("REMARK 265            PERCENT DIFFERENCE : %.3f %n", diff);
         newLines += String.format("REMARK 265                        VOLUME : %d (Angstroms^3) %n", dataset.getPorodVolume());
+        if (dataset.getPorodVolume() > 0){
+            newLines += String.format("REMARK 265                   REAL VOLUME : %d (Angstroms^3) %n", dataset.getPorodVolumeReal());
+        }
 //        newLines += String.format("REMARK 265    Porod Volume Mass (d 1.11) : %d (Angstroms^3) RECI %n", dataset.getPorodVolumeMass1p1());
 //        newLines += String.format("REMARK 265    Porod Volume Mass (d 1.11) : %d (Angstroms^3) REAL %n", dataset.getPorodVolumeRealMass1p1());
 //        newLines += String.format("REMARK 265    Porod Volume Mass (d 1.37) : %d (Angstroms^3) RECI %n", dataset.getPorodVolumeMass1p37());

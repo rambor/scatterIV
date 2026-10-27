@@ -1,830 +1,413 @@
 package version4.InverseTransform;
 
 import net.jafama.FastMath;
-import org.apache.commons.math3.analysis.MultivariateFunction;
-import org.apache.commons.math3.analysis.MultivariateVectorFunction;
 import org.apache.commons.math3.analysis.interpolation.SplineInterpolator;
-import org.apache.commons.math3.analysis.polynomials.PolynomialFunction;
-import org.apache.commons.math3.exception.TooManyEvaluationsException;
-import org.apache.commons.math3.linear.BlockRealMatrix;
-import org.apache.commons.math3.linear.RealMatrix;
-import org.apache.commons.math3.optim.InitialGuess;
-import org.apache.commons.math3.optim.MaxEval;
-import org.apache.commons.math3.optim.PointValuePair;
-import org.apache.commons.math3.optim.SimpleValueChecker;
-import org.apache.commons.math3.optim.nonlinear.scalar.GoalType;
-import org.apache.commons.math3.optim.nonlinear.scalar.ObjectiveFunction;
-import org.apache.commons.math3.optim.nonlinear.scalar.ObjectiveFunctionGradient;
-import org.apache.commons.math3.optim.nonlinear.scalar.gradient.NonLinearConjugateGradientOptimizer;
 import org.ejml.simple.SimpleMatrix;
 import org.jfree.data.xy.XYDataItem;
 import org.jfree.data.xy.XYSeries;
 
+/**
+ * GNOM-like indirect transform: P(r) as a histogram of heights p_j on an even grid,
+ *
+ *     q*I(q) = a_0 + sum_j p_j sin(q r_j) / r_j,      r_j = (j+1) dr,  j = 0..M-1,  dr = dmax/(M+1)
+ *
+ * so that P(0) = P(dmax) = 0 sit exactly one grid step beyond the first and last heights.
+ * Regularized by the squared second difference of P(r) (L2), with the same penalty whether or
+ * not the background a_0 is fitted (the background is never penalized):
+ *
+ *     minimize chi^2 + w * sum_j (p_{j+1} - 2 p_j + p_{j-1})^2,   p_{-1} = p_M = 0
+ *
+ * The problem is quadratic in (a_0, p), so it is solved exactly by Householder QR in one step
+ * rather than iteratively. lambda = 0 gives the least smoothing that keeps the problem solvable
+ * (see MIN_RELATIVE_WEIGHT): with more heights than Shannon channels, no smoothing at all is singular.
+ *
+ * Penalty weight w: by default w = lambda (what the previous code actually applied, see notes).
+ * Set NORMALIZE_LAMBDA = true to make lambda dimensionless (w = lambda * trace(A'WA)/trace(L'L)),
+ * so the same lambda smooths comparably at every dmax in a scan.
+ */
 public class DirectSineIntegralTransform extends IndirectFT {
+
+    /** false: w = lambda (previous effective behaviour). true: lambda is dimensionless. */
+    public static boolean NORMALIZE_LAMBDA = false;
+    /**
+     * Constrain P(r) >= 0 (background stays free). The solution is then the L2-regularized fit
+     * with no negative heights; positivityCost holds how much chi^2 that costs relative to the
+     * unconstrained fit (~0 when negatives were regularization artefacts, large when the data demand them).
+     */
+    public static boolean POSITIVE_ONLY = false;
+    public static int POSITIVE_MAX_ITER = 2000;
+    /** chi^2(P >= 0) - chi^2(unconstrained); 0 when POSITIVE_ONLY is off */
+    public double positivityCost = 0;
+
+    /** smallest penalty weight, relative to trace(A'WA)/trace(L'L); keeps lambda = 0 well-posed */
+    public static double MIN_RELATIVE_WEIGHT = 1e-9;
+    /** histogram points per Shannon bin (pi/qmax); previously fixed at 4 */
+    public static int POINTS_PER_SHANNON_BIN = 4;
 
     private double del_r;
     double[] r_vector;
     int r_vector_size;
-    double[] qvalues; // data
-    double[] target; // data
-    double[] invVariance; // data
-    private RealMatrix designMatrix; // assume this is the design matrix
+    double[] qvalues;      // data
+    double[] target;       // standardized q*I(q)
+    double[] invVariance;  // 1/sigma^2 of standardized q*I(q)
+    private double[][] design;   // rows x coeffs_size, row-major
 
     /**
      * Regularized by 2nd derivative of Pr-distribution using L2-NORM
-     * @param dataset
-     * @param errors
-     * @param dmax
-     * @param qmax
-     * @param lambda
-     * @param includeBackground
      */
     public DirectSineIntegralTransform(XYSeries dataset, XYSeries errors, double dmax, double qmax, double lambda, boolean includeBackground) {
         super(dataset, errors, dmax, qmax, lambda, includeBackground);
-
         this.createDesignMatrix(this.data);
         this.setModelUsed("DirectSineIntegralTransform L2-NORM");
         this.invertStandardVariance();
         this.solve();
     }
 
-
-    public DirectSineIntegralTransform(
-            XYSeries dataset,
-            XYSeries scaledqIqErrors,
-            double dmax,
-            double qmax,
-            double lambda,
-            double stdmin,
-            double stdscale,
-            boolean useBkgrnd){
-
-        super(dataset, scaledqIqErrors, dmax, qmax, lambda, useBkgrnd, stdmin, stdscale);
-
-        XYDataItem tempData;
-        standardVariance = new XYSeries("standardized error");
-        int totalItems = data.getItemCount();
-
-        double temperrorvalue;
-        double invstdev = 1.0/standardizedScale;
-
-        for(int r=0; r<totalItems; r++){
-            tempData = data.getDataItem(r);
-            temperrorvalue = scaledqIqErrors.getY(r).doubleValue(); // already in form of q*I(q)/scale
-            standardVariance.add(tempData.getX(), temperrorvalue*temperrorvalue); // q_times_Iq_scaled
-        }
-
-        this.createDesignMatrix(dataset);
-
-        this.setModelUsed("DirectSineIntegralTransform L2-NORM");
-        this.invertStandardVariance();
-        this.solve();
+    public DirectSineIntegralTransform(XYSeries dataset, XYSeries scaledqIqErrors, double dmax, double qmax, double lambda,
+                                       double stdmin, double stdscale, boolean useBkgrnd) {
+        this(dataset, scaledqIqErrors, null, dmax, qmax, lambda, stdmin, stdscale, useBkgrnd);
     }
 
-
-    public DirectSineIntegralTransform(
-            XYSeries dataset,
-            XYSeries scaledqIqErrors,
-            double[] priors,
-            double dmax,
-            double qmax,
-            double lambda,
-            double stdmin,
-            double stdscale,
-            boolean useBkgrnd){
-
-        super(dataset, scaledqIqErrors, dmax, qmax, lambda, useBkgrnd, stdmin, stdscale);
-
-        XYDataItem tempData;
-        standardVariance = new XYSeries("standardized error");
-        int totalItems = data.getItemCount();
-        this.prior_coefficients = priors.clone();
-        priorExists = true;
-
-        double temperrorvalue;
-        double invstdev = 1.0/standardizedScale;
-
-        for(int r=0; r<totalItems; r++){
-            tempData = data.getDataItem(r);
-            temperrorvalue = scaledqIqErrors.getY(r).doubleValue(); // already in form of q*I(q)/scale
-            standardVariance.add(tempData.getX(), temperrorvalue*temperrorvalue); // q_times_Iq_scaled
-        }
-
-        this.createDesignMatrix(dataset);
-
-        this.setModelUsed("DirectSineIntegralTransform L2-NORM");
-        this.invertStandardVariance();
-        this.solve();
-    }
-
-
-    /*
-     *
-     * copy constructor
+    /**
+     * @param priors accepted for compatibility; the exact solve has a unique answer and needs no start
      */
-    public DirectSineIntegralTransform (DirectSineIntegralTransform original){
-        super(original);
+    public DirectSineIntegralTransform(XYSeries dataset, XYSeries scaledqIqErrors, double[] priors, double dmax, double qmax,
+                                       double lambda, double stdmin, double stdscale, boolean useBkgrnd) {
+        super(dataset, scaledqIqErrors, dmax, qmax, lambda, useBkgrnd, stdmin, stdscale);
+        if (priors != null) {
+            this.prior_coefficients = priors.clone();
+            priorExists = true;
+        }
 
+        standardVariance = new XYSeries("standardized error");
+        int totalItems = data.getItemCount();
+        for (int r = 0; r < totalItems; r++) {
+            double sigma = scaledqIqErrors.getY(r).doubleValue();   // already q*I(q)/scale
+            standardVariance.add(data.getX(r), sigma*sigma);
+        }
+
+        this.createDesignMatrix(dataset);
+        this.setModelUsed("DirectSineIntegralTransform L2-NORM");
+        this.invertStandardVariance();
+        this.solve();
+    }
+
+    /** copy constructor */
+    public DirectSineIntegralTransform(DirectSineIntegralTransform original) {
+        super(original);
         this.del_r = original.del_r;
         this.r_vector = original.r_vector.clone();
-        this.target = original.target.clone();
-        this.invVariance = original.invVariance;
-        this.qvalues = original.qvalues;
         this.r_vector_size = original.r_vector_size;
-        this.designMatrix = original.designMatrix.copy();
         this.qvalues = original.qvalues.clone();
         this.target = original.target.clone();
         this.invVariance = original.invVariance.clone();
-
+        this.design = new double[original.design.length][];
+        for (int i = 0; i < design.length; i++) this.design[i] = original.design[i].clone();
     }
 
+    /* ---------------------------------------------------------------------- design matrix */
 
+    @Override
+    void createDesignMatrix(XYSeries datasetInuse) {
+        // ns is the Shannon number (used by AIC, CIF output); the histogram has more points than that
+        ns = (int) Math.ceil(qmax*dmax*INV_PI);
+        bin_width = Math.PI/qmax;                        // Shannon bin, for prDistributionForFitting
 
-    void solve(){
+        // even grid with dmax an exact multiple of del_r, so P(dmax) = 0 is one step past the last height
+        double target_dr = Math.PI/qmax/(double) POINTS_PER_SHANNON_BIN;
+        r_vector_size = Math.max(3, (int) Math.ceil(dmax/target_dr) - 1);
+        del_r = dmax/(double)(r_vector_size + 1);
+        r_vector = new double[r_vector_size];
+        for (int i = 0; i < r_vector_size; i++) r_vector[i] = (i + 1)*del_r;
 
-        LinearProblem problem = new LinearProblem(
-                designMatrix,
-                qvalues,
-                target,
-                invVariance,
-                r_vector,
-                dmax,
-                lambda,
-                includeBackground);
+        coeffs_size = includeBackground ? r_vector_size + 1 : r_vector_size;
+        final int offset = includeBackground ? 1 : 0;
+        rows = datasetInuse.getItemCount();
 
-        try{
-            NonLinearConjugateGradientOptimizer optimizer = new NonLinearConjugateGradientOptimizer(
-                    NonLinearConjugateGradientOptimizer.Formula.FLETCHER_REEVES,
-                    new SimpleValueChecker(1e-9, -1)
-            );
+        design = new double[rows][coeffs_size];
+        a_matrix = new SimpleMatrix(rows, coeffs_size);
+        y_vector = new SimpleMatrix(rows, 1);
+        qvalues = new double[rows];
+        target = new double[rows];
 
-            double[] guess = new double[coeffs_size]; // approximate using Gaussian
-            double sigma = dmax/6.0; // 0 to dmax should be 6 sigma
-            double twoVar = 2.0*sigma*sigma;
-            double invTwoVar = 1.0/twoVar;
-            double prefactor = 1.0/Math.sqrt(Math.PI*twoVar);
-            double midpoint = dmax/2.0; // midpoint is mu (average)
+        for (int row = 0; row < rows; row++) {
+            XYDataItem item = datasetInuse.getDataItem(row);
+            double q = item.getXValue();
+            double[] dRow = design[row];
+            if (includeBackground) dRow[0] = 1.0;
+            // sin(q r_j) for evenly spaced r_j by recurrence: one sin + one cos per row
+            double s1 = FastMath.sin(q*del_r), twoCos = 2*FastMath.cos(q*del_r);
+            double sPrev = 0, sCur = s1;
+            for (int j = 0; j < r_vector_size; j++) {
+                dRow[j + offset] = sCur/r_vector[j];
+                double sNext = twoCos*sCur - sPrev;   // sin((j+2) q dr)
+                sPrev = sCur;
+                sCur = sNext;
+            }
+            for (int c = 0; c < coeffs_size; c++) a_matrix.set(row, c, dRow[c]);
+            y_vector.set(row, 0, item.getYValue());
+            qvalues[row] = q;
+            target[row] = item.getYValue();
+        }
+    }
 
-            int totalSubset = target.length;
-            if (includeBackground){
+    /* ---------------------------------------------------------------------- solver */
 
-                double guessSum = 0;
-                int window = (int)(totalSubset*0.1);
-                for(int n=(totalSubset-window); n<totalSubset; n++){
-                    guessSum += target[n];
+    void solve() {
+        try {
+            final int k = coeffs_size, offset = includeBackground ? 1 : 0, M = r_vector_size;
+            double weight = penaltyWeight();
+            int extra = M;                       // always > 0: see penaltyWeight()
+
+            // stacked system [ sqrt(W) A ; sqrt(w) L ], L = second difference with zero boundaries
+            double[][] S = new double[rows + extra][];
+            double[] rhs = new double[rows + extra];
+            for (int i = 0; i < rows; i++) {
+                double s = Math.sqrt(invVariance[i]);
+                double[] row = new double[k];
+                for (int c = 0; c < k; c++) row[c] = s*design[i][c];
+                S[i] = row;
+                rhs[i] = s*target[i];
+            }
+            if (extra > 0) {
+                double sw = Math.sqrt(weight);
+                for (int j = 0; j < M; j++) {
+                    double[] row = new double[k];
+                    if (j > 0) row[offset + j - 1] = sw;
+                    row[offset + j] = -2*sw;
+                    if (j < M - 1) row[offset + j + 1] = sw;
+                    S[rows + j] = row;
                 }
-                guess[0] = guessSum/(double)window;
+            }
+            double[] solution = householderSolve(S, rhs, k);
 
-                for(int i=1; i < coeffs_size; i++){
-                    double diff = (r_vector[i-1] - midpoint);
-                    guess[i] = prefactor*Math.exp( -(diff*diff)*invTwoVar);
-                    //guess[i] = 0.51;
+            positivityCost = 0;
+            if (POSITIVE_ONLY) {
+                double chiFree = chiSquared(solution);
+                boolean anyNegative = false;
+                for (int j = offset; j < k; j++) if (solution[j] < 0) { anyNegative = true; break; }
+                if (anyNegative) {
+                    // same quadratic (chi^2 + w * |L p|^2) with heights >= 0: Lawson-Hanson active set
+                    double[][] G = new double[k][k];
+                    double[] b = new double[k];
+                    for (int i = 0; i < rows; i++) {
+                        double[] dRow = design[i];
+                        for (int p = 0; p < k; p++) {
+                            double wa = invVariance[i]*dRow[p];
+                            b[p] += wa*target[i];
+                            for (int s2 = p; s2 < k; s2++) G[p][s2] += wa*dRow[s2];
+                        }
+                    }
+                    // + w L'L: each penalty row j has 1, -2, 1 at heights j-1, j, j+1 (zero boundaries)
+                    for (int j = 0; j < M; j++) {
+                        int[] idx = {j - 1, j, j + 1};
+                        double[] val = {1, -2, 1};
+                        for (int x = 0; x < 3; x++) {
+                            if (idx[x] < 0 || idx[x] >= M) continue;
+                            for (int y = x; y < 3; y++) {
+                                if (idx[y] < 0 || idx[y] >= M) continue;
+                                G[offset + idx[x]][offset + idx[y]] += weight*val[x]*val[y];   // upper triangle (idx ascending)
+                            }
+                        }
+                    }
+                    for (int p = 0; p < k; p++) for (int s2 = 0; s2 < p; s2++) G[p][s2] = G[s2][p];
+                    solution = activeSetNNLS(G, b, offset, POSITIVE_MAX_ITER, solution);
+                    positivityCost = chiSquared(solution) - chiFree;
                 }
+            }
 
+            coefficients = new double[includeBackground ? k : k + 1];
+            am_vector = new SimpleMatrix(k, 1);
+            if (includeBackground) {
+                System.arraycopy(solution, 0, coefficients, 0, k);
             } else {
-                for(int i=0; i < coeffs_size; i++){
-                    double diff = (r_vector[i] - midpoint);
-//                    guess[i] = prefactor*Math.exp( -(diff*diff)*invTwoVar);
-                    guess[i] = 0.51;
-                }
+                coefficients[0] = 0;
+                System.arraycopy(solution, 0, coefficients, 1, k);
             }
-
-            PointValuePair optimum = optimizer.optimize(new MaxEval(60000),
-                    problem.getObjectiveFunction(),
-                    problem.getObjectiveFunctionGradient(),
-                    GoalType.MINIMIZE,
-                    new InitialGuess(guess));
-
-            // initialize coefficient vector
-            int totalCoeffs = includeBackground ? coeffs_size: coeffs_size+1;
-            coefficients = new double[totalCoeffs];
-            am_vector = new SimpleMatrix(coeffs_size,1);  // am is 0 column
-
-            if (!includeBackground){
-                coefficients[0] = 0; // set background to 0
-                for (int j=0; j < coeffs_size; j++){
-                    coefficients[j+1] = optimum.getPoint()[j];
-                    am_vector.set(j, 0, optimum.getPoint()[j]);
-                }
-            } else { // has background
-                for (int j=0; j < coeffs_size; j++){
-                    coefficients[j] = optimum.getPoint()[j];
-                    am_vector.set(j, 0, optimum.getPoint()[j]);
-                }
-            }
-
+            for (int j = 0; j < k; j++) am_vector.set(j, 0, solution[j]);
             totalCoefficients = coefficients.length;
+
+            // posterior covariance of the (unconstrained) regularized fit, for sigma(P(r))
+            double[][] L = new double[M][k];
+            for (int j = 0; j < M; j++) {
+                if (j > 0) L[j][offset + j - 1] = 1;
+                L[j][offset + j] = -2;
+                if (j < M - 1) L[j][offset + j + 1] = 1;
+            }
+            setPosterior(normalMatrix(design, invVariance, L, weight),
+                    reducedChiSquared(design, target, invVariance, solution), design, invVariance, L, weight, solution);
+
+            status = "solved";
             this.setPrDistribution();
             this.calculateIzeroRg();
-
-//            this.calibratePrDistribution();
-        } catch (TooManyEvaluationsException ex) {
-            System.out.println("TOO Few Evaluations");
-        } catch (Exception e) {
+        } catch (RuntimeException e) {
+            status = "solve failed: " + e.getMessage();
             System.out.println("Exception occurred " + e.getMessage());
             e.printStackTrace();
         }
     }
 
+    /**
+     * Penalty weight w. Default w = lambda: the previous code intended lambda / dr^4, but
+     * `1.0/diff*diff` evaluates to 1, so lambda was applied as-is; keeping that preserves tuned
+     * lambdas. NORMALIZE_LAMBDA: w = lambda * trace(A'WA) / trace(L'L), dimensionless.
+     */
+    private double penaltyWeight() {
+        double tA = 0;
+        int offset = includeBackground ? 1 : 0;
+        for (int i = 0; i < rows; i++)
+            for (int c = offset; c < coeffs_size; c++) tA += invVariance[i]*design[i][c]*design[i][c];
+        double tL = 6.0*r_vector_size - 2.0;   // trace(L'L) for the zero-boundary second difference
+        double scale = tA/tL;
+
+        double w = (lambda <= 0) ? 0 : (NORMALIZE_LAMBDA ? lambda*scale : lambda);
+        // The histogram has ~POINTS_PER_SHANNON_BIN x more heights than the data can determine,
+        // so the unregularized problem is singular (condition number ~1e17 on SYCP1). A floor of
+        // MIN_RELATIVE_WEIGHT keeps it solvable: lambda = 0 then means "minimal smoothing".
+        return Math.max(w, MIN_RELATIVE_WEIGHT*scale);
+    }
+
+    private double chiSquared(double[] a) {
+        double chi = 0;
+        for (int i = 0; i < rows; i++) {
+            double calc = 0;
+            for (int c = 0; c < coeffs_size; c++) calc += design[i][c]*a[c];
+            double res = calc - target[i];
+            chi += res*res*invVariance[i];
+        }
+        return chi;
+    }
+
+    /* ---------------------------------------------------------------------- outputs */
+
     @Override
     void calculateIzeroRg() {
-        double tempRgSum = 0, tempRg2Sum=0, xaverage=0;
-        //del_r = prDistribution.getX(2).doubleValue() - prDistribution.getX(1).doubleValue() ;
-
-        XYDataItem item;
-        for(int i=1; i<totalInDistribution-1; i++){ // exclude last two points?
-            item = prDistribution.getDataItem(i);
-            double rvalue = item.getXValue();
-            tempRg2Sum += rvalue*rvalue*item.getYValue()*del_r;
-            tempRgSum += item.getYValue()*del_r; // width x height => area
-            xaverage += rvalue*item.getYValue()*del_r;
+        double tempRgSum = 0, tempRg2Sum = 0, xaverage = 0;
+        for (int i = 1; i < totalInDistribution - 1; i++) {     // end points are zero
+            XYDataItem item = prDistribution.getDataItem(i);
+            double rvalue = item.getXValue(), p = item.getYValue();
+            tempRg2Sum += rvalue*rvalue*p*del_r;
+            tempRgSum += p*del_r;
+            xaverage += rvalue*p*del_r;
         }
-
         rg = Math.sqrt(0.5*tempRg2Sum/tempRgSum);
 
         double sum = coefficients[0];
-        for(int j=0; j< r_vector_size; j++){
-            sum +=  coefficients[j+1];
-        }
-        //System.out.println("SUM " + sum + " tempRgSum " + tempRgSum);
-        //izero = tempRgSum*standardizedScale+standardizedMin;
-        izero = sum*standardizedScale+standardizedMin;
+        for (int j = 0; j < r_vector_size; j++) sum += coefficients[j + 1];
+        izero = sum*standardizedScale + standardizedMin;
 
         rAverage = xaverage/tempRgSum;
         area = tempRgSum;
     }
 
     @Override
-    void setPrDistribution(){
+    void setPrDistribution() {
         prDistribution = new XYSeries("PRDistribution");
-        prDistributionForFitting = new XYSeries("OutputPrDistribution");
-
-        totalInDistribution = r_vector_size+2;
-        for(int i=0; i<totalInDistribution; i++){ // values in r_vector represent the midpoint or increments of (i+0.5)*del_r
-
-            if ( i == 0 ) { // interleaved r-value (even)
-                prDistribution.add(0, 0);
-                //prDistributionForFitting.add(0,0);
-            } else if (i == (totalInDistribution-1)) {
-                prDistribution.add(dmax, 0);
-                //prDistributionForFitting.add(dmax,0);
-            } else { // odd
-                int index = i-1;
-                double value = coefficients[index+1];
-                prDistribution.add(r_vector[index], value);
-                //System.out.println(r_vector[index] + " " + value);
-               // prDistributionForFitting.add(r_vector[index], value);
-            }
-        }
-
-
-        // average over all values in the bin-width
-        double rvalue =  0.5*bin_width;
-        int start=0;
-        double binLimit = bin_width;
-        while (rvalue < dmax){
-
-            double sum=0;
-            double count=0;
-            double avg=0.0d;
-            for(int i=start; i<totalInDistribution; i++){ // values in r_vector represent the midpoint or increments of (i+0.5)*del_r
-                XYDataItem item = prDistribution.getDataItem(i);
-                if (item.getXValue() > binLimit){
-                    start = i;
-                    binLimit += bin_width;
-                    avg = sum/count;
-                    break;
-                }
-                sum+=item.getYValue();
-                count += 1.0;
-            }
-
-            prDistributionForFitting.add(rvalue, avg);
-            //System.out.println(rvalue + " " + avg);
-            rvalue += bin_width;
-        }
-
+        prDistribution.add(0, 0);
+        for (int j = 0; j < r_vector_size; j++) prDistribution.add(r_vector[j], coefficients[j + 1]);
+        prDistribution.add(dmax, 0);
         totalInDistribution = prDistribution.getItemCount();
+
+        prDistributionBasis = new double[totalInDistribution][];
+        int offset = includeBackground ? 1 : 0;
+        for (int j = 0; j < r_vector_size; j++) {
+            double[] b = new double[coeffs_size];
+            b[offset + j] = 1.0;                                      // prDistribution holds the heights
+            prDistributionBasis[j + 1] = b;
+        }
+        deriveDistributionSigma();
+
+        // P(r) at the mid-point of each Shannon bin (pi/qmax), from the spline through the heights
+        setSplineFunction();
+        setShannonBinnedDistribution();
+
         scoreDistribution();
         setHeaderDetails();
-        setSplineFunction();
     }
 
-
-    private void setHeaderDetails(){
-        this.description  = String.format("REMARK 265  P(r) DISTRIBUTION OBTAINED AS DIRECT INVERSE FOURIER TRANSFORM OF I(q) %n");
-        this.description += String.format("REMARK 265  COEFFICIENTS ARE THE HISTOGRAM HEIGHTS WITH EQUAL BIN WIDTHS %n");
-        this.description += String.format("REMARK 265 %n");
-        this.description += String.format("REMARK 265            BIN WIDTH (delta r) : %.4f %n", (dmax/(double)ns));
-        this.description += String.format("REMARK 265             DISTRIBUTION SCORE : %.4f %n", prScore);
-        this.description += String.format("REMARK 265 %n");
-        if (!includeBackground){
-            this.description += String.format("REMARK 265      CONSTANT BACKGROUND EXCLUDED FROM FIT %n");
+    private void setHeaderDetails() {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("REMARK 265  P(r) DISTRIBUTION OBTAINED AS DIRECT INVERSE FOURIER TRANSFORM OF I(q) %n"));
+        sb.append(String.format("REMARK 265  COEFFICIENTS ARE THE HISTOGRAM HEIGHTS WITH EQUAL BIN WIDTHS %n"));
+        sb.append(String.format("REMARK 265 %n"));
+        sb.append(String.format("REMARK 265            BIN WIDTH (delta r) : %.4f %n", del_r));   // was dmax/ns
+        sb.append(String.format("REMARK 265          SHANNON BIN (pi/qmax) : %.4f %n", bin_width));
+        sb.append(String.format("REMARK 265             DISTRIBUTION SCORE : %.4f %n", prScore));
+        sb.append(String.format("REMARK 265 %n"));
+        if (!includeBackground) {
+            sb.append(String.format("REMARK 265      CONSTANT BACKGROUND EXCLUDED FROM FIT %n"));
         } else {
-            this.description += String.format("REMARK 265      CONSTANT BACKGROUND m(0) : %.4E %n", coefficients[0]);
+            sb.append(String.format("REMARK 265      CONSTANT BACKGROUND m(0) : %.4E %n", coefficients[0]));
         }
+        this.description = sb.toString();
     }
 
-
-    /**
-     * call this function before outputing pr distribution
-     */
-    private void setSplineFunction(){
-
+    /** spline through the histogram; used by calculatePofRAtR */
+    private void setSplineFunction() {
         double[] totalrvalues = new double[totalInDistribution];
         double[] totalPrvalues = new double[totalInDistribution];
-
-        // coefficients start at r_1 > 0 and ends at midpoint of last bin which is less dmax
-        for(int i=0; i < totalInDistribution; i++){
+        for (int i = 0; i < totalInDistribution; i++) {
             XYDataItem item = prDistribution.getDataItem(i);
             totalPrvalues[i] = item.getYValue();
             totalrvalues[i] = item.getXValue();
         }
+        splineFunction = new SplineInterpolator().interpolate(totalrvalues, totalPrvalues);
+    }
 
-        SplineInterpolator spline = new SplineInterpolator();
-        splineFunction = spline.interpolate(totalrvalues, totalPrvalues);
+    /** exact model for the invariants: I(q) = scale * sum_j p_j sin(q r_j)/(q r_j) */
+    @Override
+    protected SincModel sincModel() {
+        double[] h = new double[r_vector_size];
+        for (int j = 0; j < r_vector_size; j++) h[j] = coefficients[j + 1];
+        return histogramSincModel(r_vector, h);
     }
 
     @Override
     public double calculateQIQ(double qvalue) {
-
-        double sum = coefficients[0];//*qvalue;
-        double rvalue;
-        for(int j=0; j< r_vector_size; j++){
-            rvalue = r_vector[j];
-            sum +=  coefficients[j+1]*FastMath.sin(rvalue*qvalue) / rvalue;
+        double sum = coefficients[0];
+        double s1 = FastMath.sin(qvalue*del_r), twoCos = 2*FastMath.cos(qvalue*del_r);
+        double sPrev = 0, sCur = s1;
+        for (int j = 0; j < r_vector_size; j++) {
+            sum += coefficients[j + 1]*sCur/r_vector[j];
+            double sNext = twoCos*sCur - sPrev;
+            sPrev = sCur;
+            sCur = sNext;
         }
-
         return sum*standardizedScale + standardizedMin;
     }
 
     @Override
     public double calculateIQ(double qvalue) {
-        return (this.calculateQIQ(qvalue))/qvalue;
+        return this.calculateQIQ(qvalue)/qvalue;
     }
-
 
     @Override
     public double calculatePofRAtR(double r_value, double scale) {
-        return (standardizedScale)*splineFunction.value(r_value)*scale;
+        // heights p_j relate to P(r) by q*I(q) = 4 pi dr sum_j P(r_j) sin(q r_j)/r_j (midpoint rule),
+        // so P(r) = standardizedScale * p / (4 pi dr): same units as the Moore P(r)
+        return standardizedScale/(4*Math.PI*del_r)*splineFunction.value(r_value)*scale;
     }
 
     @Override
-    public void estimateErrors(XYSeries fittedData) {
-
-    }
+    public void estimateErrors(XYSeries fittedData) { }
 
     @Override
-    void createDesignMatrix(XYSeries datasetInuse) {
-        //int divisor = 4;
-        del_r = Math.PI/qmax/4.0;//dmax/(double)(r_vector_size);
-        bin_width = del_r;
-
-        // last bin that exludes dmax
-        ns = (int)Math.floor(dmax/bin_width);// +1 to include dmax
-
-        //ns = (int) Math.ceil(qmax*dmax*INV_PI)  ;  //
-        r_vector_size = ns;//ns*divisor-1; // subtract 1 to exclude dmax from r-vector array
-
-        coeffs_size = this.includeBackground ? r_vector_size + 1 : r_vector_size;   //+1 for constant background, +1 to include dmax in r_vector list
-
-        rows = datasetInuse.getItemCount();    // rows
-        //del_r = Math.PI/qmax; // dmax is based del_r*ns
-//        del_r = dmax/(double)(ns*divisor);
-//        bin_width = dmax/(double)ns; // bin_width is only defined by shannon number estimate
-//        del_r = Math.PI/qmax;//dmax/(double)(r_vector_size);
-//        bin_width = del_r;
-
-        // if I think I can squeeze out one more Shannon Number, then I need to define del_r by dmax/ns+1
-        //double del_r = dmax/(double)ns;
-        r_vector = new double[r_vector_size];
-        qvalues= new double[rows];
-        target = new double[rows];
-
-        for(int i=0; i < r_vector_size; i++){ // last bin should be dmax
-            r_vector[i] = (i+1)*del_r; // dmax is not represented in this set
-        }
-        System.out.println("last value " + r_vector[r_vector_size-1] + " dmax :: " + dmax);
-        /*
-         * create A matrix (design Matrix)
-         */
-        a_matrix = new SimpleMatrix(rows, coeffs_size);
-        designMatrix = new BlockRealMatrix(rows, coeffs_size);
-        /*
-         * y_vector is q*I(q) data
-         */
-        y_vector = new SimpleMatrix(rows,1);
-
-        if (!includeBackground) { // no constant background
-
-            for(int row=0; row < rows; row++){ //rows, length is size of data
-                XYDataItem tempData = datasetInuse.getDataItem(row);
-
-                for(int col=0; col < coeffs_size; col++){
-                    double r_value = r_vector[col];
-                    a_matrix.set(row, col, FastMath.sin(r_value*tempData.getXValue()) / (r_value));
-                    designMatrix.setEntry(row, col, FastMath.sin(r_value*tempData.getXValue()) / (r_value));
-                }
-                y_vector.set(row,0,tempData.getYValue()); //set data vector
-                qvalues[row] = tempData.getXValue();
-                target[row] = tempData.getYValue();
-            }
-
-        } else {
-
-            for(int row=0; row < rows; row++){ //rows, length is size of data
-                XYDataItem tempData = datasetInuse.getDataItem(row);
-
-                for(int col=0; col < coeffs_size; col++){
-                    if (col == 0){ // constant background term
-//                        a_matrix.set(row, 0, tempData.getXValue());
-//                        designMatrix.setEntry(row, 0, tempData.getXValue());
-                        a_matrix.set(row, 0, 1);
-                        designMatrix.setEntry(row, 0, 1);
-                    } else { // for col >= 1
-                        double r_value = r_vector[col-1];
-                        a_matrix.set(row, col, FastMath.sin(r_value*tempData.getXValue()) / r_value);
-                        designMatrix.setEntry(row, col, FastMath.sin(r_value*tempData.getXValue()) / r_value);
-                    }
-                }
-                y_vector.set(row,0,tempData.getYValue()); //set data vector
-                qvalues[row] = tempData.getXValue();
-                target[row] = tempData.getYValue();
-            }
-        }
-    }
-
-
-    private static class LinearProblem {
-
-        final RealMatrix factors; // assume this is the design matrix
-        final double[] obs; // data
-        final double[] invVariance;
-
-        final double dmax, invDmax;
-        final int totalqvalues;
-        final double[] qvalues;
-        final double[] rvalues;
-        final double weight;
-        final double lambdaw;
-        final boolean useBackground;
-        final double invP;
-        final int totalP, totalRvalues, lastP;
-        final int lastRvalue;
-        final double deltar2;
-
-        public LinearProblem(RealMatrix designMatrix, double[] qvalues, double[] target, double[] invVar, double[] regularrvector, double dmax, double weight, boolean useBackGround) {
-
-            this.factors = designMatrix; // first term will be background if included
-            this.qvalues = qvalues;
-            this.obs  = target;
-            this.invVariance = invVar;
-            this.rvalues = regularrvector;
-            double diff = regularrvector[2] - regularrvector[1];
-            this.deltar2 = 1.0/diff*diff;
-
-            lambdaw = weight;
-            this.weight = weight*deltar2*deltar2;
-
-            this.totalRvalues = rvalues.length;
-            lastRvalue = totalRvalues-1;
-
-            this.totalP = designMatrix.getColumnDimension();
-            this.invP = 1.0/(double)totalP;
-
-            this.lastP = totalP-1;
-            this.totalqvalues = qvalues.length;
-
-            this.dmax = dmax;
-            this.invDmax = 1.0/dmax;
-
-            this.useBackground = useBackGround;
-        }
-
-
-        /*
-         *
-         * Perform a residual weighted minimization with a total difference regularization term
-         * variance weight is applied to each residual
-         */
-        public ObjectiveFunction getObjectiveFunction() {
-
-            return new ObjectiveFunction(new MultivariateFunction() {
-                public double value(double[] point) {
-                    // point comes in as a vector and is multiplied by blockmatrix
-                    double seconddiff=0;
-                    double objective=0;
-                    double residual;
-                    double[] calc = factors.operate(point);
-
-                    for (int i = 0; i < calc.length; ++i) {
-                        residual = obs[i] - calc[i];
-                        objective += residual*residual*invVariance[i];
-                    }
-
-                    double sum=0;
-                    double baseP, nextP, diff;
-                    // calculate second derivative at each point
-                    // background is constant, makes no contribution to smoothness of P(r) distribution
-                    if (useBackground){
-                        // add first term
-                        int stopAt = totalP-1;
-                        // 1st point in P(r) that is not r=0 - center difference
-                        diff = point[2] -  2*point[1];
-                        sum = 0.1*diff*diff;
-
-                        for(int i=2; i<stopAt; i++){
-                            diff = point[i+1] - 2*point[i] + point[i-1];
-                            sum += diff*diff;
-                        }
-
-                        diff = -2*point[stopAt] + point[stopAt-1];
-
-                        sum += diff*diff;
-
-                        sum += point[stopAt]*point[stopAt] + point[stopAt-1]*point[stopAt-1] + point[stopAt-2]*point[stopAt-2];;
-
-
-                        // forward difference at P[r=0], doesn't exist in point vector
-//                        diff = point[2] - 2*point[1];
-//                        sum = diff*diff;
-//
-//                        /*
-//                         * center difference at first point with P(r)=0
-//                         * point[1] - 2*point[0] + 0
-//                         */
-//                        diff = point[2] - 2*point[1]; // center difference
-//                        //diff = point[2] - 2*point[1] + point[0]; // forward difference at r = rvalue[0] or point[0]
-//                        sum += diff*diff;
-//
-//                        for(int i=2; i<stopAt; i++){
-//                            diff = point[i+1] - 2*point[i] + point[i-1];
-//                            sum += diff*diff;
-//                        }
-//                        /*
-//                         * central difference at last point
-//                         * diff => 0 - 2*point[stopAt] + point[stopAt-1]
-//                         */
-//                        //diff = point[stopAt] - 2*point[stopAt-1] + point[stopAt-2]; //backwards
-//                        diff = -2*point[stopAt] + point[stopAt-1]; //central
-//                        sum += diff*diff;
-//
-//                        diff =  -2*point[stopAt] + point[stopAt-1]; //backwards at  r = DMAX
-//                        //diff = point[stopAt];
-//                        sum += diff*diff;
-
-                    } else {
-
-
-
-                        /*
-                         * 2nd derivative regularization
-                         *
-                         * central difference
-                         *
-                         * f_(i+1) - 2*f_(i) + f_(i-1)
-                         *
-                         * At the end points
-                         * r = 0 and dmax
-                         * use forward/backward difference
-                         *
-                         * FORWARD
-                         * f_(i+2) - 2*f_(i+1) + f_(i)
-                         *
-                         * here f_(i) => 0
-                         *
-                         * diff = point[1] - 2*point[0] + 0
-                         *
-                         * BACKWARD
-                         *
-                         * f_(i) - 2*f_(i-1) + f_(i-2)
-                         *
-                         * here f_(i at dmax) => 0
-                         *
-                         * diff = 0 - 2*point[N-1] + point[N-2]
-                         *
-                         */
-                        int stopAt = totalP-1;
-                        // forward difference at P[r=0], doesn't exist in point vector
-                        diff = point[1] - 2*point[0];
-                        sum = diff*diff;
-                        // center difference at P[1]
-                        /*
-                         * center difference at first point with P(r)=0
-                         * point[1] - 2*point[0] + 0
-                         */
-                        diff = point[1] - 2*point[0]; // center difference
-                        //diff = point[2] - 2*point[1] + point[0]; // forward difference at r = rvalue[0] or point[0]
-                        sum += diff*diff;
-
-                        for(int i=1; i<stopAt; i++){
-                            diff = point[i+1] - 2*point[i] + point[i-1];
-                            sum += diff*diff;
-                        }
-
-
-                        /*
-                         * central difference at last point
-                         * diff => 0 - 2*point[stopAt] + point[stopAt-1]
-                         */
-                        //diff = point[stopAt] - 2*point[stopAt-1] + point[stopAt-2]; //backwards
-                        diff = -2*point[stopAt] + point[stopAt-1]; //central
-                        sum += diff*diff;
-
-                        diff =  -2*point[stopAt] + point[stopAt-1]; //backwards at  r = DMAX
-                        //diff = point[stopAt];
-                        sum += diff*diff;
-
-                    }
-                    // add last term to sum
-                    return objective + weight*sum;
-                }
-            });
-        }
-
-
-        /**
-         * return gradient of the parameters
-         * return vector is equal to the number of parameters
-         * @return
-         */
-        public ObjectiveFunctionGradient getObjectiveFunctionGradient() {
-            return new ObjectiveFunctionGradient(new MultivariateVectorFunction() {
-                public double[] value(double[] point) {
-                    // difference betweens
-                    int total_params = factors.getColumnDimension();
-                    double[] del_p = new double[total_params];
-
-                    double[] calc = factors.operate(point);
-                    int calcLength = calc.length;
-                    double[] residualsInvVar = new double[calcLength];
-
-                    /*
-                     * Calculate Residuals as (qI_obs - qI_calc)/invVariance[q]
-                     */
-                    double residualsSum = 0;
-                    double qsum = 0;
-                    for (int q = 0; q < calcLength; ++q) {
-                        residualsInvVar[q] = (obs[q]-calc[q])*invVariance[q];
-                        residualsSum += residualsInvVar[q];
-                        qsum += factors.getEntry(q,0)*residualsInvVar[q];
-                    }
-
-
-                    if (useBackground){
-                        // add first term (background)
-                        del_p[0] = -2*residualsSum;// + 2*point[0]*lambdaw;
-                        //del_p[0] = -2*qsum;
-
-                        for(int p=1; p < totalP; p++){
-                            double sum = 0;
-                            for (int q = 0; q < calcLength; ++q) { // over all intensities, constant column position, sum down the row
-                                sum += residualsInvVar[q]*factors.getEntry(q,p);
-                            }
-                            del_p[p] = -2*sum;
-                        }
-
-                        /*
-                         * 2nd derivative exclude P(r) at 0 and dmax
-                         */
-                        del_p[1] += weight*0.1*(10*point[1] - 8*point[2] + 2*point[3]);
-
-                        for(int i=2; i<(totalP-2); i++){
-                            del_p[i] += weight*(12*point[i] - 8*point[i-1] + 2*point[i-2] - 8*point[i+1] + 2*point[i+2]);
-                        }
-
-                        del_p[totalP-3] += weight*(2*point[totalP-3]);
-                        del_p[totalP-2] += weight*(12*point[totalP-2] - 8*point[totalP-3] + 2*point[totalP-4] - 8*point[totalP-1] + 2*point[totalP-2]);
-                        del_p[totalP-1] += weight*(10*point[totalP-1] - 8*point[totalP-2] + 2*point[totalP-3] + 2*point[totalP-1]);
-
-
-                        /*
-                         * 2nd derivative regularization gradient include 0 and dmax
-                         */
-//                        int total_params_pr = total_params-1; // adjust for first term being background
-//                        double[] deriv = new double[total_params_pr];
-//                        deriv[0] = point[2] - 2*point[1];
-//                        deriv[total_params_pr-1] = -2*point[total_params-1] + point[total_params-2];
-//
-//                        for(int i=1; i<(total_params_pr-1); i++){
-//                            deriv[i] = point[i+2] - 2*point[i+1] + point[i]; // central der
-//                        }
-//
-//                        del_p[0] += weight*(18*point[1] - 12*point[2] + 2*point[3]);
-//                        del_p[1] += weight*(-12*point[1] + 14*point[2] - 8*point[3] + 2*point[4]);
-//
-//
-//                        for(int i=2; i<(total_params-2); i++){
-//                            del_p[i] += weight*(2*deriv[i-2] - 4*deriv[i-1] + 2*deriv[i+1]);
-//                        }
-//
-//
-//                        del_p[total_params-1] += weight*(18*point[total_params-1] - 12*point[total_params-2] + 2*point[total_params-3]);
-//                        del_p[total_params-2] += weight*(-12*point[total_params-1] + 14*point[total_params-2] - 8*point[total_params-3] + 2*point[total_params-4]);
-
-
-                    } else {
-                        /*
-                         * minimize gradient of Sum (qI_obs - qI_calc)^2 + |P[r_(i+1)] - P_r(i)]|^2
-                         */
-                        for(int p=0; p < totalP; p++){
-                            double sum = 0;
-                            for (int q = 0; q < calcLength; ++q) { // over all intensities, constant column position, sum down the row
-                                sum += residualsInvVar[q]*factors.getEntry(q,p);
-                            }
-                            del_p[p] = -2*sum;
-                        }
-
-                        /*
-                         * gradient for the total differential
-                         */
-                        double innersum;
-
-
-
-                        /*
-                         * 2nd derivative regularization gradient
-                         */
-                        double[] deriv = new double[total_params];
-                        deriv[0] = point[1] - 2*point[0];
-                        deriv[total_params-1] = -2*point[total_params-1] + point[total_params-2];
-                        for(int i=1; i<(total_params-1); i++){
-                            deriv[i] = point[i+1] - 2*point[i] + point[i-1]; // central der
-                        }
-
-                        del_p[0] += weight*(18*point[0] - 12*point[1] + 2*point[2]);
-                        del_p[1] += weight*(-12*point[0] + 14*point[1] - 8*point[2] + 2*point[3]);
-
-                        for(int i=2; i<(total_params-2); i++){
-                            del_p[i] += weight*(2*deriv[i-1] - 4*deriv[i] + 2*deriv[i+2]);
-                        }
-
-                        del_p[total_params-1] += weight*(18*point[total_params-1] - 12*point[total_params-2] + 2*point[total_params-3]);
-                        del_p[total_params-2] += weight*(-12*point[total_params-1] + 14*point[total_params-2] - 8*point[total_params-3] + 2*point[total_params-4]);
-
-
-//                        del_p[0] += weight*(12*point[0] - 12*point[1] + 4*point[2]);
-//                        del_p[1] += weight*(-12*point[0] + 20*point[1] - 12*point[2] + 2*point[3]);
-//                        del_p[2] += weight*(4*point[0] - 12*point[1] + 14*point[2] - 8*point[3] + 2*point[4]);
-//                        for(int i=3; i<(total_params-3); i++){
-//                            del_p[i] += weight*(2*deriv[i-1] - 4*deriv[i] + 2*deriv[i+2]);
-//                        }
-//                        del_p[total_params-3] += weight*(4*point[total_params-1] - 12*point[total_params-2] + 14*point[total_params-3] - 8*point[total_params-4] + 2*point[total_params-5]);
-//                        del_p[total_params-2] += weight*(-12*point[total_params-1] + 20*point[total_params-2] - 12*point[total_params-3] + 2*point[total_params-4]);
-//                        del_p[total_params-1] += weight*(12*point[total_params-1] - 12*point[total_params-2] + 4*point[total_params-3]);
-
-                    }
-
-                    return del_p;
-                }
-            });
-        }
-    }
-
-    @Override
-    public void normalizeDistribution(){
-        double sum=0;
-        for(int i=0; i < totalInDistribution; i++){
-            XYDataItem item = prDistribution.getDataItem(i);
-            sum += item.getYValue();
-        }
-
-        sum *= del_r; //area
+    public void normalizeDistribution() {
+        double sum = 0;
+        for (int i = 0; i < totalInDistribution; i++) sum += prDistribution.getY(i).doubleValue();
+        sum *= del_r;
+        if (sum == 0) return;
         double invSum = 1.0/sum;
-
-        for(int i=0; i < totalInDistribution; i++){
-            XYDataItem item = prDistribution.getDataItem(i);
-            prDistribution.updateByIndex(i, item.getYValue()*invSum);
+        for (int i = 0; i < totalInDistribution; i++) {
+            prDistribution.updateByIndex(i, prDistribution.getY(i).doubleValue()*invSum);
         }
     }
 
-    /*
-     * precalculate standardVariance
-     * used in the Apache Solver
-     *
-     */
-    private void invertStandardVariance(){
+    private void invertStandardVariance() {
         int totalItems = standardVariance.getItemCount();
         invVariance = new double[totalItems];
-
-        for(int r=0; r<totalItems; r++){
+        for (int r = 0; r < totalItems; r++) {
             invVariance[r] = 1.0/standardVariance.getY(r).doubleValue();
-        }
-    }
-
-
-    private void standardizeErrors(){
-        XYDataItem tempData;
-        standardVariance = new XYSeries("standardized error");
-        int totalItems = data.getItemCount();
-
-        double temperrorvalue;
-        double invstdev = 1.0/standardizedScale;
-
-        for(int r=0; r<totalItems; r++){
-            tempData = data.getDataItem(r);
-            temperrorvalue = errors.getY(r).doubleValue(); // already in form of q*I(q)/scale
-            standardVariance.add(tempData.getX(), temperrorvalue*temperrorvalue); // q_times_Iq_scaled
         }
     }
 }

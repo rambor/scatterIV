@@ -48,7 +48,13 @@ public class RealSpacePr {
     private int cpuCores;
     private double[] defaultLambdaValues = new double[]{0, 0.000001, 0.000003, 0.000007, 0.00001, 0.00007,  0.0001, 0.0007, 0.001, 0.007, 0.01, 0.07, 0.1, 0.7, 1, 3, 7, 10, 37};
 
-    public RealSpacePr(WorkingDirectory wkd, JProgressBar progressBar, JLabel status, DoubleValue defaultDmax, JComboBox rejectionBox, JComboBox cBox, JComboBox refinmentRoundsBox) {
+    public RealSpacePr(WorkingDirectory wkd,
+                       JProgressBar progressBar,
+                       JLabel status,
+                       DoubleValue defaultDmax,
+                       JComboBox rejectionBox,
+                       JComboBox cBox,
+                       JComboBox refinmentRoundsBox) {
 
         collectionSelected = Scatter.collectionSelected;
         this.progressBar = progressBar;
@@ -137,7 +143,7 @@ public class RealSpacePr {
                     lambdaBox.removeAllItems();
                     Double[] finalArray = new Double[defaultLambdaValues.length];
                     for(int i=0; i<defaultLambdaValues.length; i++){
-                        finalArray[i] = new Double(defaultLambdaValues[i]);
+                        finalArray[i] = defaultLambdaValues[i];
                     }
                     lambdaBox.setModel(new DefaultComboBoxModel(finalArray));
                     lambdaBox.setSelectedIndex(2);
@@ -349,7 +355,7 @@ public class RealSpacePr {
                     double[] arrayvalues = new double[]{0, 0.0001, 0.1, 0.7, 1, 3, 7, 11, 31, 70, 93, 100, 130, 157, 231, 337, 431, 557, 637, 759, 931, 1017, 3011};
                     Double[] finalArray = new Double[arrayvalues.length];
                     for(int i=0; i<arrayvalues.length; i++){
-                        finalArray[i] = new Double(arrayvalues[i]);
+                        finalArray[i] = arrayvalues[i];
                     }
 
                     lambdaBox.setModel(new DefaultComboBoxModel(finalArray));
@@ -390,7 +396,7 @@ public class RealSpacePr {
                     double[] arrayvalues = new double[]{0, 0.01, 0.1, 0.7, 1, 3, 7, 11, 31, 70, 93, 100, 130, 157, 231, 337, 431, 557, 637, 759, 931, 1017, 1311, 3103};
                     Double[] finalArray = new Double[arrayvalues.length];
                     for(int i=0; i<arrayvalues.length; i++){
-                        finalArray[i] = new Double(arrayvalues[i]);
+                        finalArray[i] = arrayvalues[i];
                     }
                     lambdaBox.setModel(new DefaultComboBoxModel(finalArray));
 
@@ -456,7 +462,7 @@ public class RealSpacePr {
                     double[] arrayvalues = new double[]{0, 0.001, 0.1, 0.7, 3, 11, 31, 70, 93, 100, 331, 557, 637, 759, 931, 1017, 3011};
                     Double[] finalArray = new Double[arrayvalues.length];
                     for(int i=0; i<arrayvalues.length; i++){
-                        finalArray[i] = new Double(arrayvalues[i]);
+                        finalArray[i] = arrayvalues[i];
                     }
 
                     lambdaBox.setModel(new DefaultComboBoxModel(finalArray));
@@ -489,7 +495,7 @@ public class RealSpacePr {
             prTable.validate();
         }
 
-
+        // set the datasets to load that are inUse from Analysis Tab
         for(int i=0; i<collectionSelected.getTotalDatasets(); i++){
             if (collectionSelected.getDataset(i).getInUse()){
                 collectionSelected.getDataset(i).getRealSpaceModel().setSelected(true);
@@ -577,16 +583,16 @@ public class RealSpacePr {
             this.button = new JButton();
             this.button.addActionListener(this);
 
-            if (name == "Norm"){
+            if (name.equals("Norm")){
                 this.button.setText("N");
                 this.button.setToolTipText("Normalize");
-            } else if (name == "Refine"){
+            } else if (name.equals("Refine")){
                 this.button.setText("Refine");
                 this.button.setToolTipText("Refine P(r) model");
-            } else if (name == "2File"){
+            } else if (name.equals("2File")){
                 this.button.setText("2File");
                 this.button.setToolTipText("Write to File");
-            } else if (name == "SEARCH"){
+            } else if (name.equals("SEARCH")){
                 this.button.setText("S(q)");
                 this.button.setToolTipText("Structure Factor test");
                 //Icon warnIcon = new ImageIcon("src/dmax_logo.png");
@@ -704,9 +710,8 @@ public class RealSpacePr {
                                 true
                         );
 
-                        prStatusLabel.setText("Files written to " + WORKING_DIRECTORY.getWorkingDirectory() + ", ready to run DAMMIN/F");
-
-                        runDatGnom(newname, collectionSelected.getDataset(prModel.getDataset(rowID).getId()).getRealRg());
+//                        prStatusLabel.setText("Files written to " + WORKING_DIRECTORY.getWorkingDirectory() + ", ready to run DAMMIN/F");
+//                        runDatGnom(newname, collectionSelected.getDataset(prModel.getDataset(rowID).getId()).getRealRg());
                         // run gnom
                         prModel.fireTableDataChanged();
                     }
@@ -730,8 +735,8 @@ public class RealSpacePr {
                             false
                     );
 
-                    status.setText("Files written to " + WORKING_DIRECTORY.getWorkingDirectory() + ", ready to run DAMMIN/F");
-                    runDatGnom(newname, collectionSelected.getDataset(prModel.getDataset(rowID).getId()).getRealRg());
+//                    status.setText("Files written to " + WORKING_DIRECTORY.getWorkingDirectory() + ", ready to run DAMMIN/F");
+//                    runDatGnom(newname, collectionSelected.getDataset(prModel.getDataset(rowID).getId()).getRealRg());
                 }
             }
         }
@@ -1003,78 +1008,5 @@ public class RealSpacePr {
                     table, value, isSelected, hasFocus, row, col);
         }
     }
-
-    private void runDatGnom(String dat_file_name, double rg){
-        // run datgnom
-        String os = System.getProperty("os.name");
-        String datgnom = "";
-        Runtime rt = Runtime.getRuntime();
-
-        if (os.indexOf("win") >=0 ){
-            datgnom = "datgnom.exe";
-        } else {
-            datgnom = "datgnom";
-        }
-
-        String[] base_name = dat_file_name.split("\\.");
-        Settings setit = Settings.getInstance();
-        String atsas = setit.getATSASDir();
-
-        try {
-            System.out.println("Running datgnom: " + atsas+"/"+datgnom);
-
-            ProcessBuilder pr = new ProcessBuilder(atsas+"/"+datgnom, "-r", Constants.Scientific1dot3e1.format(rg), "-o", base_name[0]+"_dg.out", WORKING_DIRECTORY.getWorkingDirectory()+ "/" + dat_file_name);
-            pr.directory(new File(WORKING_DIRECTORY.getWorkingDirectory()));
-            Process ps = pr.start();
-            ps.waitFor();
-
-//            BufferedReader input = new BufferedReader(new InputStreamReader(ps.getInputStream()));
-//            String line=null;
-//            String gnomdmax = "";
-//            while((line=input.readLine()) != null) {
-//
-//                System.out.println(line);
-//                String trimmed = line.trim();
-//                String[] row = trimmed.split("[\\s\\t]+"); // CSV files could have a ", "
-//                if (row[0].equals("dmax:") || row[0].equals("dmax")){
-//                    gnomdmax = row[1];
-//                }
-//            }
-
-
-            System.out.println("Finished datgnom: file " + base_name[0] + "_dg.out");
-
-            File datFile = new File(WORKING_DIRECTORY.getWorkingDirectory() + "/"+base_name[0]+"_dg.out");
-            BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(datFile)));
-            String strLine;
-            Pattern separator = Pattern.compile("[\\s\\t]+");
-
-            double dmaxGnom = 0;
-            while ((strLine = br.readLine()) != null) {
-                String newString = strLine.replaceAll( "[\\s\\t]+", " " );
-                String trimmed = newString.trim();
-                if (trimmed.contains("Maximum") && trimmed.contains("characteristic") && trimmed.contains("size:")){
-                    String[] row = separator.split(trimmed);
-                    dmaxGnom = Double.parseDouble(row[3]);
-                    break;
-                }
-            }
-
-            String outlabel = (dmaxGnom > 1) ? String.format("=> autoGNOM DMAX :: %.2f", dmaxGnom) :  "autoGNOM did not run :: check settings";
-            prStatusLabel.setText(outlabel);
-
-            Modeling modeler = Modeling.getInstance();
-            modeler.setOutFileLabel(WORKING_DIRECTORY.getWorkingDirectory() + "/"+ base_name[0] + "_dg.out");
-
-            modeler.setWorkingDir(WORKING_DIRECTORY.getWorkingDirectory());
-
-        } catch (IOException | InterruptedException e) {
-            System.out.println("Problem running datgnom from " + atsas);
-            status.setText("Problem running datgnom from " + atsas);
-            System.out.println(e.toString());
-            e.printStackTrace();
-        }
-    }
-
 }
 

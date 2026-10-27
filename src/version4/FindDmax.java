@@ -4,1799 +4,733 @@ import FileManager.WorkingDirectory;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
+import org.jfree.chart.axis.LogAxis;
 import org.jfree.chart.axis.NumberAxis;
+import org.jfree.chart.plot.DatasetRenderingOrder;
+import org.jfree.chart.plot.IntervalMarker;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.plot.XYPlot;
+import org.jfree.chart.renderer.xy.XYErrorRenderer;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
-import org.jfree.chart.renderer.xy.XYSplineRenderer;
 import org.jfree.data.xy.XYDataItem;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
+import org.jfree.data.xy.YIntervalSeries;
+import org.jfree.data.xy.YIntervalSeriesCollection;
+import org.jfree.ui.RectangleAnchor;
+import org.jfree.ui.TextAnchor;
+import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDDocumentInformation;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.pdmodel.PDPageContentStream;
+import org.apache.pdfbox.pdmodel.common.PDRectangle;
+import org.apache.pdfbox.pdmodel.graphics.form.PDFormXObject;
+import org.apache.pdfbox.pdmodel.graphics.image.LosslessFactory;
+import org.apache.pdfbox.pdmodel.graphics.image.PDImageXObject;
+import version4.InverseTransform.DmaxAnalysis;
+import version4.InverseTransform.DmaxSelector;
+import version4.InverseTransform.EnsembleIFT;
 import version4.InverseTransform.IndirectFT;
-import version4.InverseTransform.LegendreTransform;
-import version4.InverseTransform.MooreTransformApache;
-import version4.InverseTransform.SineIntegralTransform;
-
 
 import javax.swing.*;
-import javax.swing.table.TableCellEditor;
 import java.awt.*;
-import java.awt.event.*;
 import java.awt.geom.Ellipse2D;
-import java.io.BufferedWriter;
+import java.awt.geom.Rectangle2D;
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.lang.reflect.Array;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ExecutionException;
 
+/**
+ * Finds qmax and dmax by consensus over several indirect Fourier transforms.
+ * For every trial dmax each selected method chooses its own regularization by Bayesian evidence and
+ * scores the fit on the -2 ln(likelihood) scale (evidence, or AIC_eff for L1 and SVD), plus the
+ * positivity term -2 ln Pr(P(r) >= 0 after the peak). Each method's scores become a probability
+ * over dmax; the probabilities are averaged over the methods that do not oscillate. The suggested
+ * dmax is the lowest one whose consensus score is within 2 of the best. qmax (optional) is the last
+ * Shannon channel before the methods' P(r) start to ripple. The ensemble P(r) at the chosen values
+ * is shown with its total uncertainty (data noise + spread between methods).
+ * Panels: consensus dmax curves | ensemble P(r)
+ *         qmax selection        | report
+ * The UI is built in code: delete FindDmax.form, which bound the previous version's fields.
+ * The computation lives in version4.InverseTransform.DmaxAnalysis.
+ */
 public class FindDmax extends JDialog {
-    private JPanel contentPane;
-    private JButton buttonOK;
 
-    private JButton buttonCancel;
-    private JPanel leftPanel;
-    private JPanel rightPanel;
-    private JProgressBar progressBar1;
-    private JTextField dmaxLowerBoundField;
-    private JTextField dmaxUpperBoundField;
-    private JTextField lambdaLowerField;
-    private JTextField lambdaUpperField;
-    private JTextField qmaxField;
-    private JLabel jInfoLabel;
-    private JPanel likelihoodPanel;
-    private JLabel bestLabel;
-    private JTextField trailsTextField;
-    private JPanel vcPanel;
-    private JCheckBox legendreCheckBox;
-    private JCheckBox useBkgrndCheckBox;
-    private JCheckBox l1NormCheckBox;
-    private JCheckBox mooreCheckBox;
-    private JButton colorButton;
-    private JPanel optionsPanel;
-    private JLabel statusLabel;
-    private JFreeChart chart;
-    private  ChartPanel outPanel;
-    private  boolean crosshair = true, useLegendre = false, useMoore = true, useL1Norm = false;
-    private WorkingDirectory workingDirectory;
-    private double maximumMaximumLikelihood=0;
-    private XYSplineRenderer rendereriVc;
-    private XYSplineRenderer splineRend;
-    private XYSplineRenderer splineRendLikelihood;
-    private NumberAxis vcRangeAxis;
-    private int lastLocale=0;
+    /* palette: categorical slots in fixed order (one per method), ink for the consensus */
+    private static final Color INK = new Color(0x1f1f1d), MUTED = new Color(0x6b6a64), GRID = new Color(0xe6e5df),
+            BAND = new Color(0xf3, 0xef, 0xe4), SURFACE = Color.white;
+    private static final Map<String, Color> METHOD_COLORS = new LinkedHashMap<>();
+    static {
+        METHOD_COLORS.put("GNOM-like", new Color(0xeb6834));
+        METHOD_COLORS.put("Legendre", new Color(0x1baf7a));
+        METHOD_COLORS.put("Shannon-L1", new Color(0xeda100));
+        METHOD_COLORS.put("SPI", new Color(0xe87ba4));
+        METHOD_COLORS.put("Moore-L2", new Color(0x2a78d6));
+    }
 
-    private AtomicInteger counter = new AtomicInteger(0);
-    RealSpace dataset;
+    private final RealSpace dataset;
+    private final WorkingDirectory workingDirectory;
+    private final Color datasetColor;
 
-    Color currentColor;
+    private final JFrame frame;
+    private final JTextField dmaxLowerField = new JTextField("50", 5);
+    private final JTextField dmaxUpperField = new JTextField("200", 5);
+    private final JTextField dmaxStepField = new JTextField("auto", 4);
+    private final JTextField qmaxField = new JTextField(7);
+    private final JCheckBox autoQmaxBox = new JCheckBox("auto", true);
+    private final JCheckBox positivityBox = new JCheckBox("penalize P(r) < 0", true);
+    private final JCheckBox autoLowQBox = new JCheckBox("auto low-q trim", true);
+    private final Map<String, JCheckBox> methodBoxes = new LinkedHashMap<>();
+    private final JButton startButton = new JButton("Start");
+    private final JButton applyButton = new JButton("Apply qmax");
+    private final JButton closeButton = new JButton("Close");
+    private final JButton saveButton = new JButton("Save figure\u2026");
+    private final JProgressBar progressBar = new JProgressBar();
+    private final JLabel statusLabel = new JLabel(" ");
+    private final JPanel consensusPanel = chartHolder(), prPanel = chartHolder(), qmaxPanel = chartHolder();
+    private final JTextArea reportArea = new JTextArea();
 
-    double lowerDmax, upperDmax;
-    double lowerQmax, upperQmax;
-    double lowerLambda, upperLambda;
-    double standardizedMin, standardizedScale, suggestqmax;
-
-    int totalTrialsCE = 7, qbins;
-
-    XYSeries dmaxVsDW, standardizedSeries, scaled_q_times_Iq_Errors, likelihood;
+    private DmaxAnalysis.Result lastResult;
+    private JFreeChart consensusChart, prChart, qmaxChart;   // current charts, for export
 
     public FindDmax(RealSpace dataset, double currentqmax, WorkingDirectory workingDirectory) {
-
-        dataset.resetStartStop();
         this.dataset = dataset;
-        qmaxField.setText(Double.toString(currentqmax));
-        upperQmax = currentqmax;
-        suggestqmax = upperQmax;
         this.workingDirectory = workingDirectory;
+        this.datasetColor = (dataset.getColor() == null) ? INK : dataset.getColor();
+        qmaxField.setText(String.format("%.4f", currentqmax));
+        qmaxField.setEnabled(false);
 
-        lowerDmax = Double.parseDouble(dmaxLowerBoundField.getText());
-        upperDmax = Double.parseDouble(dmaxUpperBoundField.getText());
+        for (String name : METHOD_COLORS.keySet()) {
+            JCheckBox box = new JCheckBox(name, true);
+            box.setForeground(METHOD_COLORS.get(name).darker());
+            methodBoxes.put(name, box);
+        }
+        autoQmaxBox.addActionListener(e -> qmaxField.setEnabled(!autoQmaxBox.isSelected()));
+        startButton.addActionListener(e -> start());
+        applyButton.setEnabled(false);
+        applyButton.addActionListener(e -> applyQmax());
+        closeButton.addActionListener(e -> close());
+        saveButton.setEnabled(false);
+        saveButton.addActionListener(e -> saveFigure());
 
-        lowerLambda = Double.parseDouble(lambdaLowerField.getText());
-        upperLambda = Double.parseDouble(lambdaUpperField.getText());
+        reportArea.setEditable(false);
+        reportArea.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        reportArea.setText(String.join("\n",
+                "Set the dmax search range, choose the methods and press Start.",
+                "",
+                "Each method picks its own regularization at every trial dmax.",
+                "The thick curve is the consensus over methods; the shaded band",
+                "marks dmax values the data support (within 4 of the best, a 95%",
+                "band). With P(r) < 0 penalized the band ends where P(r) starts to",
+                "go negative; the suggested dmax is the upper edge of the band.",
+                "",
+                "With 'auto low-q trim', leading points that deviate systematically",
+                "from the Guinier line (aggregation, beamstop) are removed, and the",
+                "low-q end is checked again against the final P(r) models.",
+                "",
+                "With 'auto' qmax, data are added one Shannon channel at a time",
+                "until the transforms start to ripple (noise or buffer mismatch)."));
 
-       // dmaxVsChi = new XYSeries("Chi2");
-        dmaxVsDW = new XYSeries("DW");
+        JPanel center = new JPanel(new GridLayout(2, 2, 4, 4));
+        center.add(titled(consensusPanel, "dmax consensus"));
+        center.add(titled(prPanel, "Ensemble P(r)"));
+        center.add(titled(qmaxPanel, "qmax selection"));
+        center.add(titled(new JScrollPane(reportArea), "Report"));
 
-        this.standardizeData();
+        JPanel content = new JPanel(new BorderLayout(4, 4));
+        content.setBorder(BorderFactory.createEmptyBorder(4, 4, 4, 4));
+        content.add(controls(), BorderLayout.NORTH);
+        content.add(center, BorderLayout.CENTER);
+        content.add(statusBar(), BorderLayout.SOUTH);
 
-        setContentPane(contentPane);
-        setModal(true);
-        getRootPane().setDefaultButton(buttonOK);
-
-        buttonOK.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                onOK();
-            }
-        });
-
-        buttonCancel.addActionListener(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                onCancel();
-            }
-        });
-
-        // call onCancel() when cross is clicked
-        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
-        addWindowListener(new WindowAdapter() {
-            public void windowClosing(WindowEvent e) {
-                onCancel();
-            }
-        });
-
-        // call onCancel() on ESCAPE
-        contentPane.registerKeyboardAction(new ActionListener() {
-            public void actionPerformed(ActionEvent e) {
-                onCancel();
-            }
-        }, KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0), JComponent.WHEN_ANCESTOR_OF_FOCUSED_COMPONENT);
-
-
-        JFrame frame = new JFrame("Plot");
-        frame.setContentPane(this.contentPane);
-        frame.setPreferredSize(new Dimension(800,600));
-        frame.pack();
-        frame.setVisible(true);
+        // shown in its own frame, as before (a component can only live in one window)
+        frame = new JFrame("Find dmax \u2013 " + datasetName());
+        frame.setContentPane(content);
+        frame.getRootPane().setDefaultButton(startButton);
+        frame.setPreferredSize(new Dimension(1200, 820));
         frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-
-        lambdaLowerField.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-
-                try {
-                    double value = Double.parseDouble(lambdaLowerField.getText());
-                    if (value < 0){
-                        lambdaLowerField.setText("0.0001");
-                        lowerLambda = 0.0001;
-                    } else if (value > (Double.parseDouble(lambdaUpperField.getText()))) {
-                        lambdaLowerField.setText("0.0001");
-                        lowerLambda = 0.0001;
-                        lambdaUpperField.setText("50");
-                        upperLambda = 50;
-                    } else {
-                        lowerLambda = value;
-                    }
-                    updateInfo();
-                }
-                catch (NumberFormatException ee) {
-                    //Not an integer
-                    jInfoLabel.setText("Not a proper number, should be positive and only numbers.");
-                }
-            }
-        });
-
-        lambdaUpperField.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-
-                try {
-                    double value = Double.parseDouble(lambdaUpperField.getText());
-                    if (value < 0){
-                        lambdaUpperField.setText("50");
-                        upperLambda = 50;
-                    } else if (value < (Double.parseDouble(lambdaLowerField.getText()))) {
-                        lambdaLowerField.setText("0.0001");
-                        lowerLambda = 0.0001;
-                        lambdaUpperField.setText("50");
-                        upperLambda = 50;
-                    } else {
-                        upperLambda = value;
-                    }
-                    updateInfo();
-                }
-                catch (NumberFormatException ee) {
-                    //Not an integer
-                    jInfoLabel.setText("Not a proper number, should be positive and only numbers.");
-                }
-            }
-        });
-
-        dmaxLowerBoundField.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-
-                try {
-                    double value = Double.parseDouble(dmaxLowerBoundField.getText());
-                    if (value < 0){
-                        dmaxLowerBoundField.setText("50");
-                        lowerDmax = 50;
-                    } else if (value > (Double.parseDouble(dmaxUpperBoundField.getText()))) {
-                        dmaxLowerBoundField.setText("50");
-                        lowerDmax = 50;
-                        dmaxUpperBoundField.setText("200");
-                        upperDmax = 200;
-                    } else {
-                        lowerDmax = value;
-                    }
-                    updateInfo();
-                }
-                catch (NumberFormatException ee) {
-                    //Not an integer
-                    jInfoLabel.setText("Not a proper number, should be positive and only numbers.");
-                }
-            }
-        });
-
-        dmaxUpperBoundField.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-
-                try {
-                    double value = Double.parseDouble(dmaxUpperBoundField.getText());
-                    if (value < 0){
-                        dmaxUpperBoundField.setText("200");
-                        upperDmax = 200;
-                    } else if (value < (Double.parseDouble(dmaxLowerBoundField.getText()))) {
-                        dmaxLowerBoundField.setText("50");
-                        lowerDmax = 50;
-                        dmaxUpperBoundField.setText("200");
-                        upperDmax = 200;
-                    } else {
-                        upperDmax = value;
-                    }
-                    updateInfo();
-                }
-                catch (NumberFormatException ee) {
-                    //Not an integer
-                    jInfoLabel.setText("Not a proper number, should be positive and only numbers.");
-                }
-            }
-        });
-
-        qmaxField.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-
-                try {
-                    double value = Double.parseDouble(qmaxField.getText());
-                    if (value < 0){
-                        qmaxField.setText(Double.toString(upperQmax));
-                    } else if (value > 3) {
-                        qmaxField.setText(Double.toString(upperQmax));
-                    } else {
-                        upperQmax = value;
-                    }
-                    updateInfo();
-                }
-                catch (NumberFormatException ee) {
-                    //Not an integer
-                    jInfoLabel.setText("Not a proper number, should be positive and only numbers.");
-                }
-            }
-        });
-
-
-        dmaxUpperBoundField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                super.focusLost(e);
-                try {
-                    double value = Double.parseDouble(dmaxUpperBoundField.getText());
-                    if (value < 0){
-                        dmaxUpperBoundField.setText("50");
-                        upperDmax = 200;
-                    } else if (value < (Double.parseDouble(dmaxLowerBoundField.getText()))) {
-                        dmaxLowerBoundField.setText("50");
-                        lowerDmax = 50;
-                        dmaxUpperBoundField.setText("200");
-                        upperDmax = 200;
-                    } else {
-                        upperDmax = value;
-                    }
-                    updateInfo();
-                }
-                catch (NumberFormatException ee) {
-                    //Not an integer
-                    jInfoLabel.setText("Not a proper number, should be positive and only numbers.");
-                }
-            }
-        });
-
-        dmaxLowerBoundField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                super.focusLost(e);
-                try {
-                    double value = Double.parseDouble(dmaxLowerBoundField.getText());
-                    if (value < 0){
-                        dmaxLowerBoundField.setText("50");
-                        lowerDmax = 50;
-                    } else if (value > (Double.parseDouble(dmaxUpperBoundField.getText()))) {
-                        dmaxLowerBoundField.setText("50");
-                        lowerDmax = 50;
-                        dmaxUpperBoundField.setText("200");
-                        upperDmax = 200;
-                    } else {
-                        lowerDmax = value;
-                    }
-                    updateInfo();
-                }
-                catch (NumberFormatException ee) {
-                    //Not an integer
-                    jInfoLabel.setText("Not a proper number, should be positive and only numbers.");
-                }
-            }
-        });
-
-
-        lambdaLowerField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                super.focusLost(e);
-                try {
-                    double value = Double.parseDouble(lambdaLowerField.getText());
-                    if (value < 0){
-                        lambdaLowerField.setText("0.1");
-                        lowerLambda = 0.1;
-                    } else if (value > (Double.parseDouble(lambdaUpperField.getText()))) {
-                        lambdaLowerField.setText("0.1");
-                        lowerLambda = 0.1;
-                        lambdaUpperField.setText("73");
-                        upperLambda = 73;
-                    } else {
-                        lowerLambda = value;
-                    }
-                    updateInfo();
-                }
-                catch (NumberFormatException ee) {
-                    //Not an integer
-                    jInfoLabel.setText("Not a proper number, should be positive and only numbers.");
-                }
-            }
-        });
-
-        lambdaUpperField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                super.focusLost(e);
-                try {
-                    double value = Double.parseDouble(lambdaUpperField.getText());
-                    if (value < 0){
-                        lambdaUpperField.setText("50");
-                        upperLambda = 50;
-                    } else if (value < (Double.parseDouble(lambdaLowerField.getText()))) {
-                        lambdaLowerField.setText("0.0001");
-                        lowerLambda = 0.0001;
-                        lambdaUpperField.setText("50");
-                        upperLambda = 50;
-                    } else {
-                        upperLambda = value;
-                    }
-                    updateInfo();
-                }
-                catch (NumberFormatException ee) {
-                    //Not an integer
-                    jInfoLabel.setText("Not a proper number, should be positive and only numbers.");
-                }
-            }
-        });
-
-        trailsTextField.setText(Integer.toString(totalTrialsCE));
-        trailsTextField.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                int value = Integer.parseInt(trailsTextField.getText());
-                if (value < 0){
-                    trailsTextField.setText("7");
-                    totalTrialsCE = 7;
-                } else {
-                    totalTrialsCE = value;
-                }
-            }
-        });
-
-        currentColor = dataset.getColor();
-        makeVcPlot();
-        qmaxField.setText(Double.toString(suggestqmax));
-        updateInfo();
-
-        legendreCheckBox.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (legendreCheckBox.isSelected()){
-
-                } else {
-                    legendreCheckBox.setSelected(true);
-                }
-                mooreCheckBox.setSelected(false);
-                l1NormCheckBox.setSelected(false);
-                useLegendre = true;
-                useMoore = false;
-                useL1Norm = false;
-                lambdaLowerField.setText("1");
-                lambdaUpperField.setText("331");
-            }
-        });
-
-
-        l1NormCheckBox.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (l1NormCheckBox.isSelected()){
-
-                } else {
-                    l1NormCheckBox.setSelected(true);
-                }
-                mooreCheckBox.setSelected(false);
-                legendreCheckBox.setSelected(false);
-                useLegendre = true;
-                useMoore = false;
-                useL1Norm = true;
-                lambdaLowerField.setText("0.0001");
-                lambdaUpperField.setText("0.001");
-            }
-        });
-
-        mooreCheckBox.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (mooreCheckBox.isSelected()){
-                    legendreCheckBox.setSelected(false);
-                    l1NormCheckBox.setSelected(false);
-                    useLegendre = false;
-                    useMoore = true;
-                    useL1Norm = false;
-                    lambdaLowerField.setText("30");
-                    lambdaUpperField.setText("100");
-
-                    if (!useBkgrndCheckBox.isSelected()){
-                        useBkgrndCheckBox.doClick();
-                    }
-                } else {
-                    //mooreCheckBox.setSelected(true);
-                    mooreCheckBox.doClick();
-                }
-
-            }
-        });
-
-        useBkgrndCheckBox.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (useBkgrndCheckBox.isSelected()){
-                    useBkgrndCheckBox.setForeground(Color.red);
-                } else {
-                    useBkgrndCheckBox.setForeground(Color.black);
-                    if (mooreCheckBox.isSelected()){
-                        useBkgrndCheckBox.doClick();
-                    }
-                }
-
-            }
-        });
-
-
-        l1NormCheckBox.setSelected(false);
-        legendreCheckBox.setSelected(false);
-        mooreCheckBox.setSelected(true);
-        useBkgrndCheckBox.doClick();
-
-        colorButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                ColorEditor test = new ColorEditor();
-                test.dialog.setVisible(true);
-                rendereriVc.setSeriesPaint(0, currentColor);
-                vcRangeAxis.setLabelPaint(currentColor.darker());
-                splineRend.setSeriesPaint(lastLocale, currentColor); // make color slight darker
-                splineRendLikelihood.setSeriesPaint(0, currentColor.darker()); // make color slight darker
-            }
-        });
+        frame.pack();
+        frame.setLocationRelativeTo(null);
+        frame.setVisible(true);
     }
 
-    private void onOK() {
-        buttonOK.setEnabled(false);
-        // add your code here
-        dataset.resetStartStop();
+    /* ------------------------------------------------------------------ layout */
 
-        int startQmaxIndex = 0;
-        lowerQmax = 0.17;
+    private JPanel controls() {
+        JPanel row1 = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+        row1.add(new JLabel("dmax from"));
+        row1.add(dmaxLowerField);
+        row1.add(new JLabel("to"));
+        row1.add(dmaxUpperField);
+        row1.add(new JLabel("Å   step"));
+        row1.add(dmaxStepField);
+        row1.add(Box.createHorizontalStrut(16));
+        row1.add(new JLabel("qmax"));
+        row1.add(qmaxField);
+        row1.add(autoQmaxBox);
+        row1.add(Box.createHorizontalStrut(16));
+        row1.add(positivityBox);
+        row1.add(autoLowQBox);
 
-        totalTrialsCE = Integer.parseInt(trailsTextField.getText());
-        lowerLambda = Double.parseDouble(lambdaLowerField.getText());
-        upperLambda = Double.parseDouble(lambdaUpperField.getText());
-        upperDmax=Double.parseDouble(dmaxUpperBoundField.getText());
-        lowerDmax=Double.parseDouble(dmaxLowerBoundField.getText());
-        upperQmax = Double.parseDouble(qmaxField.getText());
+        JPanel row2 = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 2));
+        row2.add(new JLabel("Methods:"));
+        for (JCheckBox b : methodBoxes.values()) row2.add(b);
+        row2.add(Box.createHorizontalStrut(16));
+        row2.add(startButton);
+        row2.add(applyButton);
+        row2.add(saveButton);
+        row2.add(closeButton);
 
-        XYSeries allData = dataset.getfittedqIq();
-        for(int i=0; i<allData.getItemCount(); i++){
-            if (allData.getX(i).doubleValue() > lowerQmax){
-                startQmaxIndex = i-1;
-                break;
-            }
-        }
-
-        int lastIndex = allData.getItemCount()-1;
-
-        for(int i=0; i<allData.getItemCount(); i++){
-            if (allData.getX(i).doubleValue() > upperQmax){
-                lastIndex = i-1;
-                break;
-            }
-        }
-
-        // set qmax
-        dataset.decrementHigh(lastIndex);
-        this.standardizeData();
-
-        double topN = 0.0031;
-
-        qbins = 3*(int)(upperDmax/Math.PI*dataset.getfittedqIq().getMaxX());
-
-
-//        ScheduledExecutorService executor = Executors.newScheduledThreadPool(numberOfCPUs);
-//        for (int i=0; i < numberOfCPUs; i++){
-//            Runnable bounder = new RefinePrManager.Refiner(
-//                    this.standardizedSeries,
-//                    this.scaled_q_times_Iq_Errors,
-//                    roundsPerCPU,
-//                    statusLabel);
-//            executor.execute(bounder);
-//        }
-//
-//        executor.shutdown();
-
-//        ScheduledExecutorService executor = Executors.newScheduledThreadPool(4);
-//        for (int i=0; i < 4; i++){
-//            Runnable bounder = new FindDmax.Refiner(
-//                    this.standardizedSeries,
-//                    this.scaled_q_times_Iq_Errors,
-//                    totalTrialsCE,
-//                    topN,
-//                    statusLabel,
-//                    useLegendre);
-//
-//            executor.execute(bounder);
-//        }
-
-        FindDmax.Refiner runnable = new FindDmax.Refiner(
-                this.standardizedSeries,
-                this.scaled_q_times_Iq_Errors,
-                totalTrialsCE,
-                topN,
-                statusLabel,
-                useLegendre,
-                useL1Norm,
-                useMoore
-                );
-
-
-        runnable.execute();
-
-        dispose();
+        JPanel p = new JPanel(new GridLayout(2, 1));
+        p.add(row1);
+        p.add(row2);
+        return p;
     }
 
-    private void onCancel() {
-        // add your code here if necessary
-        dispose();
+    private JPanel statusBar() {
+        JPanel p = new JPanel(new BorderLayout(8, 0));
+        progressBar.setPreferredSize(new Dimension(180, 16));
+        p.add(statusLabel, BorderLayout.CENTER);
+        p.add(progressBar, BorderLayout.EAST);
+        return p;
     }
 
-    private class DMax {
-        private Number dmax;
-        private double count;
-        public DMax(double dmax){
-            this.dmax = (Number)dmax;
-            this.count = 0.0d;
-        }
-        public void update(double value) { this.count += value;}
-        public double getCount(){ return this.count;}
+    private static JPanel chartHolder() {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBackground(SURFACE);
+        return p;
     }
 
-    private class Triplet implements Comparable {
-        private double score;
-        private double dw;
-        private double aic;
-        private double psi;
-
-        public Triplet(double sc, double dw, double aic, double psi){
-            this.score = sc;
-            this.dw = dw;
-            this.aic = aic;
-            this.psi = psi;
-        }
-
-        public double getDW(){ return dw;}
-        public double getAIC(){ return aic;}
-        public double getPsi(){ return psi;}
-
-        public double getScore(){ return score;}
-
-        public String printValues(double dmax, double lambda){
-            return String.format("%.1f %.1E %.2E %.3f %.2E %.2E %.2E", dmax, lambda, score, Math.log10(score), this.dw, this.aic, this.psi);
-        }
-
-        @Override
-        public int compareTo(Object o) {
-            return this.getScore() <  ((Triplet) o).getScore() ? -1 : (this.getScore() == ((Triplet) o).getScore() ? 0 : 1) ;
-        }
-
+    private static JComponent titled(JComponent c, String title) {
+        c.setBorder(BorderFactory.createTitledBorder(title));
+        return c;
     }
 
+    /* ------------------------------------------------------------------ actions */
 
-    private class DmaxLambda implements Comparable {
-        private final double dmax, lambda;
-        private final Number number;
-        private double probability;
-        private double score, averagingBinWidth, medianScore, averageScore;
-        private double dw, chi, prscore;
-        private double score_sum;
-        private int index, increment;
-        private int binCount;
-        //private ArrayList<Double> scores;
-        private ArrayList<Triplet> scores;
-        private XYSeries tempDistribution, averagedDistribution;
-
-        public DmaxLambda(double dmax, double lambda, int index){
-            this.dmax = dmax;
-            this.number = (Number)dmax;
-            this.lambda = lambda;
-            this.probability = 0.50;
-            this.index = index;
-            this.score = 0;
-            this.increment = 0;
-            scores = new ArrayList<>();
+    private void start() {
+        final double lo, hi, step, fixedQmax;
+        try {
+            lo = Double.parseDouble(dmaxLowerField.getText().trim());
+            hi = Double.parseDouble(dmaxUpperField.getText().trim());
+            String s = dmaxStepField.getText().trim();
+            step = s.isEmpty() || s.equalsIgnoreCase("auto") ? Double.NaN : Double.parseDouble(s);
+            fixedQmax = autoQmaxBox.isSelected() ? Double.NaN : Double.parseDouble(qmaxField.getText().trim());
+        } catch (NumberFormatException ex) {
+            statusLabel.setText("Numbers only: dmax bounds, step (or 'auto') and qmax");
+            return;
         }
+        if (!(lo > 0 && hi > lo)) { statusLabel.setText("dmax bounds must satisfy 0 < lower < upper"); return; }
+        if (!Double.isNaN(step) && step <= 0) { statusLabel.setText("step must be positive"); return; }
 
-        public DmaxLambda(double dmax, double lambda, double score, int index){
-            this.dmax = dmax;
-            this.number = (Number)dmax;
-            this.lambda = lambda;
-            this.score = score;
-            this.index = index;
-            this.increment = 1;
-            scores = new ArrayList<>();
+        final Set<String> methods = new LinkedHashSet<>();
+        for (Map.Entry<String, JCheckBox> e : methodBoxes.entrySet()) if (e.getValue().isSelected()) methods.add(e.getKey());
+        if (methods.isEmpty()) { statusLabel.setText("Select at least one method (two or more for a consensus)"); return; }
+
+        final XYSeries[] data;
+        try {
+            data = analysisData();
+        } catch (RuntimeException ex) {
+            reportFailure("reading the data", ex);
+            return;
         }
+        if (data[0].getItemCount() < 10) { statusLabel.setText("Too few data points"); return; }
+        final boolean positivity = positivityBox.isSelected();
+        final boolean autoLowQ = autoLowQBox.isSelected();
 
-        public int getIndex() { return index;}
-        public double getDmax() { return dmax;}
-        public Number getNumber() { return number;}
-        public double getLambda() { return lambda;}
-        public void updateProbability(double value){ this.probability = value;}
-        public double getProbability(){ return probability;}
-        public void setProbability(double value){ this.probability = value;}
-
-        public double getScore(){ return score;}
-
-        public void setDWChi(double score, double dw, double aic, double prs){
-            scores.add(new Triplet(score, dw, aic, prs));
-            //this.dw = dw; this.chi=chi; this.prscore = prs;
-
-        }
-        public void printDWChi(){
-            System.out.println(dmax + " DW " + dw + " CHI " + chi + " " + prscore);
-        }
-        public String getStatString(){
-            return String.format("dmax %.1f DW %.1E AIC %.2f quality %.3f lambda %.2E", (double)dmax, dw, chi, prscore, lambda); }
-
-
-        public void initializeDistribution(XYSeries dis, int totalBinsInSearch){
-            binCount = dis.getItemCount();
-            tempDistribution = new XYSeries("temp", true, true);
-            /*
-             * fill
-             */
-            int total = dis.getItemCount()-1; // ignore dmax
-            for(int i=1; i<total; i++){
-                XYDataItem item = dis.getDataItem(i);
-                tempDistribution.add(item);
+        setRunning(true);
+        new SwingWorker<DmaxAnalysis.Result, String>() {
+            @Override protected DmaxAnalysis.Result doInBackground() {
+                return DmaxAnalysis.run(data[0], data[1], lo, hi, step, fixedQmax, methods, positivity, autoLowQ, this::publish);
             }
-
-        }
-
-        /*
-         * averages tempDistribution into averagedDistribution
-         */
-        public void updateFinalDistribution(){
-            averagedDistribution = new XYSeries("average", true, false);
-
-            double sumIt = 0;
-            /*
-             * tempDistribution contains duplicates
-             */
-            int total = tempDistribution.getItemCount();
-
-            double firstq = tempDistribution.getX(1).doubleValue();
-
-            int startIndex = 0;
-
-            binCount -= 2; //remove the first and last counts (r=0 and r=dmax)
-            averagingBinWidth = dmax/(double)binCount;
-            final double diff = 0.5*averagingBinWidth;
-
-
-            double startr = diff;//tempDistribution.getX(startIndex).doubleValue();
-            double upperr = averagingBinWidth;
-            double lowerr = 0;
-
-            while(startIndex < total){
-
-                ArrayList<Double> values = new ArrayList<>();
-
-                double sumV = 0, countsum=0.0;
-                for(int i=startIndex; i<total; i++){
-                    XYDataItem item1 = tempDistribution.getDataItem(i);
-
-                    if (item1.getXValue() > lowerr && item1.getXValue() <= upperr){
-                        sumV += item1.getYValue();
-                        countsum +=1.0;
-                        values.add(item1.getYValue());
-                        startIndex = i;
-                    } else {
-                        startIndex = i;
-                        break;
-                    }
+            @Override protected void process(List<String> chunks) {
+                statusLabel.setText(chunks.get(chunks.size() - 1));
+            }
+            @Override protected void done() {
+                setRunning(false);
+                DmaxAnalysis.Result result;
+                try {
+                    result = get();
+                } catch (InterruptedException | ExecutionException ex) {
+                    reportFailure("the analysis", (ex.getCause() == null) ? ex : ex.getCause());
+                    return;
                 }
-                //System.out.println("VALUES " + values.size() + " " + lowerr + " < " + upperr);
-                double medianv = 0;
-                if (values.size() > 0){
-                    Collections.sort(values);
-                    int medianLocale = (values.size()-1)/2;
-                    medianv = values.get(medianLocale);
-
-                    if (values.size()%2 == 0){
-                        medianv = (medianv + values.get(medianLocale+1))*0.5;
-                    }
+                try {
+                    show(result);
+                } catch (RuntimeException ex) {
+                    reportFailure("drawing the results", ex);
                 }
-
-                double ave = (countsum > 0) ? sumV/countsum : 0;
-                //System.out.println(startIndex + " " + startr + " " + ave + " u " + upperr + " dx " + dmax + " " + averagingBinWidth);
-                //averagedDistribution.add(startr, ave);
-                averagedDistribution.add(startr, medianv);
-
-                if (startIndex == (total-1)){
-                    break;
-                }
-
-                startr += averagingBinWidth;//tempDistribution.getX(startIndex).doubleValue();
-                upperr += averagingBinWidth;
-                lowerr += averagingBinWidth;
             }
-
-            averagedDistribution.add(0,0);
-            averagedDistribution.add(dmax, 0);
-        }
-
-        public void updateScore(double value){ score_sum += value; increment += 1; }
-
-        /**
-         * Dis is the Pr Distribution from a fit, first value is [0,0] and last shoudld be [dmax, 0]
-         * @param value
-         * @param dis
-         */
-        public void update(double value, XYSeries dis){
-
-            int total = dis.getItemCount()-1; // exclude model dmax
-
-            if (dis.getItemCount() > binCount){
-                binCount = dis.getItemCount();
-            }
-
-            for(int i=1; i<total; i++){ // exclude first point [0] since it is zero
-                XYDataItem item2 = dis.getDataItem(i);
-                tempDistribution.add(item2);
-            }
-
-//            scores.add(value);
-            score_sum += value;
-            increment += 1;
-        }
-
-
-        public void averageScore(){
-            averageScore = score_sum/(double)increment;
-            Collections.sort(scores);
-            int total = scores.size();
-            int div = (int)Math.floor(total/2.0);
-            medianScore = ((total & 1) == 0) ? 0.5*(scores.get(div).getScore() + scores.get(div-1).getScore()) : scores.get(div).getScore() ;
-            score = medianScore;
-
-            if ((total & 1) == 0){
-                Triplet upper = scores.get(div);
-                Triplet lower = scores.get(div-1);
-                double tempscore = 0.5*(lower.getScore()+upper.getScore());
-                dw = 0.5*(upper.getDW() + lower.getDW());
-                chi = 0.5*(upper.getAIC() + lower.getAIC());
-                prscore = 0.5*(upper.getPsi() + lower.getPsi());
-//                String value = String.format("%.1f %.1E %.2E %.3f %.2E %.2E %.2E", dmax, lambda, tempscore, Math.log10(tempscore), 0.5*(lower.getDW()+upper.getDW()), 0.5*(lower.getAIC()+upper.getAIC()), 0.5*(lower.getPsi()+upper.getPsi()));
-//                System.out.println(value);
-            } else {
-//                System.out.println(scores.get(div).printValues(dmax, lambda));
-                dw = scores.get(div).dw;
-                chi = scores.get(div).aic;
-                prscore = scores.get(div).psi;
-            }
-
-        }
-
-        public double getScore_sum(){ return score_sum;}
-
-        public XYSeries getPrDistribution(){ return averagedDistribution; }
-
-        public void printDistribution(){
-            System.out.println("DISTRIBUTION " + lambda + " " + dmax);
-            for(int i=0; i<averagedDistribution.getItemCount(); i++){
-                System.out.println(i + " " + averagedDistribution.getX(i) + " " + averagedDistribution.getY(i));
-            }
-        }
-
-        @Override
-        public int compareTo(Object o) {
-            return this.getScore() <  ((DmaxLambda) o).getScore() ? -1 : (this.getScore() == ((DmaxLambda) o).getScore() ? 0 : 1) ;
-        }
+        }.execute();
     }
 
+    /** shows the error and its full stack trace in the Report panel (and on stderr) */
+    private void reportFailure(String stage, Throwable t) {
+        setRunning(false);
+        statusLabel.setText("Failed while " + stage + ": " + t);
+        java.io.StringWriter sw = new java.io.StringWriter();
+        t.printStackTrace(new java.io.PrintWriter(sw));
+        reportArea.setText("FindDmax failed while " + stage + " (" + datasetName() + ")\n\n" + sw);
+        reportArea.setCaretPosition(0);
+        t.printStackTrace();
+    }
 
-    public class Refiner extends SwingWorker<Void, Void> {
-
-        private XYSeries activeSet;
-        private XYSeries errorActiveSet;
-        private XYSeries relativeErrorSeries;
-        private int totalTrials, totalRuns, topN, last;
-        private double qBinWidth, qmin, topNpercent;
-        private double llambda, ulambda;
-        private boolean useLegendreFunction=false, useL1=false, useMoore=false;
-
-        private JLabel status;
-
-        /**
-         *
-         * @param qIq
-         * @param allError (error must be in the form of q*I(q))
-         * @param totalTrials
-         * @param topNPercent
-         * @param status
-         */
-        public Refiner(XYSeries qIq, XYSeries allError, int totalTrials, double topNPercent, JLabel status, boolean useLegendre, boolean useL1, boolean useMoore){
-
-            int totalItems = qIq.getItemCount() ;
-            this.topNpercent = topNPercent;
-            this.totalTrials = totalTrials;
-            this.useLegendreFunction = useLegendre;
-            this.useL1 = useL1;
-            this.useMoore = useMoore;
-            // create standardized dataset
-            try {
-                activeSet = qIq.createCopy(0, totalItems-1); // possibly scaled by rescaleFactor
-            } catch (CloneNotSupportedException e) {
-                e.printStackTrace();
-            }
-
-            errorActiveSet = new XYSeries("Error qIq");
-
-            for (int i=0; i<totalItems; i++){
-                XYDataItem tempData = allError.getDataItem(i);
-                errorActiveSet.add(tempData.getXValue(), tempData.getYValue()/standardizedScale); // transformed as q*I(q)
-            }
-
-            qmin = activeSet.getMinX();
-            this.status = status;
+    /** the dataset's file name, or a placeholder */
+    private String datasetName() {
+        String n = null;
+        try {
+            n = dataset.getFilename();
+        } catch (RuntimeException ignored) {
+            // fall through
         }
-
-
-        @Override
-        public Void doInBackground() {
-            counter.set(0);
-
-            Random randomGenerator = new Random();
-
-            int startbb, upperbb, samplingNumber, locale, samplingLimit;
-            double tempMedian;
-
-            /*
-             * prepare the parameter container holding all possible dmax and lambda value combinations
-             */
-            ArrayList<DmaxLambda> parameters = new ArrayList<>();
-
-            HashMap<Number, DMax> dmaxes = new HashMap<>();
-
-            int indexTracker = 0;
-
-            double startDmax = lowerDmax;
-            for (; startDmax < upperDmax; startDmax += 0.5){
-
-                double lambda = lowerLambda;
-                dmaxes.put((Number)startDmax, new DMax(startDmax));
-
-                while(lambda < upperLambda){
-                    parameters.add(new DmaxLambda(startDmax, lambda, indexTracker));
-                    lambda *= 1.3;
-                    indexTracker++;
-                }
-            }
-
-            initializeBar(indexTracker);
-
-            int totalParameters = parameters.size();
-            topN = (int)(topNpercent*totalParameters);
-            totalRuns = 7*totalParameters;
-            this.last = topN-1;
-            DmaxLambda[] topNModels = new DmaxLambda[topN];
-            /*
-             * partition the active set into bins for sampling
-             */
-            int size = activeSet.getItemCount();
-            qBinWidth = (activeSet.getMaxX() - qmin)/(double)qbins;
-            double averagingbinWidth = Math.PI/activeSet.getMaxX();
-
-            final int totalBinsInModel = (int)(Math.floor(startDmax/averagingbinWidth) + 1);
-
-            ArrayList<ArrayList<Integer>> binIndices = new ArrayList<>();
-
-            startbb = 0;
-
-            for(int i=0; i<qbins; i++){
-                binIndices.add(new ArrayList<>());
-
-                for (int bb=startbb; bb < size; bb++){
-                    // b*pi_invDmax is cardinal point in reciprocal space
-                    if (activeSet.getX(bb).doubleValue() < ((i+1)*qBinWidth + qmin) ){ // what happens on the last bin?
-                        binIndices.get(i).add(bb);
-                    } else {
-                        startbb = bb;
-                        break;
-                    }
-                }
-            }
-
-            int maxElementsInLastBins = (int)(0.25*(binIndices.get(qbins-1).size() + binIndices.get(qbins-2).size() + binIndices.get(qbins-3).size() + binIndices.get(qbins-4).size()));
-
-            double slopeN = (2 + 0.55*maxElementsInLastBins)/(double)qbins;
-            double interceptN = 2.0;
-
-            /*
-             * perform CE optimization
-             */
-            XYSeries randomSeries = new XYSeries("Random-");
-            XYSeries randomSeriesError = new XYSeries("Random-Error");
-            double current_score, tempDmax, tempLambda;
-
-            for(int trial=0; trial<totalTrials; trial++){
-
-                randomSeries.clear();
-                randomSeriesError.clear();
-                for(int i=0; i<qbins; i++){ // grab random indices from each q-bin
-                    ArrayList<Integer> arrayList = new ArrayList<>(binIndices.get(i));
-                    samplingNumber = arrayList.size();
-                    // use increasing number of points as we go to higher q
-                    if (samplingNumber > 0){
-
-                        Collections.shuffle(arrayList);
-                        int getThis = (int)(i*slopeN + interceptN);
-                        if (getThis > samplingNumber){
-                            samplingLimit = (int)(samplingNumber*0.7);
-                        } else {
-                            samplingLimit = getThis;
-                        }
-
-//                        if (samplingNumber < 10 ){
-//                            samplingLimit = (1 + randomGenerator.nextInt(arrayList.size()));
-//                        } else {
-//                            samplingLimit = (1 + randomGenerator.nextInt(10));
-//                        }
-
-                        //System.out.println(i + " => " + samplingLimit);
-                        int swapTo = samplingNumber-1;
-                        for(int h=0; h < samplingLimit; h++){
-//                            int getIndex = randomGenerator.nextInt(samplingNumber);
-//                            locale = arrayList.get(getIndex);
-                            locale = arrayList.get(h);
-                            randomSeries.add(activeSet.getDataItem(locale));
-                            randomSeriesError.add(errorActiveSet.getDataItem(locale));
-//                            Collections.swap(arrayList, getIndex, swapTo);
-//                            swapTo -= 1;
-//                            samplingNumber-=1;
-                        }
-                    }
-                }
-
-                // for the randomly chosen set, perform fits over d-max, lambda space
-                for(int p=0; p<totalParameters; p++){
-                    // choose dmax/lambda
-                    DmaxLambda param = parameters.get(p);
-                    tempDmax = param.getDmax();
-                    tempLambda = param.getLambda();
-
-                    IndirectFT tempIFT;
-
-                    if (useL1){
-                        tempIFT = new SineIntegralTransform(
-                                randomSeries,
-                                randomSeriesError,
-                                tempDmax,
-                                activeSet.getMaxX(),
-                                tempLambda,
-                                standardizedMin,
-                                standardizedScale,
-                                useBkgrndCheckBox.isSelected());
-
-                    } else if (useLegendre) {
-                        tempIFT = new LegendreTransform(
-                                randomSeries,
-                                randomSeriesError,
-                                tempDmax,
-                                activeSet.getMaxX(),
-                                tempLambda,
-                                standardizedMin,
-                                standardizedScale,
-                                useBkgrndCheckBox.isSelected());
-                    } else {
-                        tempIFT = new MooreTransformApache(
-                                randomSeries,
-                                randomSeriesError,
-                                tempDmax,
-                                activeSet.getMaxX(),
-                                tempLambda,
-                                standardizedMin,
-                                standardizedScale,
-                                true);
-                    }
-
-                    double kvalue = tempIFT.ns + 1 + 1 + 1; // lambda, dmax and noise
-                    tempIFT.makeResiduals(); // calculate residuals of existing model
-
-                    double aic = 2.0*kvalue + tempIFT.ns*Math.log(tempIFT.calculateChiFromDataset(activeSet, errorActiveSet)) + (2.0*kvalue*kvalue + 2*kvalue)/(randomSeries.getItemCount() - kvalue -1);
-
-                    double kt = tempIFT.getKurtosisEstimate(0); // return as 2-DW
-
-                    current_score = 0.1*aic + (4*kt + tempIFT.getPrScore());
-
-                    /*
-                     * aic is a large number, in the 10s to 100s.  KT will be small like less than 1, and PrScore is also around 1
-                     */
-                    param.setDWChi(current_score, kt, aic, tempIFT.getPrScore());
-
-                    if (trial == 0){ // variations in qmax will lead to variaions in shannon point, so we use Pi/qmax to define binwith
-                        param.updateScore(current_score);
-                        param.initializeDistribution(tempIFT.getPrDistribution(), totalBinsInModel);
-                    } else {
-                        param.update(current_score, tempIFT.getPrDistribution());
-                    }
-                    this.increment();
-                }
-
-//                int bestIndex=0;
-//                double best=Double.POSITIVE_INFINITY;
-//                for(int i=0; i<totalParameters; i++){
-//                    DmaxLambda temp = parameters.get(i);
-//                    double tempbest = temp.getScore_sum()/(double)temp.increment;
-//                    if (tempbest < best){
-//                        best = tempbest;
-//                        bestIndex=i;
-//                    }
-//                    if (temp.getDmax() > 80 && temp.getDmax() < 100){
-//                        temp.printDWChi();
-//                    }
-//                }
-
-                //System.out.println("BEST " + parameters.get(bestIndex).getDmax() + " score sum " + parameters.get(bestIndex).getScore_sum() ) ;
-                //parameters.get(bestIndex).printDWChi();
-            }
-
-            /*
-             * average the scores to prepare for sorting
-             */
-            for(int i=0; i<totalParameters; i++){
-                DmaxLambda temp = parameters.get(i);
-                temp.averageScore();
-            }
-            Collections.sort(parameters);
-
-            /*
-             * average the score
-             * set probability weight
-             * initialize the first model in sorted list as best
-             * models are sorted from lowest score
-             */
-            double expSum=0;
-            double best = parameters.get(0).getScore();
-            parameters.get(0).setProbability(1.0d);
-            parameters.get(0).updateFinalDistribution();
-
-            dmaxes.get(parameters.get(0).getDmax()).update(1.0d);
-
-
-            /*
-             * assign probabilities to other models using the difference between model_i score and model_best
-             * exp(
-             */
-            for(int i=1; i<totalParameters; i++){
-                DmaxLambda temp = parameters.get(i);
-                temp.setProbability(Math.exp((best-temp.getScore())*0.5));
-                // boltzman weighting
-                expSum += temp.getProbability();
-
-                dmaxes.get(temp.getDmax()).update(temp.getProbability());
-                temp.updateFinalDistribution();
-            }
-
-            /*
-             * Prepare KDE estimate
-             * Sum over all values to determine normalization constant
-             */
-            double normalization=0;
-            Set set = dmaxes.entrySet();
-            Iterator iterator = set.iterator();
-            while(iterator.hasNext()) {
-                Map.Entry mentry = (Map.Entry)iterator.next();
-                normalization+=((DMax)mentry.getValue()).getCount();
-            }
-
-            // how many bins do I need?
-            XYSeries finalModel = new XYSeries("finalModel", true, true);
-            /*
-             * Kernel Density Estimate
-             */
-            likelihood = new XYSeries("likelihood");
-            double bandwith = 1.0/2.5;
-            maximumMaximumLikelihood=0;
-            double inv2PI = 1.0/(Math.sqrt(2*Math.PI));
-            Number mostlikelyDmax=0;
-            for (double iDmax = lowerDmax; iDmax < upperDmax; iDmax += 0.5){
-
-                set = dmaxes.entrySet();
-                iterator = set.iterator();
-                double sumKDE = 0.0d;
-                while(iterator.hasNext()) {
-                    Map.Entry mentry = (Map.Entry)iterator.next();
-                    //((DMax)mentry.getValue()).getCount();
-                    double diff = (iDmax-(double)mentry.getKey())*bandwith;
-                    sumKDE += ((DMax)mentry.getValue()).getCount()*Math.exp(-0.5*diff*diff);
-                }
-
-                double value=sumKDE*inv2PI/normalization;
-                if (value > maximumMaximumLikelihood){ // which DMAX has the highest likelihood
-                    maximumMaximumLikelihood = value;
-                    mostlikelyDmax = (Number)iDmax;
-                }
-
-                likelihood.add(iDmax, value);
-            }
-
-            bestLabel.setText("Best : " + parameters.get(0).getStatString() + " :: Most Likely Dmax : " + mostlikelyDmax);
-            //plot the most likely model
-            /*
-             * perform weighted averaging on top 30
-             */
-            try {
-                finalModel = parameters.get(0).getPrDistribution().createCopy(0, parameters.get(0).getPrDistribution().getItemCount()-1);
-            } catch (CloneNotSupportedException e) {
-                e.printStackTrace();
-            }
-
-            XYSeriesCollection totalBest = new XYSeriesCollection();
-
-            int addedCounter = 0;
-            ArrayList<Color> shades = new ArrayList<>();
-
-            for(int i=1; i<totalParameters; i++){
-                DmaxLambda temp = parameters.get(i);
-                if (temp.number.equals(mostlikelyDmax)){
-                    XYSeries tempDis = temp.getPrDistribution();
-                    int totalIn = tempDis.getItemCount();
-
-                    totalBest.addSeries(new XYSeries ("Added " + Integer.toString(addedCounter)));
-                    XYSeries nextSeries = totalBest.getSeries(addedCounter);
-                    shades.add(new Color(1, 0, 0, (float)temp.getProbability()));
-
-                    for(int j=0; j<totalIn; j++){ // first bin is always 0 from IFT model
-                        XYDataItem item = tempDis.getDataItem(j);
-                        //averageModel.add(item);
-                        nextSeries.add(item);
-                    }
-                    addedCounter += 1;
-                }
-            }
-
-            totalBest.addSeries(finalModel);
-//            totalBest.addSeries(tempIFT.getPrDistribution());
-            //System.out.println("FINAL MODEL " + finalModel.getItemCount());
-            //updatePr(finalModel);
-
-            makeLikelihoodPlot();
-            makePlot(totalBest, shades);
-            //makeVcPlot();
-            progressBar1.setValue(0);
-            progressBar1.setStringPainted(false);
-            buttonOK.setEnabled(true);
-            return null;
-        }
-
-        private void makeLikelihoodPlot(){
-            XYSeriesCollection plotMe = new XYSeriesCollection();
-            plotMe.addSeries(likelihood);
-
-            JFreeChart chartX = ChartFactory.createXYLineChart(
-                    "",                     // chart title
-                    "dmax",                        // domain axis label
-                    "likelihood",                // range axis label
-                    plotMe,                 // data
-                    PlotOrientation.VERTICAL,
-                    false,                       // include legend
-                    false,
-                    false
-            );
-
-            final XYPlot plot = chartX.getXYPlot();
-
-            final NumberAxis domainAxis = new NumberAxis("dmax, \u212B");
-            final NumberAxis rangeAxis = new NumberAxis("Likelihood Score");
-            domainAxis.setAutoRangeIncludesZero(false);
-            domainAxis.setAutoRange(true);
-            rangeAxis.setAutoRange(true);
-            rangeAxis.setAxisLineVisible(true);
-
-            ChartPanel outPanelX = new ChartPanel(chartX){
-                @Override
-                public void restoreAutoBounds(){
-                    super.restoreAutoDomainBounds();
-                    super.restoreAutoRangeBounds();
-                    super.getChart().getXYPlot().getRangeAxis().setAutoRange(false);
-
-                    int seriesCount = super.getChart().getXYPlot().getDataset(0).getSeriesCount();
-                    super.getChart().getXYPlot().getRangeAxis().setRange(-0.00001, (maximumMaximumLikelihood + 0.1*maximumMaximumLikelihood));
-                    super.getChart().getXYPlot().getDomainAxis().setRange(lowerDmax, upperDmax);
-                }
-            };
-
-            plot.setDomainAxis(domainAxis);
-            plot.setRangeAxis(rangeAxis);
-            plot.configureDomainAxes();
-            plot.configureRangeAxes();
-            plot.setBackgroundAlpha(0.0f);
-
-            plot.setDomainCrosshairLockedOnData(true);
-            //plot.setBackgroundAlpha(0.0f);
-            plot.setRangeZeroBaselineVisible(true);
-            plot.setOutlineVisible(false);
-
-            //make crosshair visible
-            plot.setDomainCrosshairVisible(true);
-            plot.setRangeCrosshairVisible(true);
-
-            splineRendLikelihood = new XYSplineRenderer();
-            XYLineAndShapeRenderer renderer1 = new XYSplineRenderer();
-
-            splineRendLikelihood.setBaseShapesVisible(false);
-            renderer1.setBaseShapesVisible(true);
-
-            renderer1.setBaseStroke(new BasicStroke(4.0f));
-
-            // renderer1.setBaseLinesVisible(false);
-            int locale = 0;
-            splineRendLikelihood.setSeriesStroke(0, dataset.getStroke());
-
-            splineRendLikelihood.setSeriesPaint(0, currentColor); // make color slight darker
-
-            //plot.setDataset(0, splineCollection);  //Moore Function
-            plot.setRenderer(0, splineRendLikelihood);       //render as a line
-
-            chartX.getXYPlot().setDomainCrosshairVisible(false);
-            chartX.getXYPlot().setRangeCrosshairVisible(false);
-
-            outPanelX.setDefaultDirectoryForSaveAs(new File(workingDirectory.getWorkingDirectory()));
-            likelihoodPanel.removeAll();
-            likelihoodPanel.add(outPanelX);
-        }
-
-
-
-
-        private void makePlot(XYSeriesCollection plottedCollection, ArrayList<Color> colors){
-            chart = ChartFactory.createXYLineChart(
-                    "Composite Distribution",                     // chart title
-                    "r",                        // domain axis label
-                    "P(r)",                // range axis label
-                    plottedCollection,                 // data
-                    PlotOrientation.VERTICAL,
-                    false,                       // include legend
-                    false,
-                    false
-            );
-
-            final XYPlot plot = chart.getXYPlot();
-
-            final ValueMarker yMarker = new ValueMarker(0.0d);
-            plot.addRangeMarker(yMarker);
-
-            final NumberAxis domainAxis = new NumberAxis("r, \u212B");
-            final NumberAxis rangeAxis = new NumberAxis("P(r)");
-            domainAxis.setAutoRangeIncludesZero(true);
-            domainAxis.setAutoRange(true);
-            rangeAxis.setAutoRange(true);
-            rangeAxis.setAxisLineVisible(true);
-
-            rangeAxis.setTickLabelsVisible(false);
-
-            BasicStroke axisStroke = new BasicStroke(1.75f);
-            rangeAxis.setAxisLineStroke(axisStroke);
-            domainAxis.setAxisLineStroke(axisStroke);
-
-            rangeAxis.setTickMarkStroke(axisStroke);
-            domainAxis.setTickMarkStroke(axisStroke);
-
-            //org.jfree.data.Range domainBounds = dataset.getDomainBounds(true);
-            //org.jfree.data.Range rangeBounds = dataset.getRangeBounds(true);
-
-            outPanel = new ChartPanel(chart){
-                @Override
-                public void restoreAutoBounds(){
-                    super.restoreAutoDomainBounds();
-                    super.restoreAutoRangeBounds();
-                    super.getChart().getXYPlot().getRangeAxis().setAutoRange(false);
-
-                    int seriesCount = super.getChart().getXYPlot().getDataset(0).getSeriesCount();
-                    super.getChart().getXYPlot().getRangeAxis().setRange(0, plottedCollection.getSeries(0).getMaxY() + 0.15*plottedCollection.getSeries(0).getMaxY());
-                    super.getChart().getXYPlot().getDomainAxis().setRange(0, plottedCollection.getSeries(0).getMaxX());
-                }
-            };
-
-            plot.setDomainAxis(domainAxis);
-            plot.setRangeAxis(rangeAxis);
-            plot.configureDomainAxes();
-            plot.configureRangeAxes();
-            plot.setBackgroundAlpha(0.0f);
-
-            plot.setDomainCrosshairLockedOnData(true);
-            //plot.setBackgroundAlpha(0.0f);
-            plot.setRangeZeroBaselineVisible(true);
-
-            //make crosshair visible
-            plot.setDomainCrosshairVisible(true);
-            plot.setRangeCrosshairVisible(true);
-
-            plot.setOutlineVisible(false);
-
-            splineRend = new XYSplineRenderer();
-            splineRend.setBaseShapesVisible(false);
-
-            for(int i=0; i<colors.size(); i++){
-                splineRend.setSeriesStroke(i, new BasicStroke(4.0f));
-                splineRend.setSeriesPaint(i, colors.get(i));
-            }
-
-            lastLocale = plottedCollection.getSeriesCount()-1; // color all the data
-            splineRend.setSeriesOutlineStroke(lastLocale, dataset.getStroke());
-            splineRend.setSeriesPaint(lastLocale, currentColor); // make color slight darker
-            splineRend.setSeriesShapesVisible(lastLocale, true);
-            splineRend.setSeriesStroke(lastLocale, new BasicStroke(5.0f));
-            splineRend.setSeriesShape(lastLocale,new Ellipse2D.Double(-4.0, -4.0, 8.0, 8.0));
-            splineRend.setSeriesShapesFilled(lastLocale, true);
-
-
-            plot.setRenderer(0, splineRend);       //render as a line
-
-            JPopupMenu popup = outPanel.getPopupMenu();
-            popup.add(new JMenuItem(new AbstractAction("Toggle Crosshair") {
-                @Override
-                public void actionPerformed(ActionEvent e) {
-                    //To change body of implemented methods use File | Settings | File Templates.
-                    if (crosshair){
-                        chart.getXYPlot().setDomainCrosshairVisible(false);
-                        chart.getXYPlot().setRangeCrosshairVisible(false);
-                        crosshair = false;
-                    } else {
-                        chart.getXYPlot().setDomainCrosshairVisible(true);
-                        chart.getXYPlot().setRangeCrosshairVisible(true);
-                        crosshair = true;
-                    }
-                }
-            }));
-
-            outPanel.setDefaultDirectoryForSaveAs(new File(workingDirectory.getWorkingDirectory()));
-            leftPanel.removeAll();
-            leftPanel.add(outPanel);
-        }
-
-//        private synchronized void updatePr(XYSeries dis){
-//            try {
-//                averagedPr = dis.createCopy(0, dis.getItemCount()-1);
-//            } catch (CloneNotSupportedException e) {
-//                e.printStackTrace();
-//            }
-//        }
-
-        private synchronized void initializeBar(int total){
-            progressBar1.setStringPainted(true);
-            progressBar1.setValue(0);
-            progressBar1.setMaximum(total*totalTrialsCE);
-        }
-
-
-        private synchronized void increment() {
-            int currentCount = counter.incrementAndGet();
-            progressBar1.setValue((int)(currentCount));
-        }
-
-
-        /**
-         *
-         * @param lower int
-         * @param upper int
-         * @param percent double
-         * @return
-         */
-        private int[] randomIntegersBounded(int lower, int upper, double percent){
-            java.util.List<Integer> numbers = new ArrayList<Integer>();
-
-            int total = 0;
-            for(int i = lower; i < upper; i++) {
-                numbers.add(i);
-                total++;
-            }
-
-            // Shuffle them
-            Collections.shuffle(numbers);
-            int count = (int)Math.ceil(total*percent);
-            // Pick count items.
-            List<Integer> tempNumbers = numbers.subList(0, count);
-            int[] values = new int[count];
-
-            for(int i=0; i < count; i++){
-                values[i] = tempNumbers.get(i);
-            }
-
-            Arrays.sort(values);
-            return values;
-        }
-    } // end of runnable class
-
-
+        return (n == null || n.trim().isEmpty()) ? "unnamed dataset" : n.trim();
+    }
+
+    private void setRunning(boolean running) {
+        startButton.setEnabled(!running);
+        applyButton.setEnabled(!running && lastResult != null);
+        progressBar.setIndeterminate(running);
+    }
 
     /**
-     *
-     * standardize data
-     * create error dataset that matches q for fitted region
+     * q*I(q) and q*sigma(q) from the first point of the fitted region (keeps the low-q cut) to the
+     * end of the data, so automatic qmax can look beyond the current qmax.
      */
-    private void standardizeData(){
-        this.standardizedSeries = new XYSeries("Standard set");
-        this.scaled_q_times_Iq_Errors = new XYSeries("fitted errors");
-
-        XYDataItem tempData, tempError;
-        XYSeries fitteddqIqRegion = dataset.getfittedqIq();
-
-        int totalItems = fitteddqIqRegion.getItemCount();
-        double sum = 0, minavg=10000000, tempminavg;
-        int windowSize = 7;
-        double invwindow = 1.0/(double)windowSize;
-        for(int r=0; r<(totalItems-windowSize); r++){
-            tempminavg = 0;
-            for (int w=0; w<windowSize; w++){
-                tempminavg += fitteddqIqRegion.getDataItem(r).getYValue();
-            }
-
-            if (tempminavg < minavg){
-                minavg = tempminavg;
-            }
+    private XYSeries[] analysisData() {
+        XYSeries fitted = dataset.getfittedqIq();
+        XYSeries all = dataset.getOriginalqIq();
+        XYSeries errors = dataset.getErrorAllData();
+        // auto low-q trim starts from the first measured point; otherwise keep the user's low-q cut
+        double qStart = autoLowQBox.isSelected() ? all.getMinX() : fitted.getMinX();
+        double qEnd = autoQmaxBox.isSelected() ? all.getMaxX() : fitted.getMaxX();
+        XYSeries source = autoQmaxBox.isSelected() ? all : fitted;
+        XYSeries qIq = new XYSeries("qIq"), qSigma = new XYSeries("q*sigma");
+        for (int i = 0; i < source.getItemCount(); i++) {
+            XYDataItem item = source.getDataItem(i);
+            double q = item.getXValue();
+            if (q < qStart || q > qEnd) continue;
+            int j = errors.indexOf(item.getX());
+            if (j < 0) continue;
+            double sigma = errors.getY(j).doubleValue();
+            if (!(sigma > 0)) continue;
+            qIq.add(q, item.getYValue());
+            qSigma.add(q, q*sigma);
         }
-
-        standardizedMin = minavg*invwindow;//nonData.getMinY();
-        standardizedScale = Math.abs(fitteddqIqRegion.getMaxY() - standardizedMin);
-
-        double invstdev = 1.0/standardizedScale;
-
-        for(int r=0; r<totalItems; r++){
-            tempData = fitteddqIqRegion.getDataItem(r);
-            //scaled_q_times_Iq_Errors.add(dataset.getErrorAllData().getDataItem(dataset.getErrorAllData().indexOf(tempData.getX())));
-            tempError = dataset.getErrorAllData().getDataItem(dataset.getErrorAllData().indexOf(tempData.getX()));
-            scaled_q_times_Iq_Errors.add(tempData.getX(), tempError.getYValue()*tempError.getXValue());  // q*sigma/scale
-            standardizedSeries.add(tempData.getX(), (tempData.getYValue() - standardizedMin)*invstdev);
-        }
+        return new XYSeries[]{qIq, qSigma};
     }
 
-    private void updateInfo(){
-        bestLabel.setText(String.format("Search | dmax => %.1f to %.1f | lambda => %.1E to %.1E | qmax : %.4f", lowerDmax, upperDmax, lowerLambda,upperLambda, upperQmax));
+    /** restricts the dataset's fitted range to the chosen qmax (same calls as the previous version) */
+    private void applyQmax() {
+        if (lastResult == null) return;
+        dataset.resetStartStop();
+        XYSeries fitted = dataset.getfittedqIq();
+        int last = fitted.getItemCount() - 1;
+        for (int i = 0; i < fitted.getItemCount(); i++) {
+            if (fitted.getX(i).doubleValue() > lastResult.qmax) { last = i - 1; break; }
+        }
+        dataset.decrementHigh(last);
+        statusLabel.setText(String.format("qmax set to %.4f; use dmax %.1f Å", lastResult.qmax, lastResult.dmax));
     }
 
+    private void close() {
+        frame.dispose();
+        dispose();
+    }
 
-    private void makeVcPlot(){
-        /*
-         * use the first point in fitted region as starting q
-         * Prepare the data
-         */
-        XYSeries fitteddqIqRegion = dataset.getfittedqIq();
-        XYSeries originalData = dataset.getOriginalqIq();
+    /* ------------------------------------------------------------------ results */
 
-        int startIndex = dataset.getOriginalqIq().indexOf(fitteddqIqRegion.getX(0));
+    private void show(DmaxAnalysis.Result r) {
+        lastResult = r;
+        applyButton.setEnabled(true);
+        saveButton.setEnabled(true);
+        qmaxField.setText(String.format("%.4f", r.qmax));
+        statusLabel.setText(String.format("Suggested dmax %.1f \u212B (data support %.0f-%.0f) at q %.4f-%.4f",
+                r.dmax, r.dmaxScan.lowestAdequate, r.dmaxScan.largestAdequate, r.qmin, r.qmax));
+        reportArea.setText(datasetName() + "\n\n" + r.report());
+        reportArea.setCaretPosition(0);
+        consensusChart = consensusChart(r.dmaxScan);
+        prChart = prChart(r);
+        qmaxChart = (r.qmaxScan == null) ? null : qmaxChart(r.qmaxScan);
+        setChart(consensusPanel, consensusChart);
+        setChart(prPanel, prChart);
+        setChart(qmaxPanel, qmaxChart);
+    }
 
-        double base = originalData.getX(startIndex).doubleValue();
-        double height = originalData.getY(startIndex).doubleValue();
+    private void setChart(JPanel holder, JFreeChart chart) {
+        holder.removeAll();
+        if (chart == null) {
+            JLabel l = new JLabel("qmax fixed by the user", SwingConstants.CENTER);
+            l.setForeground(MUTED);
+            holder.add(l, BorderLayout.CENTER);
+        } else {
+            ChartPanel cp = new ChartPanel(chart);
+            if (workingDirectory != null) cp.setDefaultDirectoryForSaveAs(new File(workingDirectory.getWorkingDirectory()));
+            holder.add(cp, BorderLayout.CENTER);
+        }
+        holder.revalidate();
+        holder.repaint();
+    }
 
-        double area = 0.5*base*height;
+    /** per-method Delta(-2 ln Likelihood) curves, the consensus, the within-2 band and the chosen dmax */
+    private JFreeChart consensusChart(DmaxSelector.DmaxScan s) {
+        XYSeriesCollection methods = new XYSeriesCollection();
+        XYLineAndShapeRenderer mr = new XYLineAndShapeRenderer(true, true);
+        for (int m = 0; m < s.methods.length; m++) {
+            double lo = Double.POSITIVE_INFINITY;
+            for (double v : s.score[m]) if (!Double.isNaN(v)) lo = Math.min(lo, v);
+            XYSeries series = new XYSeries(s.methods[m] + (s.included[m] ? "" : " (excluded)"));
+            for (int i = 0; i < s.dmax.length; i++) {
+                double v = s.score[m][i] - lo;
+                if (!Double.isNaN(v) && !Double.isInfinite(v)) series.add(s.dmax[i], v);
+            }
+            methods.addSeries(series);
+            Color c = METHOD_COLORS.getOrDefault(s.methods[m], MUTED);
+            mr.setSeriesPaint(m, s.included[m] ? c : withAlpha(c, 90));
+            mr.setSeriesStroke(m, s.included[m] ? new BasicStroke(1.4f)
+                    : new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND, 1f, new float[]{4f, 3f}, 0f));
+            mr.setSeriesShape(m, new Ellipse2D.Double(-2.5, -2.5, 5, 5));
+            mr.setSeriesShapesFilled(m, false);
+        }
 
-        XYSeries vcData = new XYSeries("Vc");
-        vcData.add(originalData.getX(startIndex), area);
-        startIndex+=1;
+        XYSeries consensus = new XYSeries("consensus");
+        for (int i = 0; i < s.dmax.length; i++) {
+            if (!Double.isNaN(s.consensusScore[i]) && !Double.isInfinite(s.consensusScore[i])) consensus.add(s.dmax[i], s.consensusScore[i]);
+        }
+        XYSeriesCollection cc = new XYSeriesCollection(consensus);
+        XYLineAndShapeRenderer cr = new XYLineAndShapeRenderer(true, false);
+        cr.setSeriesPaint(0, INK);
+        cr.setSeriesStroke(0, new BasicStroke(3.0f));
 
-        double tempsum;
-        int limit = originalData.getItemCount()-1;
-        for (int i = startIndex; i < limit; i++){
-            XYDataItem tempXY = originalData.getDataItem(i);
-            if (i == limit -1){ //last point for trapezoid rule
-                tempsum = area + tempXY.getYValue();
-                vcData.add(tempXY.getX(), tempXY.getXValue()/(2.0*(i+1))*tempsum);
+        JFreeChart chart = ChartFactory.createXYLineChart(null, "dmax (Å)", "Δ(−2 ln Likelihood)", cc,
+                PlotOrientation.VERTICAL, true, true, false);
+        XYPlot plot = chart.getXYPlot();
+        styleChart(chart);
+        plot.setRenderer(0, cr);
+        plot.setDataset(1, methods);
+        plot.setRenderer(1, mr);
+        plot.setDatasetRenderingOrder(DatasetRenderingOrder.REVERSE);   // consensus (dataset 0) on top
 
+        IntervalMarker band = new IntervalMarker(0, DmaxSelector.SUGGESTED_DELTA);
+        band.setPaint(BAND);
+        plot.addRangeMarker(band, org.jfree.ui.Layer.BACKGROUND);
+        plot.addDomainMarker(labelledMarker(s.suggested, String.format("suggested %.1f \u212B", s.suggested), INK, false));
+        if (s.lowestAdequate != s.suggested) plot.addDomainMarker(labelledMarker(s.lowestAdequate, String.format("band starts %.1f", s.lowestAdequate), MUTED, true));
+
+        NumberAxis x = (NumberAxis) plot.getDomainAxis();
+        x.setAutoRangeIncludesZero(false);
+        x.setRange(s.dmax[0], s.dmax[s.dmax.length - 1]);
+        NumberAxis y = (NumberAxis) plot.getRangeAxis();
+        y.setRange(-1, 30);
+        return chart;
+    }
+
+    /** ensemble Shannon bins (mean +/- 2 sigma total) over the members' P(r) curves */
+    private JFreeChart prChart(DmaxAnalysis.Result r) {
+        EnsembleIFT ens = r.ensemble;
+        XYSeriesCollection curves = new XYSeriesCollection();
+        XYLineAndShapeRenderer lr = new XYLineAndShapeRenderer(true, false);
+        int k = 0;
+        for (int m = 0; m < r.fits.size(); m++) {
+            boolean in = (ens == null) || ens.included[m];
+            IndirectFT f = r.fits.get(m);
+            XYSeries s = new XYSeries(r.names.get(m) + (in ? "" : " (excluded)"));
+            int n = 300;
+            for (int i = 0; i <= n; i++) {
+                double rr = r.dmax*i/n;
+                double v;
+                try {
+                    v = (i == 0 || i == n) ? 0 : f.calculatePofRAtR(rr, 1.0);
+                } catch (RuntimeException ex) {
+                    continue;
+                }
+                if (!Double.isNaN(v)) s.add(rr, v);
+            }
+            curves.addSeries(s);
+            Color c = METHOD_COLORS.getOrDefault(r.names.get(m), MUTED);
+            lr.setSeriesPaint(k, in ? c : withAlpha(c, 70));
+            lr.setSeriesStroke(k, new BasicStroke(in ? 1.6f : 1.0f));
+            k++;
+        }
+
+        JFreeChart chart = ChartFactory.createXYLineChart(null, "r (Å)", "P(r)", curves,
+                PlotOrientation.VERTICAL, true, true, false);
+        XYPlot plot = chart.getXYPlot();
+        styleChart(chart);
+        plot.setRenderer(0, lr);
+
+        if (ens != null) {
+            YIntervalSeries bins = new YIntervalSeries("ensemble ± 2σ");
+            for (int b = 0; b < ens.nBins; b++) bins.add(ens.r[b], ens.mean[b], ens.mean[b] - 2*ens.sigma[b], ens.mean[b] + 2*ens.sigma[b]);
+            YIntervalSeriesCollection bc = new YIntervalSeriesCollection();
+            bc.addSeries(bins);
+            XYErrorRenderer er = new XYErrorRenderer();
+            er.setDrawXError(false);
+            er.setDrawYError(true);
+            er.setBaseLinesVisible(false);
+            er.setBaseShapesVisible(true);
+            er.setSeriesShape(0, new Rectangle2D.Double(-4, -4, 8, 8));
+            er.setSeriesPaint(0, datasetColor);
+            er.setErrorPaint(INK);
+            plot.setDataset(1, bc);
+            plot.setRenderer(1, er);
+            plot.setDatasetRenderingOrder(DatasetRenderingOrder.FORWARD);   // bins (dataset 1) over the curves
+        }
+        plot.addRangeMarker(new ValueMarker(0.0, MUTED, new BasicStroke(1f)));
+        NumberAxis x = (NumberAxis) plot.getDomainAxis();
+        x.setRange(0, r.dmax*1.03);
+        ((NumberAxis) plot.getRangeAxis()).setTickLabelsVisible(false);
+        return chart;
+    }
+
+    /** median oscillation of the methods against offered qmax (log scale), threshold and choice */
+    private JFreeChart qmaxChart(DmaxSelector.QmaxScan q) {
+        final double floor = 1e-4;
+        XYSeriesCollection perMethod = new XYSeriesCollection();
+        XYLineAndShapeRenderer mr = new XYLineAndShapeRenderer(true, true);
+        for (int m = 0; m < q.methods.length; m++) {
+            XYSeries s = new XYSeries(q.methods[m]);
+            for (int k = 0; k < q.q.length; k++) s.add(q.q[k], Math.max(floor, q.oscillation[k][m]));
+            perMethod.addSeries(s);
+            mr.setSeriesPaint(m, withAlpha(METHOD_COLORS.getOrDefault(q.methods[m], MUTED), 170));
+            mr.setSeriesStroke(m, new BasicStroke(1.1f));
+            mr.setSeriesShape(m, new Ellipse2D.Double(-2.5, -2.5, 5, 5));
+            mr.setSeriesShapesFilled(m, false);
+        }
+        XYSeries median = new XYSeries("median");
+        for (int k = 0; k < q.q.length; k++) median.add(q.q[k], Math.max(floor, q.medianOscillation[k]));
+        XYSeriesCollection mc = new XYSeriesCollection(median);
+        XYLineAndShapeRenderer medr = new XYLineAndShapeRenderer(true, false);
+        medr.setSeriesPaint(0, INK);
+        medr.setSeriesStroke(0, new BasicStroke(3.0f));
+
+        JFreeChart chart = ChartFactory.createXYLineChart(null, "qmax offered (Å⁻¹)", "oscillation score", mc,
+                PlotOrientation.VERTICAL, true, true, false);
+        XYPlot plot = chart.getXYPlot();
+        styleChart(chart);
+        LogAxis y = new LogAxis("oscillation score");
+        y.setSmallestValue(floor);
+        y.setRange(floor*0.8, 3);
+        y.setTickLabelPaint(MUTED);
+        y.setLabelPaint(INK);
+        plot.setRangeAxis(y);
+        plot.setRenderer(0, medr);
+        plot.setDataset(1, perMethod);
+        plot.setRenderer(1, mr);
+        plot.setDatasetRenderingOrder(DatasetRenderingOrder.REVERSE);   // median (dataset 0) on top
+        ValueMarker threshold = new ValueMarker(DmaxSelector.QMAX_OSC_THRESHOLD, MUTED,
+                new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND, 1f, new float[]{5f, 4f}, 0f));
+        threshold.setLabel("threshold");
+        threshold.setLabelPaint(MUTED);
+        threshold.setLabelAnchor(RectangleAnchor.TOP_LEFT);
+        threshold.setLabelTextAnchor(TextAnchor.BOTTOM_LEFT);
+        plot.addRangeMarker(threshold);
+        plot.addDomainMarker(labelledMarker(q.qmax, String.format("qmax %.4f", q.qmax), INK, false));
+        ((NumberAxis) plot.getDomainAxis()).setAutoRangeIncludesZero(false);
+        return chart;
+    }
+
+    /* ------------------------------------------------------------------ export */
+
+    /** figure size in inches and resolution used for PNG and PDF export */
+    public static double FIGURE_WIDTH_IN = 11.0, FIGURE_HEIGHT_IN = 8.0;
+    public static int FIGURE_DPI = 300;
+
+    /** asks for a file and writes the 2x2 figure (charts + report) as PNG or PDF */
+    private void saveFigure() {
+        if (lastResult == null) return;
+        JFileChooser chooser = new JFileChooser(workingDirectory == null ? null : new File(workingDirectory.getWorkingDirectory()));
+        javax.swing.filechooser.FileNameExtensionFilter png = new javax.swing.filechooser.FileNameExtensionFilter("PNG image (*.png)", "png");
+        javax.swing.filechooser.FileNameExtensionFilter pdf = new javax.swing.filechooser.FileNameExtensionFilter("PDF document (*.pdf)", "pdf");
+        chooser.addChoosableFileFilter(png);
+        chooser.addChoosableFileFilter(pdf);
+        chooser.setFileFilter(pdf);
+        String base = datasetName().replaceAll("\\.[A-Za-z0-9]+$", "").replaceAll("[^A-Za-z0-9._-]+", "_");
+        chooser.setSelectedFile(new File(String.format("%s_dmax%.0f.pdf", base, lastResult.dmax)));
+        if (chooser.showSaveDialog(frame) != JFileChooser.APPROVE_OPTION) return;
+
+        File file = chooser.getSelectedFile();
+        String name = file.getName().toLowerCase();
+        boolean asPdf = name.endsWith(".pdf") || (!name.endsWith(".png") && chooser.getFileFilter() == pdf);
+        if (!name.endsWith(".pdf") && !name.endsWith(".png")) file = new File(file.getPath() + (asPdf ? ".pdf" : ".png"));
+        if (file.exists() && JOptionPane.showConfirmDialog(frame, file.getName() + " exists. Replace it?", "Save figure",
+                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
+        try {
+            if (asPdf) {
+                boolean vector = writePdf(file);
+                statusLabel.setText("Saved " + file.getName() + (vector ? " (vector)" : " (300 dpi image; add pdfbox-graphics2d for vector output)"));
             } else {
-                tempsum = area + tempXY.getYValue();
-                vcData.add(tempXY.getX(), tempXY.getXValue()/(2.0*(i+1))*tempsum);
-                area = area + 2.0*tempXY.getYValue();
+                javax.imageio.ImageIO.write(renderFigure(), "png", file);
+                statusLabel.setText("Saved " + file.getName());
+            }
+        } catch (java.io.IOException | RuntimeException ex) {
+            statusLabel.setText("Could not save: " + ex.getMessage());
+        }
+    }
+
+    /** the figure as an image at FIGURE_DPI (charts drawn at full resolution, not a scaled screenshot) */
+    java.awt.image.BufferedImage renderFigure() {
+        int W = (int) Math.round(FIGURE_WIDTH_IN*FIGURE_DPI), H = (int) Math.round(FIGURE_HEIGHT_IN*FIGURE_DPI);
+        java.awt.image.BufferedImage img = new java.awt.image.BufferedImage(W, H, java.awt.image.BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        try {
+            g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+            g.setRenderingHint(RenderingHints.KEY_STROKE_CONTROL, RenderingHints.VALUE_STROKE_PURE);
+            drawFigure(g, FIGURE_DPI/100.0);
+        } finally {
+            g.dispose();
+        }
+        return img;
+    }
+
+    /**
+     * draws the 2x2 figure (three charts + report) into g. The layout is defined at 100 units per inch;
+     * scale converts to the device: FIGURE_DPI/100 for an image, 72/100 for PDF points.
+     */
+    private void drawFigure(Graphics2D g, double scale) {
+        double w = FIGURE_WIDTH_IN*100, h = FIGURE_HEIGHT_IN*100, pad = 8, title = 22, header = 24;
+        g.scale(scale, scale);
+        g.setColor(SURFACE);
+        g.fill(new Rectangle2D.Double(0, 0, w, h));
+        g.setColor(INK);
+        g.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 15));
+        g.drawString(String.format("%s   dmax %.1f \u212B   q %.4f\u2013%.4f \u212B\u207B\u00B9", datasetName(),
+                lastResult.dmax, lastResult.qmin, lastResult.qmax), (float) (pad + 4), (float) (pad + 16));
+        double top = header;
+        double cw = (w - 3*pad)/2, ch = (h - top - 3*pad)/2;
+        Rectangle2D[] cells = {
+                new Rectangle2D.Double(pad, top + pad, cw, ch), new Rectangle2D.Double(2*pad + cw, top + pad, cw, ch),
+                new Rectangle2D.Double(pad, top + 2*pad + ch, cw, ch), new Rectangle2D.Double(2*pad + cw, top + 2*pad + ch, cw, ch)};
+        String[] titles = {"dmax consensus", "Ensemble P(r)", "qmax selection", "Report"};
+        JFreeChart[] charts = {consensusChart, prChart, qmaxChart, null};
+        Font titleFont = new Font(Font.SANS_SERIF, Font.BOLD, 13);
+        for (int i = 0; i < 4; i++) {
+            Rectangle2D c = cells[i];
+            g.setColor(INK);
+            g.setFont(titleFont);
+            g.drawString(titles[i], (float) (c.getX() + 4), (float) (c.getY() + 15));
+            Rectangle2D area = new Rectangle2D.Double(c.getX(), c.getY() + title, c.getWidth(), c.getHeight() - title);
+            if (charts[i] != null) {
+                charts[i].draw(g, area);
+            } else if (i == 2) {
+                g.setColor(MUTED);
+                g.setFont(new Font(Font.SANS_SERIF, Font.PLAIN, 12));
+                g.drawString("qmax fixed by the user", (float) (area.getCenterX() - 60), (float) area.getCenterY());
+            } else {
+                drawReport(g, area);
             }
         }
+    }
 
-        // find the smallest positive slope
-        int locale = 1;
-        double slope = 10000, intercept=0, diff, h_value;
-        int window = 30;
-        int half = window/2;
-        int totalInVc = vcData.getItemCount()-window;
-        double[] xvalues = new double[window];
-        double[] yvalues = new double[window];
-        XYDataItem winItem;
-
-        XYSeries slopes = new XYSeries("slopes");
-        double slopeSum = 0;
-        for(int i=window; i<totalInVc; i++){
-
-            int startHere = i - half;
-            for(int j=0; j<window; j++){
-                winItem = vcData.getDataItem(startHere + j);
-                xvalues[j] = winItem.getXValue();
-                yvalues[j] = winItem.getYValue();
-            }
-
-            double[] params = Functions.leastSquares(xvalues, yvalues);
-            slopes.add(vcData.getX(i), params[0]);
-            slopeSum += params[0];
-
-            if (params[0] < slope && params[0] > 0){
-                slope = params[0];
-                intercept=params[1];
-                locale = i;
-            }
+    private void drawReport(Graphics2D g, Rectangle2D area) {
+        Font mono = new Font(Font.MONOSPACED, Font.PLAIN, 10);
+        g.setFont(mono);
+        g.setColor(INK);
+        FontMetrics fm = g.getFontMetrics();
+        float y = (float) (area.getY() + fm.getAscent() + 4);
+        for (String line : reportArea.getText().split("\n")) {
+            if (y > area.getMaxY() - 2) break;
+            g.drawString(line, (float) (area.getX() + 6), y);
+            y += fm.getHeight();
         }
+    }
 
-        // find region of slopes with smallest variance
-        int totalSlopes = slopes.getItemCount();
-        double averageSlope = slopeSum/(double)slopes.getItemCount();
-        int startHere = 0;
-
-        // find where average slope in the window is < averageSlope
-        for(int j=startHere; j<(totalSlopes - window); j++){
-
-            double tempSum=0;
-            for(int h=0; h<window; h++){
-                tempSum += slopes.getY(h+j).doubleValue();
-            }
-            if (tempSum/(double)window < averageSlope){
-                averageSlope = tempSum/(double)window;
-                startHere =j;
-                break;
-            }
-        }
-
-        //Interpolator
-//        int totalInSlopes = slopes.getItemCount();
-//        LoessInterpolator loessInterpolator=new LoessInterpolator(
-//                67.0/totalInSlopes,//bandwidth,
-//                2//robustnessIters
-//        );
-//
-//        double x[]=new double[totalInSlopes];
-//        double y[]=new double[totalInSlopes];
-//        for(int i=0; i<totalInSlopes; i++){
-//            XYDataItem tempItem = slopes.getDataItem(i);
-//            x[i] = tempItem.getXValue();
-//            y[i] = tempItem.getYValue();
-//        }
-//
-//        double y2[]=loessInterpolator.smooth(x, y);
-//        XYSeries newSlopes = new XYSeries("New Data");
-//        for(int i=0; i<totalInSlopes; i++){
-//            newSlopes.add(x[i], y2[i]);
-//        }
-
-        window = (int)(slopes.getItemCount()*0.1);
-        // find longest stretch with smallest variance
-        double tempvar, variance = 1000, sum_sq, val, tempSlope;
-        int lastqIndex = 0;
-        totalSlopes -= window;
-        while (window > 34){
-            /*
-             * walk the window down and determine variance with lowest slope
-             */
-            double invWindow = 1.0/(double)window;
-            for(int j=startHere; j< totalSlopes; j++){
-                sum_sq=0;
-                slopeSum=0;
-                for(int h=0; h<window; h++){
-                    val = slopes.getY(j+h).doubleValue();
-                    sum_sq += val*val;
-                    slopeSum += val;
-                }
-                tempSlope = invWindow*slopeSum;
-                tempvar = invWindow*sum_sq - tempSlope*tempSlope;
-                if (tempvar < variance ){
-                    variance = tempvar;
-                    averageSlope = tempSlope;
-                    lastqIndex = j + window;
+    /**
+     * one-page PDF with Apache PDFBox. If pdfbox-graphics2d (de.rototor.pdfbox.graphics2d) is on the
+     * classpath the figure is drawn as vector graphics (charts and text stay sharp at any zoom);
+     * otherwise it is embedded as a lossless FIGURE_DPI image. The vector library is looked up at
+     * run time, so Scatter compiles with or without it.
+     *
+     * @return true if the figure was written as vector graphics
+     */
+    boolean writePdf(File file) throws java.io.IOException {
+        float pw = (float) (FIGURE_WIDTH_IN*72), ph = (float) (FIGURE_HEIGHT_IN*72);
+        try (PDDocument doc = new PDDocument()) {
+            PDPage page = new PDPage(new PDRectangle(pw, ph));
+            doc.addPage(page);
+            PDFormXObject vector = vectorFigure(doc, pw, ph);
+            try (PDPageContentStream cs = new PDPageContentStream(doc, page)) {
+                if (vector != null) {
+                    cs.drawForm(vector);
+                } else {
+                    PDImageXObject image = LosslessFactory.createFromImage(doc, renderFigure());
+                    cs.drawImage(image, 0, 0, pw, ph);
                 }
             }
-            window -= 1;
-            totalSlopes += 1;
-            //System.out.println(window + " < " + totalSlopes + " -- " + startHere);
+            PDDocumentInformation info = doc.getDocumentInformation();
+            info.setTitle(String.format("FindDmax %s: dmax %.1f A, qmax %.4f 1/A", datasetName(), lastResult.dmax, lastResult.qmax));
+            info.setCreator("Scatter FindDmax");
+            info.setCreationDate(java.util.Calendar.getInstance());
+            doc.save(file);
+            return vector != null;
         }
+    }
 
+    /** the figure as a PDF form via pdfbox-graphics2d (reflection), or null if that library is absent */
+    private PDFormXObject vectorFigure(PDDocument doc, float pw, float ph) {
+        Class<?> cls;
+        try {
+            cls = Class.forName("de.rototor.pdfbox.graphics2d.PdfBoxGraphics2D");
+        } catch (ClassNotFoundException | LinkageError ex) {
+            return null;
+        }
+        try {
+            Graphics2D g = (Graphics2D) cls.getConstructor(PDDocument.class, float.class, float.class).newInstance(doc, pw, ph);
+            try {
+                drawFigure(g, 0.72);                  // 100 layout units per inch -> 72 points per inch
+            } finally {
+                g.dispose();
+            }
+            return (PDFormXObject) cls.getMethod("getXFormObject").invoke(g);
+        } catch (ReflectiveOperationException | RuntimeException ex) {
+            return null;                              // fall back to the image
+        }
+    }
 
-        suggestqmax = slopes.getX(lastqIndex).doubleValue();
-        final ValueMarker yMarker = new ValueMarker(suggestqmax);
-        yMarker.setPaint(Color.red);
+    /* ------------------------------------------------------------------ styling */
 
-        XYDataItem localeItem = vcData.getDataItem(locale);
-
-//        XYSeries lineSeries = new XYSeries("Line");
-//        lineSeries.add(0,intercept);
-//        lineSeries.add(vcData.getMaxX(),slope*vcData.getMaxX() + intercept);
-
-
-        /*
-         * make the plot
-         */
-        XYSeriesCollection plotMe = new XYSeriesCollection();
-        XYSeriesCollection plotMe2 = new XYSeriesCollection();
-        plotMe.addSeries(vcData);
-//        plotMe.addSeries(lineSeries);
-        plotMe2.addSeries(slopes);
-//        plotMe2.addSeries(newSlopes);
-
-        JFreeChart chartX = ChartFactory.createXYLineChart(
-                "",                     // chart title
-                "q",                        // domain axis label
-                "Integral q \u00D7 I(q)",                // range axis label
-                plotMe,                 // data
-                PlotOrientation.VERTICAL,
-                false,                       // include legend
-                false,
-                false
-        );
-
-        final XYPlot plot = chartX.getXYPlot();
-        plot.addDomainMarker(yMarker);
-
-        final NumberAxis domainAxis = new NumberAxis("q (\u212B \u207B\u00B9)");
-        vcRangeAxis = new NumberAxis("Integral q\u00D7I(q)");
-
-        final NumberAxis axis2 = new NumberAxis("Slopes");
-        axis2.setAutoRangeIncludesZero(true);
-        axis2.setLabelPaint(Color.gray.darker());
-        axis2.setTickLabelsVisible(false);
-
-        plot.setRangeAxis(1, axis2);
-        plot.setDataset(1, plotMe2);
-        plot.mapDatasetToRangeAxis(1,1);
-
-        domainAxis.setAutoRangeIncludesZero(false);
-        domainAxis.setAutoRange(true);
-        vcRangeAxis.setAutoRange(true);
-        vcRangeAxis.setAxisLineVisible(true);
-
-        vcRangeAxis.setLabelPaint(currentColor.darker());
-
-        vcRangeAxis.setTickLabelsVisible(false);
-
-        plot.setDomainAxis(domainAxis);
-        plot.setRangeAxis(vcRangeAxis);
-        plot.configureDomainAxes();
-        plot.configureRangeAxes();
-        plot.setBackgroundAlpha(0.0f);
+    private static void styleChart(JFreeChart chart) {
+        chart.setBackgroundPaint(SURFACE);
+        if (chart.getLegend() != null) {
+            chart.getLegend().setBackgroundPaint(SURFACE);
+            chart.getLegend().setItemPaint(INK);
+        }
+        XYPlot plot = chart.getXYPlot();
+        plot.setBackgroundPaint(SURFACE);
+        plot.setDomainGridlinePaint(GRID);
+        plot.setRangeGridlinePaint(GRID);
         plot.setOutlineVisible(false);
-
-        plot.setDomainCrosshairLockedOnData(true);
-
-//        rangeAxis.setRange(0, vcData.getMaxY() + 0.1*vcData.getMaxY());
-
-        plot.setDomainAxis(domainAxis);
-        plot.setRangeAxis(vcRangeAxis);
-        plot.setBackgroundPaint(null);
-        rendereriVc = new XYSplineRenderer();
-        plot.setRenderer(0, rendereriVc);
-
-        rendereriVc.setBaseLinesVisible(true);
-        rendereriVc.setBaseShapesVisible(false);
-        rendereriVc.setBaseShapesFilled(false);
-
-        //set dot size for all series
-        rendereriVc.setSeriesLinesVisible(0, true);
-        //rendereriVc.setSeriesShape(count, new Ellipse2D.Double(-3.0, -3.0, 3.0, 3.0));
-        rendereriVc.setSeriesShapesFilled(0, false);
-        rendereriVc.setSeriesVisible(0, true);
-        rendereriVc.setSeriesPaint(0, currentColor);
-        rendereriVc.setSeriesStroke(0, new BasicStroke(2.0f));
-
-
-        XYLineAndShapeRenderer renderer1 = new XYLineAndShapeRenderer();
-        renderer1.setSeriesPaint(0, Color.gray);
-        renderer1.setSeriesShapesFilled(0, false);
-        renderer1.setSeriesShapesVisible(0, false);
-        renderer1.setSeriesStroke(0, new BasicStroke(3.0f));
-        plot.setRenderer(1, renderer1);
-
-
-        ChartPanel outPanelX = new ChartPanel(chartX){
-            @Override
-            public void restoreAutoBounds(){
-                super.restoreAutoDomainBounds();
-                super.restoreAutoRangeBounds();
-                super.getChart().getXYPlot().getRangeAxis().setAutoRange(false);
-                super.getChart().getXYPlot().getRangeAxis().setRange(0, (vcData.getMaxY() + 0.1*vcData.getMaxY()));
-//                    super.getChart().getXYPlot().getDomainAxis().setRange(lowerDmax, upperDmax);
-            }
-        };
-
-        chartX.getXYPlot().setDomainCrosshairVisible(false);
-        chartX.getXYPlot().setRangeCrosshairVisible(false);
-
-
-        outPanelX.setDefaultDirectoryForSaveAs(new File(workingDirectory.getWorkingDirectory()));
-        vcPanel.removeAll();
-        vcPanel.add(outPanelX);
+        plot.getDomainAxis().setTickLabelPaint(MUTED);
+        plot.getDomainAxis().setLabelPaint(INK);
+        plot.getRangeAxis().setTickLabelPaint(MUTED);
+        plot.getRangeAxis().setLabelPaint(INK);
     }
 
-
-    class ColorEditor implements ActionListener {
-        //Color currentColor;
-        JButton button;
-        JColorChooser colorChooser;
-        JDialog dialog;
-        protected static final String EDIT = "edit";
-
-        public ColorEditor() {
-            //Set up the editor (from the table's point of view),
-            //which is a button.
-            //This button brings up the color chooser dialog,
-            //which is the editor from the user's point of view.
-            button = new JButton();
-            button.setActionCommand(EDIT);
-            button.addActionListener(this);
-            button.setBorderPainted(false);
-            //currentColor = colorInUse;
-            //Set up the dialog that the button brings up.
-            colorChooser = new JColorChooser();
-            System.out.println("color: before " + currentColor.toString());
-            dialog = JColorChooser.createDialog(button,
-                    "Pick a Color",
-                    true,  //modal
-                    colorChooser,
-                    this,  //OK button handler
-                    null); //no CANCEL button handler
-        }
-
-        /**
-         * Handles events from the editor button and from
-         * the dialog's OK button.
-         */
-        public void actionPerformed(ActionEvent e) {
-            if (EDIT.equals(e.getActionCommand())) {
-                //The user has clicked the cell, so
-                //bring up the dialog.
-                button.setBackground(currentColor);
-                colorChooser.setColor(currentColor);
-                dialog.setVisible(true);
-            } else { //User pressed dialog's "OK" button.
-                currentColor = colorChooser.getColor();
-                System.out.println("color: after " + currentColor.toString());
-            }
-        }
-
+    private static ValueMarker labelledMarker(double x, String label, Color color, boolean dotted) {
+        BasicStroke stroke = dotted
+                ? new BasicStroke(1.2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND, 1f, new float[]{2f, 3f}, 0f)
+                : new BasicStroke(1.4f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND, 1f, new float[]{6f, 4f}, 0f);
+        ValueMarker m = new ValueMarker(x, color, stroke);
+        m.setLabel(label);
+        m.setLabelPaint(color);
+        m.setLabelAnchor(dotted ? RectangleAnchor.BOTTOM_RIGHT : RectangleAnchor.TOP_RIGHT);
+        m.setLabelTextAnchor(dotted ? TextAnchor.BOTTOM_LEFT : TextAnchor.TOP_LEFT);
+        return m;
     }
 
+    private static Color withAlpha(Color c, int alpha) {
+        return new Color(c.getRed(), c.getGreen(), c.getBlue(), alpha);
+    }
+
+    /** previous code path compatibility: the suggested values after a run (NaN before) */
+    public double getSuggestedDmax() { return lastResult == null ? Double.NaN : lastResult.dmax; }
+    public double getSuggestedQmax() { return lastResult == null ? Double.NaN : lastResult.qmax; }
+    public XYSeries getEnsembleDistribution() {
+        return (lastResult == null || lastResult.ensemble == null) ? null : lastResult.ensemble.getDistributionForFitting();
+    }
 }
-
-
-
-

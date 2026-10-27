@@ -20,266 +20,24 @@ import java.util.Random;
 
 public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneable {
 
-    final double[] n_pi_squared = {
-            0.000,
-            9.869604401089358,
-            39.47841760435743,
-            88.82643960980423,
-            157.91367041742973,
-            246.74011002723395,
-            355.3057584392169,
-            483.6106156533785,
-            631.6546816697189,
-            799.437956488238,
-            986.9604401089358,
-            1194.2221325318121,
-            1421.2230337568676,
-            1667.9631437841015,
-            1934.442462613514,
-            2220.6609902451055,
-            2526.6187266788756,
-            2852.3156719148246,
-            3197.751825952952,
-            3562.9271887932578,
-            3947.8417604357433,
-            4352.495540880407,
-            4776.8885301272485,
-            5221.0207281762705,
-            5684.89213502747,
-            6168.502750680849,
-            6671.852575136406,
-            7194.941608394141,
-            7737.769850454056,
-            8300.33730131615,
-            8882.643960980422,
-            9484.689829446874,
-            10106.474906715503,
-            10747.99919278631,
-            11409.262687659299,
-            12090.265391334464,
-            12791.007303811808,
-            13511.488425091331,
-            14251.708755173031,
-            15011.668294056912,
-            15791.367041742973,
-            16590.80499823121,
-            17409.98216352163,
-            18248.898537614223,
-            19107.554120508994,
-            19985.948912205953,
-            20884.082912705082,
-            21801.95612200639,
-            22739.56854010988,
-            23696.920167015545,
-            24674.011002723397,
-            25670.841047233418,
-            26687.410300545624,
-            27723.718762660006,
-            28779.766433576566,
-            29855.55331329531,
-            30951.079401816223,
-            32066.344699139325,
-            33201.3492052646,
-            34356.09292019206,
-            35530.57584392169,
-            36724.7979764535,
-            37938.759317787495,
-            39172.45986792366,
-            40425.89962686201,
-            41699.078594602535,
-            42991.99677114524,
-            44304.65415649013,
-            45637.050750637194,
-            46989.186553586434,
-            48361.061565337855,
-            49752.67578589146,
-            51164.02921524723,
-            52595.12185340518,
-            54045.953700365324,
-            55516.52475612764,
-            57006.835020692124,
-            58516.8844940588,
-            60046.67317622765,
-            61596.201067198686,
-            63165.46816697189,
-            64754.47447554727,
-            66363.21999292485,
-            67991.70471910459,
-            69639.92865408651,
-            71307.8917978706,
-            72995.59415045689,
-            74703.03571184535,
-            76430.21648203598,
-            78177.13646102881,
-            79943.79564882381,
-            81730.19404542097,
-            83536.33165082033,
-            85362.20846502185,
-            87207.82448802557,
-            89073.17971983146,
-            90958.27416043953,
-            92863.10780984977,
-            94787.68066806218,
-            96731.9927350768,
-            98696.04401089359,
-            100679.83449551254,
-            102683.36418893367,
-            104706.633091157,
-            106749.6412021825,
-            108812.38852201017,
-            110894.87505064002,
-            112997.10078807206,
-            115119.06573430626,
-            117260.76988934266,
-            119422.21325318124,
-            121603.39582582198,
-            123804.3176072649,
-            126024.97859751001,
-            128265.3787965573,
-            130525.51820440678,
-            132805.3968210584,
-            135105.01464651222,
-            137424.37168076824,
-            139763.4679238264,
-            142122.30337568675,
-            144500.87803634928,
-            146899.191905814,
-            149317.2449840809,
-            151755.03727114998,
-            154212.5687670212,
-            156689.83947169463,
-            159186.84938517027,
-            161703.59850744804,
-            164240.086838528,
-            166796.31437841014,
-            169372.2811270945,
-            171967.98708458096,
-            174583.43225086966,
-            177218.6166259605,
-            179873.54020985356,
-            182548.20300254878,
-            185242.60500404617,
-            187956.74621434574,
-            190690.62663344748,
-            193444.24626135142,
-            196217.6050980575,
-            199010.70314356583,
-            201823.54039787626,
-            204656.11686098893,
-            207508.43253290374,
-            210380.48741362072,
-            213272.28150313994,
-            216183.8148014613,
-            219115.08730858483,
-            222066.09902451056,
-            225036.8499492384,
-            228027.3400827685,
-            231037.56942510078,
-            234067.5379762352,
-            237117.24573617184,
-            240186.6927049106,
-            243275.87888245154,
-            246384.80426879475,
-            249513.46886394004,
-            252661.87266788757,
-            255830.01568063724,
-            259017.89790218908,
-            262225.51933254313,
-            265452.8799716994,
-            268699.97981965775,
-            271966.81887641834,
-            275253.3971419811,
-            278559.71461634606,
-            281885.7712995132,
-            285231.5671914824,
-            288597.10229225387,
-            291982.37660182756,
-            295387.3901202034,
-            298812.1428473814,
-            302256.6347833615,
-            305720.8659281439,
-            309204.8362817285,
-            312708.54584411526,
-            316231.9946153041,
-            319775.18259529525,
-            323338.10978408845,
-            326920.7761816839,
-            330523.1817880815,
-            334145.3266032813,
-            337787.21062728326,
-            341448.8338600874,
-            345130.1963016938,
-            348831.29795210226,
-            352552.13881131297,
-            356292.71887932584,
-            360053.0381561409,
-            363833.0966417581,
-            367632.89433617744,
-            371452.43123939907,
-            375291.7073514228,
-            379150.7226722487,
-            383029.4772018768,
-            386927.9709403072,
-            390846.2038875397,
-            394784.17604357435,
-            398741.88740841113,
-            402719.33798205014,
-            406716.5277644914,
-            410733.4567557347,
-            414770.1249557802,
-            418826.532364628,
-            422902.6789822778,
-            426998.56480873,
-            431114.1898439843,
-            435249.55408804066,
-            439404.6575408993,
-            443579.5002025601,
-            447774.08207302314,
-            451988.4031522882,
-            456222.46344035555,
-            460476.26293722505,
-            464749.8016428967,
-            469043.0795573706,
-            473356.09668064676,
-            477688.85301272495,
-            482041.3485536053,
-            486413.5833032879,
-            490805.5572617727,
-            495217.2704290596,
-            499648.7228051487,
-            504099.91439004004,
-            508570.84518373344,
-            513061.5151862292,
-            517571.924397527,
-            522102.0728176271,
-            526651.9604465293,
-            531221.5872842337,
-            535810.9533307402,
-            540420.0585860489,
-            545048.9030501598,
-            549697.486723073,
-            554365.8096047881,
-            559053.8716953056,
-            563761.6729946252,
-            568489.213502747,
-            573236.493219671,
-            578003.5121453971,
-            582790.2702799255,
-            587596.767623256,
-            592423.0041753887,
-            597268.9799363236,
-            602134.6949060606,
-            607020.1490845999,
-            611925.3424719413,
-            616850.2750680848
-    };
+    /**
+     * (n*PI)^2 for n = 0..250. Shared by all instances (was a per-instance literal table,
+     * allocated again for every IndirectFT built during a dmax scan).
+     */
+    static final double[] n_pi_squared = new double[251];
+    static {
+        for (int i = 0; i < n_pi_squared.length; i++) {
+            double npi = i * Math.PI;
+            n_pi_squared[i] = npi * npi;
+        }
+    }
 
     public double[] coefficients, prior_coefficients; // 1 size larger than am_vector, holds the background term at [0]
 
     public final double qmax, dmax, lambda;
-    public final double inv2PI2 = 1.0/(2*Math.PI*Math.PI);
-    public final double INV_PI = 1.0/Math.PI;
-    public final double TWO_INV_PI = 2.0/Math.PI;
+    public static final double inv2PI2 = 1.0/(2*Math.PI*Math.PI);
+    public static final double INV_PI = 1.0/Math.PI;
+    public static final double TWO_INV_PI = 2.0/Math.PI;
     public XYSeries nonData; // non-standardized data, not used for fitting
     public XYSeries data, residuals, errors, standardVariance; // should be qI(q) dataset ( non-standardized)
     public double standardizedMin;
@@ -333,7 +91,7 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
 
         try {
             this.nonData = nonStandardizedData.createCopy(0, nonStandardizedData.getItemCount()-1);
-            this.errors = errors.createCopy(0, errors.getItemCount()-1);; // must be transformed back to unscaled (see createNonStandardizedData)
+            this.errors = errors.createCopy(0, errors.getItemCount()-1); // must be transformed back to unscaled (see createNonStandardizedData)
         } catch (CloneNotSupportedException e) {
             e.printStackTrace();
         }
@@ -352,7 +110,7 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
 
         try {
             this.data = standardizedData.createCopy(0, standardizedData.getItemCount()-1);
-            this.errors = scaledqIqerrors.createCopy(0, standardizedData.getItemCount()-1);; // must be transformed back to unscaled (see createNonStandardizedData)
+            this.errors = scaledqIqerrors.createCopy(0, scaledqIqerrors.getItemCount()-1); // must be transformed back to unscaled (see createNonStandardizedData)
         } catch (CloneNotSupportedException e) {
             e.printStackTrace();
         }
@@ -376,34 +134,22 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
     public IndirectFT(IndirectFT original){
 
         try {
-            this.data = original.data.createCopy(0, original.data.getItemCount()-1);
-            this.errors = original.errors.createCopy(0, original.errors.getItemCount()-1);
-            this.nonData = original.nonData.createCopy(0, original.nonData.getItemCount()-1);
-
-            if (original.residuals instanceof XYSeries){
-                this.residuals = original.residuals.createCopy(0, original.residuals.getItemCount()-1);
-            }
-
-            this.standardVariance = original.standardVariance.createCopy(0, original.standardVariance.getItemCount()-1);
-            this.prDistribution = original.prDistribution.createCopy(0, original.prDistribution.getItemCount()-1);
-
-
-
-            if (original.sphericalDistribution instanceof XYSeries){
-                this.sphericalDistribution = original.sphericalDistribution.createCopy(0, original.sphericalDistribution.getItemCount()-1);
-            }
-
-            if (original.sphericalDistributionFine instanceof XYSeries){
-                this.sphericalDistributionFine = original.sphericalDistributionFine.createCopy(0, original.sphericalDistributionFine.getItemCount()-1);
-            }
-
-            this.prDistributionForFitting = original.prDistributionForFitting.createCopy(0, original.prDistributionForFitting.getItemCount()-1);        } catch (CloneNotSupportedException e) {
+            this.data = copyOf(original.data);
+            this.errors = copyOf(original.errors);
+            this.nonData = copyOf(original.nonData);
+            this.residuals = copyOf(original.residuals);
+            // standardVariance is only built by standardizeData(); objects made with the
+            // standardized-data constructor don't have one, which used to throw here
+            this.standardVariance = copyOf(original.standardVariance);
+            this.prDistribution = copyOf(original.prDistribution);
+            this.sphericalDistribution = copyOf(original.sphericalDistribution);
+            this.sphericalDistributionFine = copyOf(original.sphericalDistributionFine);
+            this.prDistributionForFitting = copyOf(original.prDistributionForFitting);
+        } catch (CloneNotSupportedException e) {
             e.printStackTrace();
         }
 
-
-
-        coefficients = original.coefficients.clone();
+        coefficients = (original.coefficients == null) ? null : original.coefficients.clone();
 
         if (original.prior_coefficients instanceof double[] ){ // when switching IFT models, priors may not exist
             prior_coefficients = original.prior_coefficients.clone();
@@ -414,7 +160,6 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
         this.qmax = original.qmax;
         this.dmax = original.dmax;
         this.lambda = original.lambda;
-        this.includeBackground = includeBackground;
         this.dmax_PI_TWO_INV_PI = dmax * Math.PI * TWO_INV_PI;
         this.PI_INV_DMAX = Math.PI/dmax;
         standardizedMin = original.standardizedMin;
@@ -438,8 +183,34 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
         this.n_chipoints = original.n_chipoints;
         this.aic = original.aic;
         this.prScore = original.prScore;
+        this.prRoughness = original.prRoughness;
+        this.prNegTail = original.prNegTail;
+        this.prNegHead = original.prNegHead;
+        this.prOscillation = original.prOscillation;
+        this.prEndConcave = original.prEndConcave;
+        this.prTailExcess = original.prTailExcess;
+        this.prDeadZone = original.prDeadZone;
+        this.prReversals = original.prReversals;
+        this.prNegDepth = original.prNegDepth;
+        this.prNegZ = original.prNegZ;
+        this.prNegSignificance = original.prNegSignificance;
+        if (original.coefficientCovariance != null) {
+            this.coefficientCovariance = new double[original.coefficientCovariance.length][];
+            for (int i = 0; i < coefficientCovariance.length; i++) coefficientCovariance[i] = original.coefficientCovariance[i].clone();
+        }
+        this.prDistributionSigma = (original.prDistributionSigma == null) ? null : original.prDistributionSigma.clone();
+        this.effectiveParameters = original.effectiveParameters;
+        this.penaltyValue = original.penaltyValue;
+        this.logDetNormal = original.logDetNormal;
+        this.logDetPrior = original.logDetPrior;
+        this.unpenalizedCount = original.unpenalizedCount;
+        if (original.prDistributionBasis != null) {
+            this.prDistributionBasis = new double[original.prDistributionBasis.length][];
+            for (int i = 0; i < prDistributionBasis.length; i++)
+                prDistributionBasis[i] = (original.prDistributionBasis[i] == null) ? null : original.prDistributionBasis[i].clone();
+        }
 
-        if (totalInDistribution > 0){
+        if (totalInDistribution > 2 && prDistribution != null){ // spline needs >= 3 points
             double[] totalrvalues = new double[totalInDistribution];
             double[] totalPrvalues = new double[totalInDistribution];
 
@@ -459,17 +230,15 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
         this.beta = original.beta;
         this.max_ls_iter = original.max_ls_iter;
 
-
-
         this.bin_width = original.bin_width;
         this.status = original.status;
 
         this.coeffs_size = original.coeffs_size; // Shannon_number + 1 (if background included)
         this.ns = original.ns;
 
-        this.a_matrix = original.a_matrix.copy();
-        this.y_vector = original.y_vector.copy();
-        this.am_vector = original.am_vector.copy();
+        this.a_matrix = (original.a_matrix == null) ? null : original.a_matrix.copy();
+        this.y_vector = (original.y_vector == null) ? null : original.y_vector.copy();
+        this.am_vector = (original.am_vector == null) ? null : original.am_vector.copy();
         this.modelUsed = original.modelUsed;
         this.area = original.area;
         this.priorExists = original.priorExists;
@@ -478,6 +247,923 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
 
 
 
+
+    /**
+     * Least squares by Householder QR: minimize ||M x - b|| for M m x n (m >= n).
+     * M and b are overwritten. Columns that are numerically rank-deficient get x = 0.
+     * Shared by the IFT subclasses that solve quadratic (NONE / L2) problems exactly.
+     */
+    protected static double[] householderSolve(double[][] M, double[] b, int n) {
+        int m = M.length;
+        double[] diag = new double[n];
+        double maxDiag = 0;
+        for (int c = 0; c < n; c++) {
+            double norm = 0;
+            for (int i = c; i < m; i++) norm += M[i][c]*M[i][c];
+            norm = Math.sqrt(norm);
+            if (norm == 0) { diag[c] = 0; continue; }
+            double alpha = (M[c][c] > 0) ? -norm : norm;
+            M[c][c] -= alpha;                                   // v = x - alpha e1, stored in column c
+            double vnorm2 = 0;
+            for (int i = c; i < m; i++) vnorm2 += M[i][c]*M[i][c];
+            for (int j = c + 1; j < n; j++) {
+                double s = 0;
+                for (int i = c; i < m; i++) s += M[i][c]*M[i][j];
+                s = 2*s/vnorm2;
+                for (int i = c; i < m; i++) M[i][j] -= s*M[i][c];
+            }
+            double s = 0;
+            for (int i = c; i < m; i++) s += M[i][c]*b[i];
+            s = 2*s/vnorm2;
+            for (int i = c; i < m; i++) b[i] -= s*M[i][c];
+            diag[c] = alpha;
+            maxDiag = Math.max(maxDiag, Math.abs(alpha));
+        }
+        double[] x = new double[n];
+        double tiny = 1e-13*maxDiag;
+        for (int i = n - 1; i >= 0; i--) {
+            if (Math.abs(diag[i]) <= tiny) { x[i] = 0; continue; }
+            double s = b[i];
+            for (int j = i + 1; j < n; j++) s -= M[i][j]*x[j];
+            x[i] = s/diag[i];
+        }
+        return x;
+    }
+
+    /**
+     * Exact solver for the convex problems
+     *     minimize a'Ga - 2b'a + w * sum_{j >= unpenalized} |a_j|       (nonNegative = false)
+     *     minimize a'Ga - 2b'a + w * sum_{j >= unpenalized} a_j,  a_j >= 0 for j >= unpenalized
+     * by cyclic coordinate descent. With G = A'WA and b = A'Wy this is chi^2 + L1 penalty (+ const).
+     * The first `unpenalized` coefficients (e.g. a background) are free and unpenalized.
+     * `a` is the starting point and is overwritten with the solution.
+     */
+    protected static double[] coordinateDescentL1(double[][] G, double[] b, double w, int unpenalized,
+                                                 boolean nonNegative, double[] a, int maxSweeps, double tol) {
+        final int k = b.length;
+        if (nonNegative) for (int j = unpenalized; j < k; j++) a[j] = Math.max(0, a[j]);
+        double[] Ga = new double[k];
+        for (int p = 0; p < k; p++) { double s = 0; for (int q = 0; q < k; q++) s += G[p][q]*a[q]; Ga[p] = s; }
+        final double half = 0.5*w;
+        for (int sweep = 0; sweep < maxSweeps; sweep++) {
+            double maxDelta = 0, maxA = 0;
+            for (int j = 0; j < k; j++) {
+                double gjj = G[j][j];
+                if (gjj <= 0) continue;
+                double rho = b[j] - (Ga[j] - gjj*a[j]);
+                double next;
+                if (j < unpenalized) {
+                    next = rho/gjj;
+                } else if (nonNegative) {
+                    next = Math.max(0, rho - half)/gjj;
+                } else {
+                    next = (rho > half) ? (rho - half)/gjj : (rho < -half) ? (rho + half)/gjj : 0.0;
+                }
+                double delta = next - a[j];
+                if (delta != 0) {
+                    for (int p = 0; p < k; p++) Ga[p] += G[p][j]*delta;
+                    a[j] = next;
+                }
+                double sg = Math.sqrt(gjj);
+                maxDelta = Math.max(maxDelta, Math.abs(delta)*sg);
+                maxA = Math.max(maxA, Math.abs(a[j])*sg);
+            }
+            if (maxDelta <= tol*Math.max(maxA, 1e-300)) break;
+        }
+        return a;
+    }
+
+    /**
+     * Lawson-Hanson active-set solver for
+     *     minimize a'Ga - 2b'a   subject to  a_j >= 0 for j >= free
+     * (the first `free` coefficients are unconstrained). G must be symmetric positive definite.
+     * `warm` (optional) is a starting guess: its positive constrained entries seed the passive set.
+     * Entry tests use a per-component round-off tolerance, and a variable that re-enters without
+     * progress is blocked until the solution moves (prevents cycling on ill-conditioned G).
+     */
+    protected static double[] activeSetNNLS(double[][] G, double[] b, int free, int maxIter) {
+        return activeSetNNLS(G, b, free, maxIter, null);
+    }
+
+    protected static double[] activeSetNNLS(double[][] G, double[] b, int free, int maxIter, double[] warm) {
+        final int k = b.length;
+        final double eps = 1e-10;
+        boolean[] passive = new boolean[k], blocked = new boolean[k];
+        for (int j = 0; j < free; j++) passive[j] = true;
+        if (warm != null) for (int j = free; j < k; j++) if (warm[j] > 0) passive[j] = true;
+
+        // feasible start: x = 0 on constrained variables; then make the passive set feasible
+        double[] x = new double[k];
+        lastNNLSIterations = 0;
+        x = feasibleSubsetSolve(G, b, free, passive, x);
+
+        for (int iter = 0; iter < maxIter; iter++) {
+            lastNNLSIterations = iter + 1;
+            int enter = -1;
+            double best = 0;
+            for (int j = free; j < k; j++) {
+                if (passive[j] || blocked[j]) continue;
+                double w = b[j], scale = Math.abs(b[j]);
+                for (int p = 0; p < k; p++) { double t = G[j][p]*x[p]; w -= t; scale += Math.abs(t); }
+                if (w > eps*scale && w > best) { best = w; enter = j; }
+            }
+            if (enter < 0) break;                                    // KKT satisfied (to round-off)
+            passive[enter] = true;
+            double[] before = x.clone();
+            x = feasibleSubsetSolve(G, b, free, passive, x);
+            boolean moved = false;
+            for (int j = 0; j < k; j++) if (x[j] != before[j]) { moved = true; break; }
+            if (!passive[enter] && !moved) blocked[enter] = true;    // entered and left without progress
+            else if (moved) java.util.Arrays.fill(blocked, false);
+        }
+        return x;
+    }
+
+    /** Lawson-Hanson inner loop: solve on the passive set, stepping back to stay feasible. */
+    private static double[] feasibleSubsetSolve(double[][] G, double[] b, int free, boolean[] passive, double[] x) {
+        final int k = b.length;
+        while (true) {
+            double[] z = solveSubset(G, b, passive);
+            double alpha = 1.0;
+            int leave = -1;
+            for (int j = free; j < k; j++) {
+                if (passive[j] && z[j] <= 0) {
+                    double t = (x[j] - z[j] > 0) ? x[j]/(x[j] - z[j]) : 0;
+                    if (t < alpha) { alpha = t; leave = j; }
+                }
+            }
+            if (leave < 0) return z;                                 // all passive variables feasible
+            for (int j = 0; j < k; j++) x[j] += alpha*(z[j] - x[j]);
+            for (int j = free; j < k; j++) if (passive[j] && x[j] <= 0) { passive[j] = false; x[j] = 0; }
+            passive[leave] = false;
+            x[leave] = 0;
+        }
+    }
+
+    /** iterations used by the last activeSetNNLS call (diagnostic) */
+    static int lastNNLSIterations;
+
+    /** solve G_PP x_P = b_P by Cholesky on the passive set; x = 0 elsewhere */
+    private static double[] solveSubset(double[][] G, double[] b, boolean[] passive) {
+        int k = b.length, m = 0;
+        int[] idx = new int[k];
+        for (int j = 0; j < k; j++) if (passive[j]) idx[m++] = j;
+        double[][] Lc = new double[m][m];
+        for (int i = 0; i < m; i++) {
+            for (int j = 0; j <= i; j++) {
+                double s = G[idx[i]][idx[j]];
+                for (int p = 0; p < j; p++) s -= Lc[i][p]*Lc[j][p];
+                if (i == j) Lc[i][i] = Math.sqrt(Math.max(s, 1e-300));
+                else Lc[i][j] = s/Lc[j][j];
+            }
+        }
+        double[] y = new double[m];
+        for (int i = 0; i < m; i++) {
+            double s = b[idx[i]];
+            for (int p = 0; p < i; p++) s -= Lc[i][p]*y[p];
+            y[i] = s/Lc[i][i];
+        }
+        double[] xs = new double[m];
+        for (int i = m - 1; i >= 0; i--) {
+            double s = y[i];
+            for (int p = i + 1; p < m; p++) s -= Lc[p][i]*xs[p];
+            xs[i] = s/Lc[i][i];
+        }
+        double[] x = new double[k];
+        for (int i = 0; i < m; i++) x[idx[i]] = xs[i];
+        return x;
+    }
+
+    /**
+     * Normal matrix G = A'WA (+ weight * R'R) of a weighted, optionally penalized, least-squares fit.
+     * design: rows x k; invVar: 1/sigma^2 per row; penalty: rows x k or null.
+     */
+    protected static double[][] normalMatrix(double[][] design, double[] invVar, double[][] penalty, double weight) {
+        int k = design[0].length;
+        double[][] G = new double[k][k];
+        for (int i = 0; i < design.length; i++) {
+            double[] d = design[i];
+            double w = invVar[i];
+            for (int p = 0; p < k; p++) {
+                double wp = w*d[p];
+                if (wp == 0) continue;
+                for (int q = p; q < k; q++) G[p][q] += wp*d[q];
+            }
+        }
+        if (penalty != null && weight > 0) {
+            for (double[] row : penalty)
+                for (int p = 0; p < k; p++) {
+                    if (row[p] == 0) continue;
+                    for (int q = p; q < k; q++) G[p][q] += weight*row[p]*row[q];
+                }
+        }
+        for (int p = 0; p < k; p++) for (int q = 0; q < p; q++) G[p][q] = G[q][p];
+        return G;
+    }
+
+    /** reduced chi^2 of coefficients a against (design, target, invVar) */
+    protected static double reducedChiSquared(double[][] design, double[] target, double[] invVar, double[] a) {
+        double chi = 0;
+        for (int i = 0; i < design.length; i++) {
+            double calc = 0;
+            for (int c = 0; c < a.length; c++) calc += design[i][c]*a[c];
+            double res = calc - target[i];
+            chi += res*res*invVar[i];
+        }
+        int dof = design.length - a.length;
+        return (dof > 0) ? chi/dof : Double.NaN;
+    }
+
+    /**
+     * Posterior covariance G^-1 * max(1, chi2red). Inflating by chi2red when it exceeds 1 keeps the
+     * significance of negative P(r) honest when the errors are underestimated. A tiny ridge is added
+     * if G is numerically singular. Returns null if the inverse cannot be formed.
+     */
+    protected static double[][] posteriorCovariance(double[][] G, double chi2red) {
+        int k = G.length;
+        double scale = (chi2red > 1 && !Double.isNaN(chi2red)) ? chi2red : 1.0;
+        double maxDiag = 0;
+        for (int i = 0; i < k; i++) maxDiag = Math.max(maxDiag, G[i][i]);
+        for (double ridge : new double[]{0, 1e-12, 1e-9, 1e-6}) {
+            double[][] L = new double[k][k];
+            boolean ok = true;
+            for (int i = 0; i < k && ok; i++) {
+                for (int j = 0; j <= i; j++) {
+                    double s = G[i][j] + ((i == j) ? ridge*maxDiag : 0);
+                    for (int p = 0; p < j; p++) s -= L[i][p]*L[j][p];
+                    if (i == j) {
+                        if (!(s > 0)) { ok = false; break; }
+                        L[i][i] = Math.sqrt(s);
+                    } else {
+                        L[i][j] = s/L[j][j];
+                    }
+                }
+            }
+            if (!ok) continue;
+            // inverse of L, then C = L^-T L^-1
+            double[][] Li = new double[k][k];
+            for (int i = 0; i < k; i++) {
+                Li[i][i] = 1.0/L[i][i];
+                for (int j = 0; j < i; j++) {
+                    double s = 0;
+                    for (int p = j; p < i; p++) s -= L[i][p]*Li[p][j];
+                    Li[i][j] = s/L[i][i];
+                }
+            }
+            double[][] C = new double[k][k];
+            for (int i = 0; i < k; i++)
+                for (int j = 0; j <= i; j++) {
+                    double s = 0;
+                    for (int p = i; p < k; p++) s += Li[p][i]*Li[p][j];
+                    C[i][j] = C[j][i] = s*scale;
+                }
+            return C;
+        }
+        return null;
+    }
+
+    /** fills prDistributionSigma from prDistributionBasis and coefficientCovariance */
+    protected void deriveDistributionSigma() {
+        prDistributionSigma = null;
+        if (prDistributionBasis == null || coefficientCovariance == null) return;
+        prDistributionSigma = new double[prDistributionBasis.length];
+        for (int i = 0; i < prDistributionBasis.length; i++) {
+            if (prDistributionBasis[i] != null) prDistributionSigma[i] = sigmaOfLinear(prDistributionBasis[i]);
+        }
+    }
+
+    /**
+     * Sets coefficientCovariance (G^-1 * max(1, chi2red)), effectiveParameters, and the terms needed
+     * for the penalized AIC and the Bayesian evidence. G = A'WA + w R'R is the normal matrix of the
+     * fit; design/invVar the fitted rows and 1/sigma^2; penalty/weight the regularization (null/0 for
+     * none, e.g. L1 fits, where k_eff is the column count and the evidence is undefined); solution
+     * the fitted coefficients.
+     */
+    protected void setPosterior(double[][] G, double chi2red, double[][] design, double[] invVar,
+                                double[][] penalty, double weight, double[] solution) {
+        coefficientCovariance = posteriorCovariance(G, chi2red);
+        effectiveParameters = Double.NaN;
+        penaltyValue = 0;
+        logDetNormal = logDetPrior = Double.NaN;
+        int k = G.length;
+        boolean dataOnly = (penalty == null || weight <= 0);
+        unpenalizedCount = k;
+        if (!dataOnly) {
+            double pv = 0;
+            for (double[] row : penalty) {
+                double s2 = 0;
+                for (int c = 0; c < k; c++) s2 += row[c]*solution[c];
+                pv += s2*s2;
+            }
+            penaltyValue = weight*pv;
+            logDetNormal = logDetStacked(design, invVar, penalty, weight);
+            // prior precision restricted to the penalized columns
+            boolean[] pen = new boolean[k];
+            for (double[] row : penalty) for (int c = 0; c < k; c++) if (row[c] != 0) pen[c] = true;
+            int m = 0;
+            int[] idx = new int[k];
+            for (int c = 0; c < k; c++) if (pen[c]) idx[m++] = c;
+            unpenalizedCount = k - m;
+            // ln det(w R_p'R_p) by QR of sqrt(w) R_p (backward stable; R_p'R_p can be far worse
+            // conditioned than R_p itself, e.g. for the Legendre basis)
+            double[][] Rp = new double[penalty.length][m];
+            for (int i = 0; i < penalty.length; i++)
+                for (int a = 0; a < m; a++) Rp[i][a] = penalty[i][idx[a]];
+            double[] wv = new double[penalty.length];
+            java.util.Arrays.fill(wv, weight);
+            logDetPrior = (penalty.length >= m) ? logDetStacked(Rp, wv, null, 0) : Double.NaN;
+        }
+        if (coefficientCovariance == null) return;
+        if (dataOnly) { effectiveParameters = k; return; }
+        double scale = (chi2red > 1 && !Double.isNaN(chi2red)) ? chi2red : 1.0;
+        double tr = 0;                                   // sum_i w_i d_i' G^-1 d_i
+        double[] tmp = new double[k];
+        for (int i = 0; i < design.length; i++) {
+            double[] d = design[i];
+            for (int p = 0; p < k; p++) {
+                double s2 = 0;
+                for (int q = 0; q < k; q++) s2 += coefficientCovariance[p][q]*d[q];
+                tmp[p] = s2;
+            }
+            double v = 0;
+            for (int p = 0; p < k; p++) v += d[p]*tmp[p];
+            tr += invVar[i]*v/scale;
+        }
+        // the trace cannot exceed the column count; values above it are round-off from an
+        // ill-conditioned G at very small penalty weights
+        effectiveParameters = Math.max(0, Math.min(tr, k));
+    }
+
+    /**
+     * ln det(A'WA + w R'R) from a Householder QR of the stacked system [sqrt(W) A ; sqrt(w) R]
+     * (2 sum ln|R_ii|). Backward stable, unlike a Cholesky of the formed normal matrix, whose
+     * condition number is squared. NaN if rank deficient.
+     */
+    protected static double logDetStacked(double[][] design, double[] invVar, double[][] penalty, double weight) {
+        int k = design[0].length, m = design.length + ((penalty != null && weight > 0) ? penalty.length : 0);
+        double[][] M = new double[m][k];
+        for (int i = 0; i < design.length; i++) {
+            double s = Math.sqrt(invVar[i]);
+            for (int c = 0; c < k; c++) M[i][c] = s*design[i][c];
+        }
+        if (m > design.length) {
+            double sw = Math.sqrt(weight);
+            for (int j = 0; j < penalty.length; j++)
+                for (int c = 0; c < k; c++) M[design.length + j][c] = sw*penalty[j][c];
+        }
+        double ld = 0;
+        for (int c = 0; c < k; c++) {
+            double norm = 0;
+            for (int i = c; i < m; i++) norm += M[i][c]*M[i][c];
+            norm = Math.sqrt(norm);
+            if (!(norm > 0)) return Double.NaN;
+            double alpha = (M[c][c] > 0) ? -norm : norm;
+            M[c][c] -= alpha;
+            double vnorm2 = 0;
+            for (int i = c; i < m; i++) vnorm2 += M[i][c]*M[i][c];
+            if (vnorm2 > 0) {
+                for (int j = c + 1; j < k; j++) {
+                    double s = 0;
+                    for (int i = c; i < m; i++) s += M[i][c]*M[i][j];
+                    s = 2*s/vnorm2;
+                    for (int i = c; i < m; i++) M[i][j] -= s*M[i][c];
+                }
+            }
+            ld += 2*Math.log(Math.abs(alpha));
+        }
+        return ld;
+    }
+
+    /**
+     * ln det of a symmetric positive-definite matrix by Cholesky after equilibration
+     * (D A D with D = diag(A)^-1/2), which keeps badly scaled columns from losing precision.
+     * NaN if not positive definite.
+     */
+    protected static double logDetSPD(double[][] A) {
+        int n = A.length;
+        double[] dsc = new double[n];
+        double ld = 0;
+        for (int i = 0; i < n; i++) {
+            if (!(A[i][i] > 0)) return Double.NaN;
+            dsc[i] = 1.0/Math.sqrt(A[i][i]);
+            ld += Math.log(A[i][i]);                      // -2 ln det D
+        }
+        double[][] L = new double[n][n];
+        for (int i = 0; i < n; i++) {
+            for (int j = 0; j <= i; j++) {
+                double s = A[i][j]*dsc[i]*dsc[j];
+                for (int p = 0; p < j; p++) s -= L[i][p]*L[j][p];
+                if (i == j) {
+                    if (!(s > 0)) return Double.NaN;
+                    L[i][i] = Math.sqrt(s);
+                    ld += 2*Math.log(L[i][i]);
+                } else {
+                    L[i][j] = s/L[j][j];
+                }
+            }
+        }
+        return ld;
+    }
+
+    /**
+     * Penalized AIC: (chi^2 + w|Ra|^2)/cHat + 2 k_eff. The penalty value is the cost of the
+     * expectation imposed by the regularizer: negligible at small lambda, growing with lambda.
+     */
+    public double getPenalizedAIC(double cHat) {
+        double c = (cHat > 1) ? cHat : 1.0;
+        double k = Double.isNaN(effectiveParameters) ? ns + 2 : effectiveParameters;
+        return (getChiSquaredAllPoints() + penaltyValue)/c + 2.0*k;
+    }
+
+    /**
+     * -2 ln(Bayesian evidence) for the regularized fit (lower is better), up to a constant shared by
+     * every fit of the same data:
+     *     (chi^2 + w|Ra|^2)/cHat + ln det(G) - ln det(w R_p'R_p) - u ln(cHat)
+     * with G = A'WA + wR'R and u the number of unpenalized coefficients. The determinant terms are
+     * the Occam factor: they penalize too weak a prior as the penalty value penalizes too strong a
+     * one. Comparable across lambda and across dmax. NaN for unregularized or L1 fits.
+     */
+    public double getMinusTwoLogEvidence(double cHat) {
+        if (Double.isNaN(logDetNormal) || Double.isNaN(logDetPrior)) return Double.NaN;
+        double c = (cHat > 1) ? cHat : 1.0;
+        return (getChiSquaredAllPoints() + penaltyValue)/c + logDetNormal - logDetPrior - unpenalizedCount*Math.log(c);
+    }
+
+    /** true when the fit produced a solution (constructors catch solver errors and leave none) */
+    public boolean isSolved() {
+        return am_vector != null && a_matrix != null && y_vector != null;
+    }
+
+    /**
+     * Regularization choice by maximum evidence (see getMinusTwoLogEvidence); falls back to
+     * AIC_eff for fits without a quadratic prior.
+     */
+    public static <T extends IndirectFT> T selectLambdaByEvidence(java.util.function.DoubleFunction<T> fitAt,
+                                                                 double[] lambdas, double cHat) {
+        T best = null;
+        double bestValue = Double.POSITIVE_INFINITY;
+        T last = null;
+        for (double lam : lambdas) {
+            T f = fitAt.apply(lam);
+            last = f;
+            if (!f.isSolved()) continue;                       // solver failed at this lambda
+            double v = f.getMinusTwoLogEvidence(cHat);
+            if (Double.isNaN(v)) v = f.getAICEffective(cHat);
+            if (v < bestValue) { bestValue = v; best = f; }
+        }
+        return (best != null) ? best : last;                    // caller checks isSolved()
+    }
+
+    /**
+     * AIC with the effective number of parameters: chi^2/cHat + 2 k_eff. Unlike getAICAllPoints,
+     * which charges a fixed ns + 2, this responds to the regularization weight, so it can be
+     * compared across lambda as well as dmax. cHat as in getAICAllPoints(double).
+     */
+    public double getAICEffective(double cHat) {
+        double c = (cHat > 1) ? cHat : 1.0;
+        double k = Double.isNaN(effectiveParameters) ? ns + 2 : effectiveParameters;
+        return getChiSquaredAllPoints()/c + 2.0*k;
+    }
+
+    /** log-spaced grid from lo to hi with `perDecade` points per decade (inclusive) */
+    public static double[] logGrid(double lo, double hi, int perDecade) {
+        int n = (int) Math.round(Math.log10(hi/lo)*perDecade) + 1;
+        double[] g = new double[n];
+        for (int i = 0; i < n; i++) g[i] = lo*Math.pow(10, (double) i/perDecade);
+        return g;
+    }
+
+    /**
+     * Regularization choice at fixed dmax: fits each lambda and returns the fit with the lowest
+     * AIC_eff (chi^2/cHat + 2 k_eff). The P(r) score is deliberately not minimized over lambda: its
+     * smoothness terms duplicate the regularizer and push toward over-smoothing; compare the
+     * returned fits across dmax with getAICEffective(cHat) + getPrScore().
+     *
+     * Usage:  IndirectFT best = IndirectFT.selectLambda(lam -> new LegendreTransform(d, e, dmax,
+     *             qmax, lam, min, scale, true), IndirectFT.logGrid(1e-6, 10, 2), cHat);
+     */
+    public static <T extends IndirectFT> T selectLambda(java.util.function.DoubleFunction<T> fitAt,
+                                                       double[] lambdas, double cHat) {
+        T best = null;
+        double bestValue = Double.POSITIVE_INFINITY;
+        T last = null;
+        for (double lam : lambdas) {
+            T f = fitAt.apply(lam);
+            last = f;
+            if (!f.isSolved()) continue;
+            double v = f.getAICEffective(cHat);
+            if (v < bestValue) { bestValue = v; best = f; }
+        }
+        return (best != null) ? best : last;
+    }
+
+    /** generalized cross-validation: N chi^2 / (N - k_eff)^2 (lower is better) */
+    public double getGCV() {
+        double chi = getChiSquaredAllPoints();
+        int N = residuals.getItemCount();
+        double k = Double.isNaN(effectiveParameters) ? ns + 2 : effectiveParameters;
+        return N*chi/((N - k)*(N - k));
+    }
+
+    /** sd of the linear combination b'a under coefficientCovariance (NaN if unknown) */
+    protected double sigmaOfLinear(double[] b) {
+        if (coefficientCovariance == null) return Double.NaN;
+        int k = b.length;
+        double v = 0;
+        for (int i = 0; i < k; i++) {
+            if (b[i] == 0) continue;
+            double s = 0;
+            for (int j = 0; j < k; j++) s += coefficientCovariance[i][j]*b[j];
+            v += b[i]*s;
+        }
+        return (v > 0) ? Math.sqrt(v) : 0;
+    }
+
+    /** sub-intervals per Shannon bin for the bin-average integration (composite Simpson, even) */
+    public static int SHANNON_BIN_SUBDIVISIONS = 64;
+
+    /**
+     * Shannon-binned P(r) (prDistributionForFitting, used for modelling). Bins have width
+     * bin_width = B = pi/qmax: bin k covers [kB, (k+1)B) and is reported at its mid-point (k + 1/2)B.
+     * Every bin overlapping (0, dmax) is included, i.e. ceil(dmax/B) bins, and each value is the bin
+     * average
+     *     h_k = (1/B) * integral over the bin of P(r) dr,   with P(r) = 0 beyond dmax,
+     * so the bin containing dmax holds its (partial) content rather than P(dmax) = 0, and
+     * sum_k h_k B equals the area of P(r). P(r) is calculatePofRAtR(r, 1), the same units for every
+     * transform. Call once the solution (and any spline used by calculatePofRAtR) is final.
+     */
+    protected void setShannonBinnedDistribution() {
+        bin_width = Math.PI/qmax;
+        final double B = bin_width;
+        final int nb = (int) Math.ceil(dmax/B - 1e-12);
+        int m = SHANNON_BIN_SUBDIVISIONS;
+        if (m < 2) m = 2;
+        if ((m & 1) == 1) m++;
+        prDistributionForFitting = new XYSeries("OutputPrDistribution");
+        for (int k = 0; k < nb; k++) {
+            double lo = k*B, hi = Math.min((k + 1)*B, dmax);      // never evaluate beyond dmax
+            double h = (hi - lo)/m, sum = 0;
+            for (int j = 0; j <= m; j++) {
+                double r = lo + j*h;
+                double w = (j == 0 || j == m) ? 1 : ((j & 1) == 1 ? 4 : 2);
+                sum += w*pOfRWithinSupport(r);
+            }
+            double integral = sum*h/3.0;
+            prDistributionForFitting.add((k + 0.5)*B, integral/B);
+        }
+    }
+
+    /**
+     * P(r) in calculatePofRAtR units, 0 at and outside the support [0, dmax]. If calculatePofRAtR
+     * fails (e.g. a spline whose knots stop short of dmax throws OutOfRangeException), falls back to
+     * linear interpolation of prDistribution scaled to the same units, so no bin is ever dropped.
+     */
+    private double pOfRWithinSupport(double r) {
+        if (r <= 0 || r >= dmax) return 0;
+        try {
+            double v = calculatePofRAtR(r, 1.0);
+            if (!Double.isNaN(v) && !Double.isInfinite(v)) return v;
+        } catch (RuntimeException ignored) {
+            // fall through
+        }
+        return interpolatedPlottingValue(r)*plottingToPofRScale();
+    }
+
+    /** linear interpolation of prDistribution at r (0 outside its range) */
+    private double interpolatedPlottingValue(double r) {
+        int n = (prDistribution == null) ? 0 : prDistribution.getItemCount();
+        if (n == 0) return 0;
+        double x0 = prDistribution.getX(0).doubleValue();
+        if (r <= x0) return 0;
+        for (int i = 1; i < n; i++) {
+            double x1 = prDistribution.getX(i).doubleValue();
+            if (r <= x1) {
+                double y0 = prDistribution.getY(i - 1).doubleValue(), y1 = prDistribution.getY(i).doubleValue();
+                return (x1 > x0) ? y0 + (y1 - y0)*(r - x0)/(x1 - x0) : y1;
+            }
+            x0 = x1;
+        }
+        return 0;
+    }
+
+    /**
+     * factor converting prDistribution values to calculatePofRAtR(r, 1) units, estimated at the
+     * prDistribution point of largest |value| (1 if it cannot be determined)
+     */
+    protected double plottingToPofRScale() {
+        int n = (prDistribution == null) ? 0 : prDistribution.getItemCount();
+        int best = -1;
+        double big = 0;
+        for (int i = 1; i < n - 1; i++) {
+            double y = Math.abs(prDistribution.getY(i).doubleValue());
+            if (y > big) { big = y; best = i; }
+        }
+        if (best < 0) return 1.0;
+        try {
+            double v = calculatePofRAtR(prDistribution.getX(best).doubleValue(), 1.0);
+            double y = prDistribution.getY(best).doubleValue();
+            return (y != 0 && !Double.isNaN(v)) ? v/y : 1.0;
+        } catch (RuntimeException e) {
+            return 1.0;
+        }
+    }
+
+    /* =====================================================================================
+     *  SAXS invariants from the transform (after Grant 2022, J. Appl. Cryst. 55, 1116, which
+     *  derives them for the Moore coefficients). Every transform here models the particle's
+     *  scattering as weighted sincs,  I(q) = sum_i w_i sin(q r_i)/(q r_i),  so
+     *      I(0)        = sum w_i
+     *      Q(L)        = int_0^L q^2 I dq = sum w_i [sin(L r_i) - L r_i cos(L r_i)] / r_i^3
+     *      int q I dq  = sum w_i / r_i^2           (to infinity; = 4 pi int P/r^2 dr)
+     *      V_p         = 2 pi^2 I(0) / Q           (Porod volume, A^3; the intensity scale cancels)
+     *      V_c         = I(0) / int q I dq         (volume of correlation, A^2)
+     *      l_c         = V_p / (2 pi V_c)          (correlation length, A)
+     *  Background and the standardization offset are excluded (particle scattering only).
+     *  Uncertainties are propagated from coefficientCovariance (delta method for ratios).
+     * ===================================================================================== */
+
+    /** particle scattering as weighted sincs: r_i, w_i (I(q) units) and d w_i / d coefficient (may be null) */
+    protected static final class SincModel {
+        public final double[] r, w;
+        public final double[][] dw;
+        public SincModel(double[] r, double[] w, double[][] dw) { this.r = r; this.w = w; this.dw = dw; }
+    }
+
+    /** points for the default (quadrature) representation */
+    public static int INVARIANT_QUADRATURE_POINTS = 2000;
+
+    /**
+     * Default representation by midpoint quadrature of I(q) = 4 pi int P(r) sin(qr)/(qr) dr using
+     * calculatePofRAtR(r, 1); no gradient, so no uncertainties. Subclasses override with their exact
+     * model (histogram heights, or the Moore series with its gradient).
+     */
+    protected SincModel sincModel() {
+        int m = INVARIANT_QUADRATURE_POINTS;
+        double h = dmax/m;
+        double[] r = new double[m], w = new double[m];
+        for (int i = 0; i < m; i++) {
+            r[i] = (i + 0.5)*h;
+            double p;
+            try { p = calculatePofRAtR(r[i], 1.0); } catch (RuntimeException e) { p = 0; }
+            w[i] = 4*Math.PI*p*h;
+        }
+        return new SincModel(r, w, null);
+    }
+
+    /** helper for histogram-type subclasses: w_i = scale * height_i, gradient from prDistributionBasis */
+    protected SincModel histogramSincModel(double[] rValues, double[] heights) {
+        int n = rValues.length;
+        double[] w = new double[n];
+        double[][] dw = (prDistributionBasis != null && prDistributionBasis.length >= n + 1) ? new double[n][] : null;
+        for (int i = 0; i < n; i++) {
+            w[i] = standardizedScale*heights[i];
+            if (dw != null) {
+                double[] b = prDistributionBasis[i + 1];
+                if (b == null) { dw = null; continue; }
+                dw[i] = new double[b.length];
+                for (int c = 0; c < b.length; c++) dw[i][c] = standardizedScale*b[c];
+            }
+        }
+        return new SincModel(rValues.clone(), w, dw);
+    }
+
+    /** a value and its standard deviation (NaN when no covariance is available) */
+    public static final class Estimate {
+        public final double value, sigma;
+        Estimate(double value, double sigma) { this.value = value; this.sigma = sigma; }
+        @Override public String toString() { return String.format("%.6g +/- %.3g", value, sigma); }
+    }
+
+    /** coefficients of the linear functionals {I(0), Q(L), int q I dq} in terms of w */
+    private static double[] porodKernel(double[] r, double L) {
+        double[] k = new double[r.length];
+        for (int i = 0; i < r.length; i++) {
+            double x = L*r[i];
+            k[i] = (Math.sin(x) - x*Math.cos(x))/(r[i]*r[i]*r[i]);
+        }
+        return k;
+    }
+
+    private static double dot(double[] a, double[] b) { double s = 0; for (int i = 0; i < a.length; i++) s += a[i]*b[i]; return s; }
+
+    /** gradient (w.r.t. coefficients) of sum_i k_i w_i */
+    private static double[] gradientOf(SincModel m, double[] k) {
+        if (m.dw == null) return null;
+        int nc = m.dw[0].length;
+        double[] g = new double[nc];
+        for (int i = 0; i < k.length; i++) for (int c = 0; c < nc; c++) g[c] += k[i]*m.dw[i][c];
+        return g;
+    }
+
+    private double covarianceOf(double[] ga, double[] gb) {
+        if (ga == null || gb == null || coefficientCovariance == null || coefficientCovariance.length != ga.length) return Double.NaN;
+        double s = 0;
+        for (int i = 0; i < ga.length; i++) {
+            if (ga[i] == 0) continue;
+            double t = 0;
+            for (int j = 0; j < gb.length; j++) t += coefficientCovariance[i][j]*gb[j];
+            s += ga[i]*t;
+        }
+        return s;
+    }
+
+    /** ratio a/b with delta-method uncertainty */
+    private Estimate ratio(double a, double[] ga, double b, double[] gb, double factor) {
+        double v = factor*a/b;
+        double va = covarianceOf(ga, ga), vb = covarianceOf(gb, gb), cab = covarianceOf(ga, gb);
+        double rel2 = va/(a*a) + vb/(b*b) - 2*cab/(a*b);
+        return new Estimate(v, (rel2 >= 0) ? Math.abs(v)*Math.sqrt(rel2) : Double.NaN);
+    }
+
+    private static double[] ones(int n) { double[] o = new double[n]; java.util.Arrays.fill(o, 1.0); return o; }
+
+    /** forward scattering of the particle, sum w_i (background excluded) */
+    public Estimate getIzeroParticle() {
+        SincModel m = sincModel();
+        double[] k = ones(m.r.length);
+        double v = dot(k, m.w);
+        double[] g = gradientOf(m, k);
+        double var = covarianceOf(g, g);
+        return new Estimate(v, Double.isNaN(var) ? Double.NaN : Math.sqrt(Math.max(var, 0)));
+    }
+
+    /**
+     * Porod invariant Q = int_0^L q^2 I(q) dq of the model. L = Double.POSITIVE_INFINITY uses the
+     * analytic infinite-q value where the model has one (porodInvariantInfinite; Moore series, Grant
+     * eq. 12); histogram models have none (NaN).
+     */
+    public Estimate getPorodInvariant(double qLimit) {
+        if (Double.isInfinite(qLimit)) return porodInvariantInfinite();
+        SincModel m = sincModel();
+        double[] k = porodKernel(m.r, qLimit);
+        double v = dot(k, m.w);
+        double[] g = gradientOf(m, k);
+        double var = covarianceOf(g, g);
+        return new Estimate(v, Double.isNaN(var) ? Double.NaN : Math.sqrt(Math.max(var, 0)));
+    }
+
+    /** analytic Q to infinite q; NaN unless a subclass provides it */
+    protected Estimate porodInvariantInfinite() { return new Estimate(Double.NaN, Double.NaN); }
+
+    /**
+     * Porod volume V_p = 2 pi^2 I(0) / Q(L), in A^3 (the intensity scale cancels). Q is integrated to
+     * qLimit; use getPorodVolume() for the default cut-off min(qmax, 8/Rg) (Grant 2022; Manalastas-
+     * Cantos et al. 2021), or POSITIVE_INFINITY for the analytic value where available.
+     */
+    public Estimate getPorodVolume(double qLimit) {
+        SincModel m = sincModel();
+        double[] k0 = ones(m.r.length);
+        double a = dot(k0, m.w);
+        double[] ga = gradientOf(m, k0);
+        double b;
+        double[] gb;
+        if (Double.isInfinite(qLimit)) {
+            Estimate qi = porodInvariantInfinite();
+            if (Double.isNaN(qi.value)) return new Estimate(Double.NaN, Double.NaN);
+            b = qi.value;
+            gb = porodInvariantInfiniteGradient();
+        } else {
+            double[] kq = porodKernel(m.r, qLimit);
+            b = dot(kq, m.w);
+            gb = gradientOf(m, kq);
+        }
+        return ratio(a, ga, b, gb, 2*Math.PI*Math.PI);
+    }
+
+    /** gradient of the analytic infinite-q invariant (null unless a subclass provides it) */
+    protected double[] porodInvariantInfiniteGradient() { return null; }
+
+    /** default Porod-volume cut-off: min(qmax, 8/Rg) */
+    public double defaultPorodCutoff() {
+        double g = (rg > 0 && !Double.isNaN(rg)) ? 8.0/rg : qmax;
+        return Math.min(qmax, g);
+    }
+
+    /** Porod volume with the default cut-off min(qmax, 8/Rg) */
+    public Estimate getPorodVolume() { return getPorodVolume(defaultPorodCutoff()); }
+
+    /** volume of correlation V_c = I(0) / int_0^inf q I dq = sum w / sum (w/r^2), in A^2 */
+    public Estimate getVolumeOfCorrelation() {
+        SincModel m = sincModel();
+        double[] k0 = ones(m.r.length), k1 = new double[m.r.length];
+        for (int i = 0; i < k1.length; i++) k1[i] = 1.0/(m.r[i]*m.r[i]);
+        return ratio(dot(k0, m.w), gradientOf(m, k0), dot(k1, m.w), gradientOf(m, k1), 1.0);
+    }
+
+    /** correlation length l_c = V_p / (2 pi V_c), in A (Porod volume with the given cut-off) */
+    public Estimate getCorrelationLength(double qLimit) {
+        Estimate vp = getPorodVolume(qLimit), vc = getVolumeOfCorrelation();
+        double v = vp.value/(2*Math.PI*vc.value);
+        double rel = Math.sqrt(Math.pow(vp.sigma/vp.value, 2) + Math.pow(vc.sigma/vc.value, 2));   // ignores their covariance
+        return new Estimate(v, Math.abs(v)*rel);
+    }
+
+    /* ---------------------------------------------------------------------------------
+     *  Porod volume by Grant's method (Grant 2022, sections 2.4.2 and 2.4.4)
+     * --------------------------------------------------------------------------------- */
+
+    /** builds a transform of the same kind for the given data, errors and regularization weight */
+    public interface Refit<T extends IndirectFT> {
+        T fit(XYSeries data, XYSeries errors, double lambda);
+    }
+
+    /** result of grantPorodVolume */
+    public static final class GrantPorodVolume {
+        public final Estimate volume, izero, porodInvariant;
+        public final double qCutoff, lambdaOptimal, lambdaOversmoothed, chi2Best, chi2AtOptimal;
+        public final IndirectFT oversmoothedFit;
+        GrantPorodVolume(Estimate v, Estimate i0, Estimate q, double qc, double lo, double lv, double cb, double co, IndirectFT f) {
+            volume = v; izero = i0; porodInvariant = q; qCutoff = qc; lambdaOptimal = lo; lambdaOversmoothed = lv;
+            chi2Best = cb; chi2AtOptimal = co; oversmoothedFit = f;
+        }
+        @Override public String toString() {
+            return String.format("Vp %s (I0 %s, Q %s, q <= %.4f, lambda_opt %.3g, lambda_used %.3g)",
+                    volume, izero, porodInvariant, qCutoff, lambdaOptimal, lambdaOversmoothed);
+        }
+    }
+
+    /** copy of a series keeping points with x <= xMax */
+    public static XYSeries truncateSeries(XYSeries s, double xMax) {
+        XYSeries out = new XYSeries(s.getKey());
+        for (int i = 0; i < s.getItemCount(); i++) {
+            if (s.getX(i).doubleValue() <= xMax) out.add(s.getDataItem(i));
+        }
+        return out;
+    }
+
+    /** multiplier applied to the chi^2-optimal lambda for the volume fit (Grant: 10) */
+    public static double GRANT_OVERSMOOTH_FACTOR = 10.0;
+    /** chi^2 rise defining the optimal lambda (Grant: 10%, chi^2 = 1.1 chi^2_best) */
+    public static double GRANT_CHI2_RISE = 1.1;
+    /** q cut-off in units of 1/Rg for the volume fit (Grant, Manalastas-Cantos et al.: 8) */
+    public static double GRANT_QRG_LIMIT = 8.0;
+
+    /**
+     * Porod volume by Grant's method:
+     *  1. restrict the data to q <= 8/Rg (Rg from the base fit);
+     *  2. chi^2_best = fit at lambda = 0;
+     *  3. lambda_opt = where chi^2 rises to 1.1 chi^2_best (log-interpolated on lambdaGrid);
+     *  4. refit at 10 x lambda_opt (oversmoothed: suppresses shape scattering, enforces Porod decay);
+     *  5. Q from that fit, integrated to the cut-off; V_p = 2 pi^2 I(0) / Q.
+     * I(0) is NOT taken from the oversmoothed fit (oversmoothing moves it 2-3% off the data): it is
+     * izeroOverride when given (e.g. Guinier I(0), in the units of I(q), as returned by getIzeroParticle),
+     * otherwise the base fit's particle I(0) (background excluded), so it stays on the experimental data.
+     * Use a no-background base fit: the q*I constant term inflates V_p by 12-15%.
+     *
+     * @param base          the normal fit (dmax, Rg, I(0))
+     * @param data, errors  the series passed to the transform constructors (standardized q*I(q) form)
+     * @param refit         builds the same transform for (data, errors, lambda), same dmax
+     * @param lambdaGrid    increasing lambdas to scan (same meaning as the transform's lambda)
+     * @param izeroOverride I(0) to use, or NaN for the base fit's particle I(0)
+     */
+    public static GrantPorodVolume grantPorodVolume(IndirectFT base, XYSeries data, XYSeries errors,
+                                                    Refit<? extends IndirectFT> refit, double[] lambdaGrid,
+                                                    double izeroOverride) {
+        double rgBase = base.getRg();
+        double qc = Math.min(data.getMaxX(), GRANT_QRG_LIMIT/rgBase);
+        XYSeries dT = truncateSeries(data, qc), eT = truncateSeries(errors, qc);
+
+        double chi2Best = refit.fit(dT, eT, 0.0).getChiSquaredAllPoints();
+        double target = GRANT_CHI2_RISE*chi2Best;
+
+        double lamOpt = Double.NaN, prevLam = Double.NaN, prevChi = chi2Best;
+        for (double lam : lambdaGrid) {
+            if (lam <= 0) continue;
+            double chi = refit.fit(dT, eT, lam).getChiSquaredAllPoints();
+            if (chi >= target) {
+                if (Double.isNaN(prevLam)) { lamOpt = lam; }
+                else {                                      // interpolate in log(lambda)
+                    double t = (target - prevChi)/(chi - prevChi);
+                    lamOpt = Math.exp(Math.log(prevLam) + t*(Math.log(lam) - Math.log(prevLam)));
+                }
+                break;
+            }
+            prevLam = lam;
+            prevChi = chi;
+        }
+        if (Double.isNaN(lamOpt)) lamOpt = lambdaGrid[lambdaGrid.length - 1];   // never reached: use the largest
+
+        double lamUsed = GRANT_OVERSMOOTH_FACTOR*lamOpt;
+        IndirectFT over = refit.fit(dT, eT, lamUsed);
+        double chiOpt = refit.fit(dT, eT, lamOpt).getChiSquaredAllPoints();
+
+        Estimate q = over.getPorodInvariant(qc);
+        Estimate i0 = Double.isNaN(izeroOverride) ? base.getIzeroParticle() : new Estimate(izeroOverride, Double.NaN);
+        double v = 2*Math.PI*Math.PI*i0.value/q.value;
+        double rel2 = 0;
+        boolean known = false;
+        if (!Double.isNaN(i0.sigma)) { rel2 += Math.pow(i0.sigma/i0.value, 2); known = true; }
+        if (!Double.isNaN(q.sigma)) { rel2 += Math.pow(q.sigma/q.value, 2); known = true; }
+        Estimate vp = new Estimate(v, known ? Math.abs(v)*Math.sqrt(rel2) : Double.NaN);
+        return new GrantPorodVolume(vp, i0, q, qc, lamOpt, lamUsed, chi2Best, chiOpt, over);
+    }
+
+    /** null-safe full copy of a series */
+    private static XYSeries copyOf(XYSeries series) throws CloneNotSupportedException {
+        if (series == null) return null;
+        if (series.getItemCount() == 0) return (XYSeries) series.clone();
+        return series.createCopy(0, series.getItemCount() - 1);
+    }
 
     @Override
     public double getStandardizedScale(){
@@ -569,21 +1255,14 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
         return sum;
     }
 
-    public SimpleMatrix hessphi_coeffs_positivity_constrained(SimpleMatrix ata, SimpleMatrix d1, int coeffs_size) {
+    public SimpleMatrix hessphi_coeffs_positivity_constrained(SimpleMatrix ata, SimpleMatrix d1, int rows) {
 
-        SimpleMatrix hessian = new SimpleMatrix(coeffs_size, coeffs_size);
-
-        SimpleMatrix t_ata;
-        t_ata =  ata.plus(d1);
-
-        for (int r=0; r < coeffs_size; r++){
-
-            for(int c=0; c < coeffs_size; c++){
-                hessian.set(r,c, t_ata.get(r,c));
-            }
-
+        // plus() already returns a new matrix; only copy out a block if a smaller one is requested
+        SimpleMatrix t_ata = ata.plus(d1);
+        if (t_ata.numRows() == rows && t_ata.numCols() == rows) {
+            return t_ata;
         }
-        return hessian;
+        return t_ata.extractMatrix(0, rows, 0, rows);
     }
 
 
@@ -643,125 +1322,92 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
 
         ArrayList<SimpleMatrix> returnElements = new ArrayList<SimpleMatrix>();
 
-        int i=0;
+        final int cols = d1.numCols();
+        final int size = designMatrix.numRows();
 
-        SimpleMatrix r_matrix = bMatrix.minus(designMatrix.mult(initial)); // residual
-        SimpleMatrix r_plus_1;
-        SimpleMatrix preConditioner = designMatrix.copy();
-
-        int cols = d1.numCols();
         /*
-         * P = M
-         * Preconditioner, P is Hessian with first block set to:
-         * M = 2*diagATA + D1
-         *
+         * Jacobi preconditioner M = diag(2 + D1). M is diagonal, so M^-1 is applied element-wise
+         * instead of building and inverting a dense matrix (previously O(n^3) per call).
+         * Rows beyond the D1 block (if any) keep the Hessian's own diagonal, as before.
          */
-        for(int row=0; row < cols; row++){
-
-            for(int col=0; col< cols; col++){
-
-                if (row == col){
-                    //preConditioner.set(row,row,2*designMatrix.get(row,row)+d1.get(row,row));
-                    preConditioner.set(row, row, (2+d1.get(row,row)));
-                }
-
-                if (row != col){ // preserve diagonal entries and just add D1
-                    //preConditioner.set(row, col, d1.get(row, col));
-                    preConditioner.set(row, col, 0);
-                }
-            }
+        final double[] invM = new double[size];
+        for (int i = 0; i < size; i++) {
+            double m = (i < cols) ? (2 + d1.get(i, i)) : designMatrix.get(i, i);
+            invM[i] = (m != 0) ? 1.0 / m : 1.0;
         }
 
-        SimpleMatrix invertM = preConditioner.invert();
-        SimpleMatrix z = invertM.mult(r_matrix); // search direction
-        //SimpleMatrix z = invertM.mult(initial); // search direction
+        SimpleMatrix r_matrix = bMatrix.minus(designMatrix.mult(initial)); // residual
+        SimpleMatrix z = applyDiagonal(invM, r_matrix);
         SimpleMatrix p = z.copy();
-
-        SimpleMatrix q;
-
         SimpleMatrix delx_vector = initial.copy();
-        int xu_size = delx_vector.getNumElements();
+        final int xu_size = delx_vector.getNumElements();
 
-        SimpleMatrix z_plus_1 ;//= new SimpleMatrix(xu_size,1);
-        SimpleMatrix x_vector = new SimpleMatrix(cols, 1);
+        double rkTzk = r_matrix.dot(z);
+        final double bNorm = bMatrix.normF();
+        final double magB = (bNorm > 0) ? 1.0 / bNorm : 1.0;
+        double topB = r_matrix.normF() * magB;
 
-        double alpha;
-        // stopping criteria
-        double rkTzk = r_matrix.transpose().mult(z).get(0);
+        int i = 0;
+        while ((i < pcgmaxi) && topB > pcgtol) {
 
-        double beta;
-        //double stop = rkTzk*pcgtol*pcgtol;
-       //double stop = pcgtol;
+            SimpleMatrix q = designMatrix.mult(p);
+            double pTq = p.dot(q);
+            if (!(pTq > 0) || rkTzk == 0) break;      // converged, or lost positive definiteness
+            double alpha = rkTzk / pTq;
 
-        //System.out.println("PCG rkTzk " + rkTzk + " " + stop);
-double magB = 1.0/bMatrix.normF();
-double topB = 1000;
+            delx_vector = delx_vector.plus(alpha, p);
+            SimpleMatrix r_plus_1 = r_matrix.minus(q.scale(alpha)); // r_k+1 = r_k - alpha_k * A*p_k
+            SimpleMatrix z_plus_1 = applyDiagonal(invM, r_plus_1);
 
-        //while( (i < pcgmaxi) && (rkTzk > stop) ){
-            while( (i < pcgmaxi) && topB > pcgtol ){
+            // Polak-Ribiere beta
+            double beta = z_plus_1.dot(r_plus_1.minus(r_matrix)) / rkTzk;
 
-            q = designMatrix.mult(p);
-            alpha = rkTzk/(p.transpose().mult(q)).get(0);
+            p = z_plus_1.plus(beta, p);
+            r_matrix = r_plus_1;
+            z = z_plus_1;
+            rkTzk = r_matrix.dot(z);
 
-            // invert each element of dTq;
-            delx_vector = delx_vector.plus(p.scale(alpha));
-
-//            if (i < 50){
-//                r_plus_1 = bMatrix.minus(designMatrix.mult(delx_vector));
-//            } else {
-//                r_plus_1 = r_matrix.minus(q.scale(alpha)); // r_k+1 = r_k - alpha_k * A*p_k
-//            }
-            r_plus_1 = r_matrix.minus(q.scale(alpha)); // r_k+1 = r_k - alpha_k * A*p_k
-
-            z_plus_1 = invertM.mult(r_plus_1);
-
-            //Polak-Ribiere Beta
-            beta = z_plus_1.transpose().mult(r_plus_1.minus(r_matrix)).get(0,0)/(z.transpose().mult(r_matrix)).get(0,0);
-            //Fletcher Reeves
-            //beta = z_plus_1.transpose().mult(r_plus_1).get(0,0)*(z.transpose().mult(r)).get(0,0);
-            /*
-             * k => k + 1
-             */
-            p = z_plus_1.plus(p.scale(beta));
-            r_matrix = r_plus_1.copy();
-            rkTzk = r_matrix.transpose().mult(z_plus_1).get(0);
-            z = z_plus_1.copy();
-
-            topB = (bMatrix.minus(designMatrix.mult(delx_vector))).normF()*magB;
-
+            // the recurrence residual replaces an extra A*x product per iteration
+            topB = r_matrix.normF() * magB;
             i++;
         }
 
-        //System.out.println("PCG STOP: " + stop + " > " + rkTzk + " at " + i);
-
-        for(int ii=0; ii < xu_size; ii++){
+        SimpleMatrix x_vector = new SimpleMatrix(cols, 1);
+        for (int ii = 0; ii < Math.min(xu_size, cols); ii++) {
             x_vector.set(ii, 0, delx_vector.get(ii));
         }
 
-        // set final iterate number
-        SimpleMatrix pitr = new SimpleMatrix(1,1);
-        pitr.set(0,0,i);
+        SimpleMatrix pitr = new SimpleMatrix(1, 1);
+        pitr.set(0, 0, i);
 
-        returnElements.add(x_vector);  // 0
+        returnElements.add(x_vector);    // 0
         returnElements.add(delx_vector); // 1
-        returnElements.add(pitr);      // 2
+        returnElements.add(pitr);        // 2
         return returnElements;
     }
 
+    /** element-wise diag(d) * v for a column vector v */
+    private static SimpleMatrix applyDiagonal(double[] d, SimpleMatrix v) {
+        int n = v.getNumElements();
+        SimpleMatrix out = new SimpleMatrix(n, 1);
+        for (int i = 0; i < n; i++) out.set(i, 0, d[i] * v.get(i));
+        return out;
+    }
 
-    public SimpleMatrix hessphi_coeffs(SimpleMatrix ata, SimpleMatrix d1, SimpleMatrix d2, int coeffs_size) {
+
+    public SimpleMatrix hessphi_coeffs(SimpleMatrix ata, SimpleMatrix d1, SimpleMatrix d2, int coeffs_size_row) {
 
         int n = ata.numCols();
 
-        SimpleMatrix hessian = new SimpleMatrix(2*coeffs_size,2*coeffs_size);
+        SimpleMatrix hessian = new SimpleMatrix(2*coeffs_size_row,2*coeffs_size_row);
         SimpleMatrix t_ata;
         t_ata =  ata.plus(d1);
 
         double d2_value;
 
-        for (int r=0; r < coeffs_size; r++){
+        for (int r=0; r < coeffs_size_row; r++){
 
-            for(int c=0; c < coeffs_size; c++){
+            for(int c=0; c < coeffs_size_row; c++){
                 hessian.set(r,c,t_ata.get(r,c));
             }
 
@@ -834,56 +1480,45 @@ double topB = 1000;
         SimpleMatrix z = invertM.mult(r); // search direction
         SimpleMatrix p = z.copy();
 
-        SimpleMatrix q;
-
         SimpleMatrix xu_vector = initial.copy();
         int xu_size = xu_vector.getNumElements();
-
-        SimpleMatrix z_plus_1 ;//= new SimpleMatrix(xu_size,1);
 
         SimpleMatrix x_vector = new SimpleMatrix(n, 1);
         SimpleMatrix u_vector = new SimpleMatrix(xu_size-n, 1);
 
-        double alpha;
-        // stopping criteria
-        double rkTzk = r.transpose().mult(z).get(0);
-
-        double beta;
-        //double stop = rkTzk*pcgtol*pcgtol;
-        //System.out.println("PCG rkTzk " + rkTzk + " " + stop);
-        double magB = 1.0/bMatrix.normF();
-        double topB = 1000;
+        double rkTzk = r.dot(z);
+        final double bNorm = bMatrix.normF();
+        final double magB = (bNorm > 0) ? 1.0 / bNorm : 1.0;
+        double topB = r.normF() * magB;
 
         int i=0;
         while( (i < pcgmaxi) && (topB > pcgtol) ){
 
-            q = designMatrix.mult(p);
-            alpha = rkTzk/(p.transpose().mult(q)).get(0);
+            SimpleMatrix q = designMatrix.mult(p);
+            double pTq = p.dot(q);
+            if (!(pTq > 0) || rkTzk == 0) break;      // converged, or lost positive definiteness
+            double alpha = rkTzk/pTq;
 
-            // invert each element of dTq;
-            xu_vector = xu_vector.plus(p.scale(alpha));
+            xu_vector = xu_vector.plus(alpha, p);
 
             if (i < 50){
-                r_plus_1 = bMatrix.minus(designMatrix.mult(xu_vector));
+                r_plus_1 = bMatrix.minus(designMatrix.mult(xu_vector)); // exact residual early on
             } else {
                 r_plus_1 = r.minus(q.scale(alpha)); // r_k+1 = r_k - alpha_k * A*p_k
             }
 
-            z_plus_1 = invertM.mult(r_plus_1);
+            SimpleMatrix z_plus_1 = invertM.mult(r_plus_1);
 
             //Polak-Ribiere Beta
-            beta = z_plus_1.transpose().mult(r_plus_1.minus(r)).get(0,0)/(z.transpose().mult(r)).get(0,0);
-            //Fletcher Reeves
-            //beta = z_plus_1.transpose().mult(r_plus_1).get(0,0)*(z.transpose().mult(r)).get(0,0);
+            double beta = z_plus_1.dot(r_plus_1.minus(r))/rkTzk;
 
-            /*
-             * k => k + 1
-             */
-            p = z_plus_1.plus(p.scale(beta));
-            r = r_plus_1.copy();
-            rkTzk = r.transpose().mult(z_plus_1).get(0);
-            z = z_plus_1.copy();
-            topB = (bMatrix.minus(designMatrix.mult(xu_vector))).normF()*magB;
+            p = z_plus_1.plus(beta, p);
+            r = r_plus_1;
+            z = z_plus_1;
+            rkTzk = r.dot(z);
+            // r is the exact residual for i < 50 and the recurrence afterwards;
+            // this saves a second A*x product per iteration
+            topB = r.normF()*magB;
             i++;
         }
 
@@ -926,7 +1561,7 @@ double topB = 1000;
 
         SimpleMatrix p_dd_r = new SimpleMatrix(r_limit,1);
 
-        int coeffs_size = am.getNumElements();
+        int elements = am.getNumElements();
 
         double a_i_sum, pi_inv_d_n;
 
@@ -935,7 +1570,7 @@ double topB = 1000;
             pi_r_inv_d = pi_inv_d*r_value;
             a_i_sum = 0;
 
-            for(int n=1; n < coeffs_size; n++){
+            for(int n=1; n < elements; n++){
                 a_i = am.get(n,0);
 
                 pi_inv_d_n = pi_inv_d*n;
@@ -1022,21 +1657,23 @@ double topB = 1000;
 
         int totalItems = nonData.getItemCount();
 
-        double sum = 0, minavg=10000000, tempminavg;
-        int windowSize = (int)(0.07*totalItems);
-        double invwindow = 1.0/(double)windowSize;
-        for(int r=0; r<(totalItems-windowSize); r++){
-            tempminavg = 0;
-            for (int w=0; w<windowSize; w++){
-                tempminavg += nonData.getDataItem(r).getYValue();
-            }
-
-            if (tempminavg < minavg){
-                minavg = tempminavg;
+        // smallest moving average over a window of 7% of the points (at least 1).
+        // Previously the inner loop summed the same point windowSize times (getDataItem(r)
+        // instead of r+w), so this was just the minimum single point.
+        int windowSize = Math.max(1, (int)(0.07*totalItems));
+        double windowSum = 0;
+        for (int w=0; w<windowSize && w<totalItems; w++){
+            windowSum += nonData.getY(w).doubleValue();
+        }
+        double minavg = windowSum;
+        for (int r=1; r+windowSize <= totalItems; r++){   // slide: O(n) instead of O(n*window)
+            windowSum += nonData.getY(r+windowSize-1).doubleValue() - nonData.getY(r-1).doubleValue();
+            if (windowSum < minavg){
+                minavg = windowSum;
             }
         }
 
-        standardizedMin = minavg*invwindow;//nonData.getMinY();
+        standardizedMin = minavg/(double)windowSize;
         standardizedScale = Math.abs(nonData.getMaxY() - standardizedMin);
         double invstdev = 1.0/standardizedScale;
 
@@ -1071,188 +1708,113 @@ double topB = 1000;
      */
     @Override
     public double getChiEstimate(){
-        // how well does the fit estimate the cardinal series (shannon points)
-        // how many points determined by Shannon Information Theory => ns
-        double chi=0;
-        double diffTolerance = 0.000001;
-        double inv_card;
-        final double pi_inv_dmax = Math.PI/dmax; // cardinal points are at increments of PI/dmax
-        double error_value=0;
-        // Number of Shannon bins, excludes the a_o
-        int bins = ns, count=0, total = data.getItemCount();
-        // ns is over-estimated as it includes a q-value that is not actually measured
-        // so, how to calculate chi?
-        // SimpleMatrix tempResiduals = a_matrix.mult(am_vector).minus(y_vector);
-        // calculate residuals
+        // residuals at points nearest the Shannon-sampled q-values (odd multiples of PI/(6 dmax))
         makeResiduals();
 
-        n_chipoints = 0; //1.0/(double)(bins-1);
-        double cardinal, test_q = 0, diff;
-        XYDataItem priorValue, postValue;
-        // see if q-value exists but to what significant figure?
-        // if low-q is truncated and is missing must exclude from calculation
-        double residuals_sum = 0;
-        double residuals_sum_squared = 0;
-        ArrayList<Double> values = new ArrayList<>();
-
-        /*
-         * total points in chi calculation
-         *
-         *  first => is near 0.5*PI/dmax
-         * second => 0.5*PI/dmax + PI/dmax
-         *  third => 0.5*PI/dmax + 2PI/dmax
-         *   last => if possible is nPI/dmax + 0.5*PI/dmax
-         *
-         *   shift points and adding one, so total bins should be
-         *   total bins = ns + 1
-         *
-         */
         final double delta_q = Math.PI/(dmax*6.0d);
-        //define q-values for calculating chi2
-        int startIndex = 1;
-        double maxQ = data.getMaxX();
+        final int total = data.getItemCount();
+        final double maxQ = data.getMaxX();
+
+        int startIndex = (int)Math.floor(data.getMinX()/delta_q);
+        startIndex += ((startIndex & 1) == 0) ? 1 : 2;   // first odd index above q_min
+
         ArrayList<Integer> chiIndices = new ArrayList<>();
-
-        startIndex = (int)Math.floor(data.getMinX()/delta_q); //check first point
-        if ( (startIndex & 1) == 0){ // if even, starting index is greater than startIndex + 1
-            startIndex += 1;
-        } else { // if odd
-            startIndex += 2;
-        }
-
-        double  before, after;//
-        int startAt = 0;
         chiIndices.add(0);
-        while (startIndex*delta_q < maxQ){
-
-            if ( (startIndex & 1) != 0){
-                double shannon_q = startIndex*delta_q;
-                for(int i = startAt; startAt<total; i++){
-                    XYDataItem xyitem = data.getDataItem(i);
-                    if (xyitem.getXValue() > shannon_q){ // find first value greater than shannon_q
-
-                        before = shannon_q - data.getX(i-1).doubleValue();
-                        after = xyitem.getXValue() - shannon_q;
-                        if (before < after){
-                            chiIndices.add(i-1);
-                        } else {
-                            chiIndices.add(i);
-                        }
-                        startAt = i;
-                        break;
+        int startAt = 0;
+        for (; startIndex*delta_q < maxQ; startIndex += 2){   // odd indices only
+            double shannon_q = startIndex*delta_q;
+            for (int i = startAt; i < total; i++){            // was: condition on startAt (never changes)
+                double qi = data.getX(i).doubleValue();
+                if (qi > shannon_q){                           // first point beyond shannon_q
+                    int pick = i;
+                    if (i > 0 && (shannon_q - data.getX(i-1).doubleValue()) < (qi - shannon_q)){
+                        pick = i-1;                            // previous point is closer
                     }
+                    if (pick != chiIndices.get(chiIndices.size()-1)){   // don't count a point twice
+                        chiIndices.add(pick);
+                    }
+                    startAt = i;
+                    break;
                 }
             }
-            startIndex++;
         }
 
-
-        for(int i=0; i<chiIndices.size();i++){
-            error_value = 1.0/(standardVariance.getY(chiIndices.get(i)).doubleValue());
-            diff = residuals.getY(chiIndices.get(i)).doubleValue();
-            residuals_sum_squared += diff*diff;
-            residuals_sum += diff;
-            chi += (diff*diff)*(error_value);
+        double chi = 0;
+        n_chipoints = 0;
+        for (int idx : chiIndices){
+            double variance = standardVariance.getY(idx).doubleValue();
+            if (!(variance > 0)) continue;                     // skip points with no usable error
+            double diff = residuals.getY(idx).doubleValue();
+            chi += diff*diff/variance;
             n_chipoints += 1.0;
         }
 
+        final int aic_k = ns + 2;
+        double aicDenom = n_chipoints - aic_k - 1;
+        aic = (aicDenom > 0)
+                ? 2.0*aic_k + chi + (2.0*aic_k*aic_k + 2.0*aic_k)/aicDenom
+                : Double.POSITIVE_INFINITY;                    // too few points for AICc
 
-        for (int i=1; i <= -bins && i*pi_inv_dmax <= qmax; i++){
-
-            cardinal = i*pi_inv_dmax; // <= q-value
-            inv_card = 1.0/cardinal;
-            // what happens if a bin is empty?
-            searchLoop:
-            while ( (test_q < cardinal) && (count < total) ){
-                test_q = data.getX(count).doubleValue();
-                // find first q-value >= shannon cardinal value
-                if (test_q >= cardinal){
-                    break searchLoop;
-                }
-                count++;
-            }
-
-            // if either differences is less than 0.1% use the measured value
-            if (count > 0 && count < total){
-                priorValue = data.getDataItem(count-1);
-                postValue = data.getDataItem(count);
-                if ((cardinal - priorValue.getXValue())*inv_card < diffTolerance) {// check if difference is smaller pre-cardinal
-                    System.out.println(i + " PRE ");
-                    error_value = 1.0/(standardVariance.getY(count-1).doubleValue());
-                    diff = residuals.getY(count - 1).doubleValue();
-                    residuals_sum_squared += diff*diff;
-                    residuals_sum += diff;
-                    chi += (diff*diff)*(error_value);
-                    n_chipoints += 1.0;
-                    values.add(diff);
-                } else if ( Math.abs(postValue.getXValue() - cardinal)*inv_card < diffTolerance) {// check if difference is smaller post-cardinal
-                    //error_value = 1.0/errors.getY(count).doubleValue()*inv_card*standardizedScale;
-                    System.out.println(i + " POST ");
-                    error_value = 1.0/(standardVariance.getY(count).doubleValue());
-                    diff = residuals.getY(count).doubleValue();
-                    chi += (diff*diff)*(error_value);
-                    residuals_sum_squared += diff*diff;
-                    residuals_sum += diff;
-                    n_chipoints += 1.0;
-                    values.add(diff);
-                } else { // if difference is greater than 0.1% interpolate and also the cardinal is bounded
-
-                    Interpolator tempI = new Interpolator(nonData, errors, cardinal); // interpolate intensity
-                    diff = tempI.interpolatedValue - this.calculateQIQ(cardinal);
-
-                    residuals_sum_squared += diff*diff;
-                    residuals_sum += diff;
-                    values.add(diff);
-
-                    chi += (diff*diff)/(tempI.stderror * tempI.stderror*cardinal*cardinal);
-
-                    System.out.println("Interpolated " + cardinal + " diff " + diff + " diff2: " + diff*diff + " sigma " + tempI.stderror + " CHI " + chi);
-                    n_chipoints += 1.0;
-                }
-                System.out.println("          => " + cardinal + " diff " + diff + " diff2: " + diff*diff + " sigma " + error_value + " CHI " + chi + " count " + count + " " + total);
-            }
-        }
-
-        double residualsMean = residuals_sum/n_chipoints;
-        double residuals_variance = residuals_sum_squared/n_chipoints - residualsMean*residualsMean;
-        int aic_k = ns + 2;
-
-        //chi*=1.0/(double)n_chipoints;
-        aic = 2.0*aic_k + chi + (2*aic_k*aic_k + 2*aic_k)/(n_chipoints - aic_k - 1);
-//        System.out.println(n_chipoints + " " + ns + " " + n_chipoints/ns + " " + (n_chipoints-2.0)/ns);
-//        System.out.println(dmax + " AIC " + aic + " chi " +chi/(double)(n_chipoints-2.0) + " " + n_chipoints + " " + chi/(double)aic_k + " :: " + chiIndices.size());
-
-        double delta = ns - n_chipoints;  // if no missing bin, should equal zero
-
-        // estimate decorellated uncertainties for the cardinal points
-//        int totalerrors = errors.getItemCount();
-//        SimpleMatrix stdev = new SimpleMatrix(errors.getItemCount(), 1); // n x 1
-//        for(int i=0; i<totalerrors; i++){
-//            stdev.set(i,0, errors.getY(i).doubleValue());
-//        }
-
-//        SimpleMatrix covariance = stdev.mult(stdev.transpose()); // n x n
-//        // perform SVD
-//        DenseMatrix64F tempForSVD = covariance.getMatrix();
-//        SingularValueDecomposition<DenseMatrix64F> svd = DecompositionFactory.svd(totalerrors, totalerrors, true, true, false);
-//        // A = U*W*V_t
-//        try {
-//            svd.decompose(tempForSVD);
-//        } catch (Exception e){
-//            System.out.println("Matrix inversion exception in svdReduce ");
-//        }
-//
-//        double[] sing = svd.getSingularValues();
-//        for(int i=0; i<coeffs_size+2; i++){
-//            System.out.println(i + " SVD " + sing[i]);
-//        }
-
-        //System.out.println("CHI ESTIMATE count " + residuals.getItemCount());
-        //degreesOfFreedom = (includeBackground) ? (totalCoefficients - delta - 1) : (totalCoefficients - 1.0 - delta);
         degreesOfFreedom = n_chipoints - 2;
-        //System.out.println("TC " + totalCoefficients + " delta " + chi);
-        //return aic;
-        return chi*1.0/degreesOfFreedom;
+        return (degreesOfFreedom > 0) ? chi/degreesOfFreedom : Double.POSITIVE_INFINITY;
+    }
+
+
+    /**
+     * AIC for Gaussian errors with known sigma: chi^2 summed over EVERY fitted point, plus 2k,
+     * with k = ns + 2.
+     *
+     * Intended for comparing fits across a dmax scan, with the minimum at the lowest adequate
+     * dmax: chi^2 rises steeply once dmax is too short, while the 2k term charges ~2 per extra
+     * Shannon channel once the fit has stopped improving. Using all points (rather than ~3 per
+     * Shannon channel) is what makes that wall sharp and the minimum stable.
+     *
+     * Suggested use:  current_score = getAICAllPoints() + 4*kt + getPrScore();
+     *
+     * Residuals and errors are both put in standardized q*I(q) units, so q and the scale cancel.
+     */
+    public double getAICAllPoints(){
+        return getAICAllPoints(1.0);
+    }
+
+    /**
+     * Quasi-AIC: chi^2/cHat + 2k. Use cHat = the reduced chi^2 of the best (lowest) fit in the dmax
+     * scan (see referenceCHat) when chi^2_red is well above 1: underestimated errors or systematic
+     * misfit otherwise inflate every AIC difference by that factor and swamp the P(r) score.
+     * cHat <= 1 gives the ordinary AIC.
+     */
+    public double getAICAllPoints(double cHat){
+        double c = (cHat > 1) ? cHat : 1.0;
+        return getChiSquaredAllPoints()/c + 2.0*(ns + 2);
+    }
+
+    /** reduced chi^2 over all fitted points, dof = points - (ns + 2) */
+    public double getReducedChiSquaredAllPoints(){
+        double chi = getChiSquaredAllPoints();                // also refreshes residuals
+        int dof = residuals.getItemCount() - (ns + 2);
+        return (dof > 0) ? chi/dof : Double.NaN;
+    }
+
+    /** cHat for a dmax scan: the smallest reduced chi^2 among the fits */
+    public static double referenceCHat(java.util.List<? extends IndirectFT> scan){
+        double best = Double.POSITIVE_INFINITY;
+        for (IndirectFT f : scan) best = Math.min(best, f.getReducedChiSquaredAllPoints());
+        return best;
+    }
+
+    /** chi^2 over all fitted points (standardized q*I(q) units) */
+    public double getChiSquaredAllPoints(){
+        makeResiduals();
+        double chi = 0;
+        final int total = Math.min(residuals.getItemCount(), errors.getItemCount());
+        for (int i=0; i<total; i++){
+            double q = residuals.getX(i).doubleValue();
+            double sigma = errors.getY(i).doubleValue()*q/standardizedScale;  // sigma of standardized qI(q)
+            if (!(sigma > 0)) continue;
+            double z = residuals.getY(i).doubleValue()/sigma;
+            chi += z*z;
+        }
+        return chi;
     }
 
 
@@ -1263,106 +1825,27 @@ double topB = 1000;
      * @return
      */
     @Override
-    public double getKurtosisEstimate(int rounds){  // calculated from the residuals
-         /*
-         * Divide scattering curve into Shannon bins
-         * Determine kurtosis from a random sample of the ratio of I_calc to I_obs based on the binning
-         * Take max of the kurtosis set
-         */
-        //Random newRandom = new Random();
-        int total = residuals.getItemCount(); // fittedqIq is scaled for fitting
-        //double[] ratio = new double[total];
-        ArrayList<Double> test_residuals = new ArrayList<Double>();
-
+    public double getKurtosisEstimate(int rounds){
         /*
-         * bin the ratio
-         * qmax*dmax/PI
+         * Durbin-Watson statistic over all residuals, d = Sum(e_t - e_[t-1])^2 / Sum(e_t^2);
+         * returns |2 - d| (0 = uncorrelated residuals).
          *
+         * The previous version also ran `rounds` random sub-samples and sorted them, but then
+         * returned this full-residual value regardless, so that work was discarded. It has been
+         * removed; `rounds` is kept for the interface.
          */
-        double kurtosis_sum = 0;
-        double[] kurtosises = new double[rounds];
-        // calculate kurtosis
-        double qmin = residuals.getMinX();
-        double bins = ns*2.0;
-        double delta_q = (residuals.getMaxX()-qmin)/bins;
-
-        double samplingLimit, lowerLimit;
-        Random randomGenerator = new Random();
-        int[] randomNumbers;
-
-        double numerator=0, value, diff;
-        double denominator;// = residuals.getY(0).doubleValue()*residuals.getY(0).doubleValue();
-
-        for (int i=0; i<rounds; i++){
-            // for each round, get a random set of values from ratio
-            int startbb = 0, upperbb = 0;
-            test_residuals.clear();
-
-            // same percent out of each bin
-            //samplingLimit = (0.5 + randomGenerator.nextInt(12)) / 100.0;  // return a random percent up to 12%
-            samplingLimit = 0.5;  // return a random percent up to 12%
-
-            for (int b=1; b < bins; b++) {
-                // find upper q in bin
-                // SAMPLE randomly per bin
-                lowerLimit = (delta_q * b + qmin);
-
-                binloop:
-                for (int j = startbb; j < total; j++) {
-                    if (residuals.getX(j).doubleValue() >= lowerLimit) {
-                        upperbb = j;
-                        break binloop;
-                    }
-                }
-
-                // grab indices inbetween startbb and upperbb
-                //System.out.println("bin " + b + " " + (upperbb - startbb));
-                randomNumbers = Functions.randomIntegersBounded(startbb, upperbb, samplingLimit);
-                startbb = upperbb;
-
-                for(int h=0; h < randomNumbers.length; h++){
-                    //test_residuals.add(ratio[randomNumbers[h]]);
-                    test_residuals.add(residuals.getY(randomNumbers[h]).doubleValue());
-                }
-            }
-
-            //kurtosises[i] = StatMethods.kurtosis(test_residuals);
-            /*
-             * Durbin Watson estimate of randomness
-             * d = Sum( e_t - e_[t-1])^2/Sum( e_t^2 )
-             */
-            numerator = 0;
-            denominator = test_residuals.get(0)*test_residuals.get(0);
-            for (int j=1; j<test_residuals.size(); j++){
-                value = test_residuals.get(j);
-                diff = value - test_residuals.get(j-1); // x_(t) - x_(t-1)
-                numerator += diff*diff;
-                denominator += value*value; // sum of (x_t)^2
-            }
-
-            kurtosises[i] = numerator/denominator;
-            kurtosis_sum += kurtosises[i];
-            //System.out.println(i + " KURT : " + kurtosises[i] + " SL : " + samplingLimit);
-        }
-
-        Arrays.sort(kurtosises);
-        //return Math.abs(kurtosises[rounds-1]- kurtosises[0]);
-        /*
-         * take median from the estimate
-         */
-
-        /*
-         * total kurtosis
-         */
-        numerator = 0;
-        denominator = residuals.getY(0).doubleValue()*residuals.getY(0).doubleValue();
-        for (int j=1; j<residuals.getItemCount(); j++){
-            value = residuals.getY(j).doubleValue();
-            diff = value - residuals.getY(j-1).doubleValue(); // x_(t) - x_(t-1)
+        int total = residuals.getItemCount();
+        if (total < 2) return 0;
+        double prev = residuals.getY(0).doubleValue();
+        double numerator = 0, denominator = prev*prev;
+        for (int j=1; j<total; j++){
+            double value = residuals.getY(j).doubleValue();
+            double diff = value - prev;
             numerator += diff*diff;
-            denominator += value*value; // sum of (x_t)^2
+            denominator += value*value;
+            prev = value;
         }
-        return Math.abs(2-numerator/denominator);
+        return (denominator > 0) ? Math.abs(2 - numerator/denominator) : 0;
     }
 
 
@@ -1424,26 +1907,20 @@ double topB = 1000;
         } else { // if odd
             startIndex += 2;
         }
-        int degreesOfFreedomcorrection = startIndex-1;
-
-        double shannon_q = startIndex*delta_q;
         int startAt = 0;
         chiIndices.add(0);
-        while (startIndex*delta_q < maxQ){
-            if ( (startIndex & 1) != 0){
-                shannon_q = startIndex*delta_q;
-                for(int i = startAt; startAt<dataLimit; i++){
-                    if (tempDataset.getX(i).doubleValue() > shannon_q){ // find first value greater than shannon_q
-                        chiIndices.add(i);
-                        startAt = i;
-                        break;
-                    }
+        for (; startIndex*delta_q < maxQ; startIndex += 2){   // odd indices only
+            double shannon_q = startIndex*delta_q;
+            for(int i = startAt; i<dataLimit; i++){            // was: condition on startAt
+                if (tempDataset.getX(i).doubleValue() > shannon_q){ // first value greater than shannon_q
+                    if (i != chiIndices.get(chiIndices.size()-1)) chiIndices.add(i);
+                    startAt = i;
+                    break;
                 }
             }
-            startIndex++;
         }
 
-        chiIndices.add(dataLimit-1);
+        if (dataLimit-1 != chiIndices.get(chiIndices.size()-1)) chiIndices.add(dataLimit-1);
 
 
         for(int i=0; i<chiIndices.size();i++){
@@ -1503,25 +1980,29 @@ double topB = 1000;
         output += String.format("REMARK 265  BIN COEFFICIENTS (UNSCALED)%n");
         output += String.format("REMARK 265 %n");
 
-        output += getPrDistributionForFitting();
+        StringBuilder sb = new StringBuilder(output);
+        sb.append(getPrDistributionForFitting());
 
-        output += String.format("REMARK 265 %n");
-        output += String.format("REMARK 265  SCALED P(r) DISTRIBUTION %n");
-        output += String.format("REMARK 265      SCALE : %.3E %n", scale);
-        output += String.format("REMARK 265    COLUMNS : r, P(r), error%n");
-        output += String.format("REMARK 265          r : defined in Angstroms%n");
+        sb.append(String.format("REMARK 265 %n"));
+        sb.append(String.format("REMARK 265  SCALED P(r) DISTRIBUTION %n"));
+        sb.append(String.format("REMARK 265      SCALE : %.3E %n", scale));
+        sb.append(String.format("REMARK 265    COLUMNS : r, P(r), error%n"));
+        sb.append(String.format("REMARK 265          r : defined in Angstroms%n"));
 
         double incr = Math.PI/qmax/3.0;
         incr = (incr < 3.1 ) ? 3.1 : incr;
 
-        output += String.format( Constants.Scientific1dot4e2.format(0) + "\t" + Constants.Scientific1dot2e1.format(0) + "\t 0.00 "+ "\n");
+        // appended directly: passing pre-formatted text through String.format() as the
+        // format string would throw if it ever contained a '%'
+        sb.append(Constants.Scientific1dot4e2.format(0)).append('\t').append(Constants.Scientific1dot2e1.format(0)).append("\t 0.00 \n");
         for (int r = 1; r*incr < dmax; r++){
             double r_incr = r*incr;
-            output += String.format( Constants.Scientific1dot4e2.format(r_incr) + "\t" + Constants.Scientific1dot2e1.format(this.calculatePofRAtR(r_incr, scale)) + "\t 0.00 "+ "\n");
+            sb.append(Constants.Scientific1dot4e2.format(r_incr)).append('\t')
+              .append(Constants.Scientific1dot2e1.format(this.calculatePofRAtR(r_incr, scale))).append("\t 0.00 \n");
         }
-        output += String.format( Constants.Scientific1dot4e2.format(dmax) + "\t" + Constants.Scientific1dot2e1.format(0) + "\t 0.00 "+ "\n");
+        sb.append(Constants.Scientific1dot4e2.format(dmax)).append('\t').append(Constants.Scientific1dot2e1.format(0)).append("\t 0.00 \n");
 
-        return output;
+        return sb.toString();
     }
 
     public void setModelUsed(String text){
@@ -1535,42 +2016,26 @@ double topB = 1000;
     private String getPrDistributionForFitting(){
 
         String temp = String.format("REMARK 265 P(R) DISTRIBUTION BINNED USING SHANNON NUMBER %n");
-              temp += String.format("REMARK 265 R-values REPRESENT THE MID-POINT OF EACH BIN %n");
-              temp += String.format("REMARK 265 BIN HEIGHT REPRESENTS THE VALUE OF P(R-value) %n");
+              temp += String.format("REMARK 265 R-values REPRESENT THE MID-POINT OF EACH BIN (WIDTH PI/QMAX) %n");
+              temp += String.format("REMARK 265 BIN HEIGHT IS THE MEAN OF P(R) OVER THE BIN (P = 0 BEYOND DMAX) %n");
               temp += String.format("REMARK 265        BIN            R-value : BIN HEIGHT %n");
               temp += String.format("REMARK 265 %n");
 
         int total = prDistributionForFitting.getItemCount();
-
+        StringBuilder sb = new StringBuilder(temp);
         for(int i=0; i<total; i++){
             XYDataItem item = prDistributionForFitting.getDataItem(i);
-            int index = i+1;
-            temp +=  String.format("REMARK 265       BIN_%-2d          %9.3f : %.5E %n", index, item.getXValue(), item.getYValue());
+            sb.append(String.format("REMARK 265       BIN_%-2d          %9.3f : %.5E %n", i+1, item.getXValue(), item.getYValue()));
         }
 
-        temp += String.format("REMARK 265 %n");
-        temp += String.format("REMARK 265            TOTAL SHANNON BINS : %d %n", total);
-        return temp;
+        sb.append(String.format("REMARK 265 %n"));
+        sb.append(String.format("REMARK 265            TOTAL SHANNON BINS : %d %n", total));
+        return sb.toString();
     }
 
+    /** identical output to getPrDistributionForFittingCIFFormat(id) */
     public String getIFTParametersCIFFormat(int id){
-        int total = prDistributionForFitting.getItemCount();
-        String tempHeader =  String.format("# REMARK 265 P(r) histogram details for modeling %n");
-        tempHeader += String.format("_sas_p_of_R_details.Shannon_number %d\n", ns);
-        tempHeader += String.format("_sas_p_of_R_details.bin_width %.3f\n", bin_width);
-        tempHeader += String.format("_sas_p_of_R_details.r_average %.3f\n", rAverage);
-        tempHeader += String.format("loop_%n");
-        tempHeader += String.format("_sas_p_of_R.id %n");
-        tempHeader += String.format("_sas_p_of_R.ordinal %n");
-        tempHeader += String.format("_sas_p_of_R.bin %n");
-        tempHeader += String.format("_sas_p_of_R.bin_height %n");
-        for(int i=0; i<total; i++){
-            XYDataItem item = prDistributionForFitting.getDataItem(i);
-            int index = i+1;
-            tempHeader +=  String.format("%-2d %-2d %.3f %.4E %n", id, index, item.getXValue(), item.getYValue());
-        }
-        tempHeader += "# \n";
-        return tempHeader;
+        return getPrDistributionForFittingCIFFormat(id);
     }
 
     public String getPrDistributionForFittingCIFFormat(int id){
@@ -1584,13 +2049,13 @@ double topB = 1000;
         tempHeader += String.format("_sas_p_of_R.ordinal %n");
         tempHeader += String.format("_sas_p_of_R.bin %n");
         tempHeader += String.format("_sas_p_of_R.bin_height %n");
+        StringBuilder sb = new StringBuilder(tempHeader);
         for(int i=0; i<total; i++){
             XYDataItem item = prDistributionForFitting.getDataItem(i);
-            int index = i+1;
-            tempHeader +=  String.format("%-2d %-2d %.3f %.4E %n", id, index, item.getXValue(), item.getYValue());
+            sb.append(String.format("%-2d %-2d %.3f %.4E %n", id, i+1, item.getXValue(), item.getYValue()));
         }
-        tempHeader += "# \n";
-        return tempHeader;
+        sb.append("# \n");
+        return sb.toString();
     }
 
 
@@ -1603,13 +2068,13 @@ double topB = 1000;
         tempHeader += String.format("_sas_p_of_R.P%n");
         tempHeader += String.format("_sas_p_of_R.P_error%n");
 
+        StringBuilder sb = new StringBuilder(tempHeader);
         for (int n=0; n < prDistribution.getItemCount(); n++) {
             XYDataItem item = prDistribution.getDataItem(n);
-            int index = n+1;
-            tempHeader += String.format("%-2d %-3d %.3E %.4E ? %n", id, index, item.getXValue(), item.getYValue());
+            sb.append(String.format("%-2d %-3d %.3E %.4E ? %n", id, n+1, item.getXValue(), item.getYValue()));
         }
-        tempHeader += "# \n";
-        return tempHeader;
+        sb.append("# \n");
+        return sb.toString();
     }
 
 
@@ -1642,16 +2107,12 @@ double topB = 1000;
         }
 
         int last = totalInDistribution-1;
-        double sum = 0;
         for(int i=1; i<last; i++){
             XYDataItem value = prDistribution.getDataItem(i);
-            double rvalue = value.getXValue(); // trapezoid rule for area calculation
+            double rvalue = value.getXValue();
             double rsquared = rvalue*rvalue;
             double rcubed = rsquared*rvalue;
-
             sphericalDistribution.add(value.getX(), sphericalVolume*(constantA*rsquared - constantB*rcubed + constantC*rsquared*rcubed));
-
-            sum +=(constantA*rsquared - constantB*rcubed + constantC*rsquared*rcubed)*delta;
         }
 
         sphericalDistribution.add(dmax, 0);
@@ -1677,36 +2138,14 @@ double topB = 1000;
         double keptsum = Double.POSITIVE_INFINITY;
         double delta = sphericalDistribution.getX(2).doubleValue() - sphericalDistribution.getX(1).doubleValue();
 
-        int lastIn = sphericalDistributionFine.getItemCount()-1;
-
-        for(int i=0; i<0*lastIn; i++){
-            XYDataItem item = sphericalDistributionFine.getDataItem(i);
-            scalefactor = item.getYValue()/calculatePofRAtR(item.getXValue(), 1);
-            boolean pleaseCOntinue = true;
-            double diffsum = 0;
-
-            for(int j=0; j<last; j++){ // go through each trapezoid and calculate area
-                XYDataItem inItem = sphericalDistributionFine.getDataItem(j);
-                double diff = inItem.getYValue() - scalefactor*calculatePofRAtR(inItem.getXValue(), 1);
-
-                if (diff < 0){
-                    pleaseCOntinue = false;
-                    break;
-                }
-                diffsum+=diff;
-            }
-
-            if(pleaseCOntinue && diffsum < keptsum){
-                keptsum = diffsum;
-                keptScalefactor = scalefactor;
-                //System.out.println("kept factor " + i + " " + scalefactor + " => " + keptsum);
-            }
-        }
-
-
+        // NOTE: correctedVolume below is computed but not stored or returned, so this method
+        // currently has no observable effect. (A disabled loop over sphericalDistributionFine,
+        // `i < 0*lastIn`, has been removed.)
         for(int i=1; i<last; i++){
 
-            scalefactor = sphericalDistribution.getY(i).doubleValue()/prDistribution.getY(i).doubleValue();
+            double pr_i = prDistribution.getY(i).doubleValue();
+            if (pr_i <= 0) continue;                      // avoid infinite / negative scale factors
+            scalefactor = sphericalDistribution.getY(i).doubleValue()/pr_i;
             boolean pleaseCOntinue = true;
             double diffsum = 0;
 
@@ -1737,290 +2176,247 @@ double topB = 1000;
 //        }
     }
 
+    /** Weights for the P(r) quality score; tune against reference datasets with known dmax. */
     /**
-     * provide a quality score of the Pr-distribution using second derivative and tangent at dmax
-     * @param del_r
-     * @return
+     * Penalty on STATISTICALLY SIGNIFICANT negative P(r) after the peak:
+     *     W_NEG_SIG * max(0, -z_min - NEG_SIG_ALLOWED)^2
+     * z_min = most negative z of the mean of P(r) over any window one Shannon bin (pi/qmax) wide
+     * after the peak, with sigma from the fit's posterior covariance (prDistributionBasis +
+     * coefficientCovariance). Averaging over the resolution element makes the test independent of
+     * how finely a class samples P(r), and uses the correlations between neighbouring points.
+     * In chi^2-like units, so it is commensurate with the (quasi-)AIC; the weight of 100 makes
+     * crossing the threshold decisive against AIC gains. Noise-level dips cost nothing;
+     * dips the data force below zero (dmax too long, interparticle repulsion, over-subtraction)
+     * are penalized severely.
      */
-    public double scoreDistribution(double del_r){
+    public static double W_NEG_SIG = 100.0, NEG_SIG_ALLOWED = 3.0;
+    /** window width for the significance test, in Shannon bins (pi/qmax) */
+    public static double NEG_SIG_WINDOW_BINS = 1.0;
+    /** min P/sigma after the peak (NaN when no sigma is available) and the resulting penalty argument */
+    public double prNegZ = Double.NaN, prNegSignificance;
+
+    /** posterior covariance of the fitted coefficients (a_matrix column layout); null = unknown */
+    protected double[][] coefficientCovariance;
+    /**
+     * Effective number of fitted parameters, trace of the hat matrix: tr[(A'WA + wR'R)^-1 A'WA].
+     * Equals the number of coefficients without regularization and falls toward 1 (background)
+     * as the penalty weight grows. NaN until a subclass calls setPosterior.
+     */
+    public double effectiveParameters = Double.NaN;
+    /** value of the regularization term at the solution, w * |R a|^2 (0 without a penalty) */
+    public double penaltyValue = 0;
+    /** ln det(A'WA + wR'R) and ln det(w R_p'R_p) over the penalized columns (NaN if unavailable) */
+    protected double logDetNormal = Double.NaN, logDetPrior = Double.NaN;
+    /** number of unpenalized coefficients (e.g. background) */
+    protected int unpenalizedCount = 0;
+    /**
+     * d(prDistribution value)/d(coefficient) for every prDistribution point (rows aligned with
+     * prDistribution, a_matrix column layout; null rows at r = 0 and dmax). Set by the IFT classes;
+     * with coefficientCovariance it gives the joint uncertainty of any combination of P(r) values.
+     */
+    protected double[][] prDistributionBasis;
+    /** sd of each prDistribution value (derived from the basis), 0 at r = 0 and dmax; null = unknown */
+    protected double[] prDistributionSigma;
+
+    /** penalty on the depth of negative P(r) near dmax, relative to the peak (0 disables) */
+    public static double W_NEG_DEPTH = 100.0, NEG_DEPTH_POWER = 2.0;
+    public static double W_ROUGH = 1.0, W_NEG_TAIL = 40.0, W_NEG_HEAD = 20.0,
+            W_OSC = 10.0, W_END_CONCAVE = 3.0, W_TAIL = 3.0, W_DEAD = 10.0;
+    /** Fraction of the post-peak range treated as "near dmax". */
+    public static double END_FRACTION = 0.30;
+    /** |P(r)| below this fraction of the maximum counts as "zero". */
+    public static double MIN_ANCHOR = 0.03;
+    /** Fraction of the range allowed to sit at ~0 before dmax (a quadratic finish uses ~10%). */
+    public static double DEAD_ZONE_ALLOWED = 0.12;
+
+    /** Score components from the last call to scoreDistribution(), for diagnostics and logging. */
+    public double prRoughness, prNegTail, prNegHead, prOscillation, prEndConcave, prTailExcess, prDeadZone, prNegDepth;
+    public int prReversals;
+
+    /**
+     * Quality score of the P(r)-distribution. Lower is better; ~0.5 for a clean, compact particle.
+     *
+     * Every component is dimensionless, so the score does not depend on the units of r,
+     * the absolute scale of P(r), or dmax itself, and can be compared across a dmax scan.
+     *
+     * Expects prDistribution to run from r = 0 to r = dmax (as setPrDistribution() builds it),
+     * and prDistributionForFitting to hold P(r) at the Shannon nodes, excluding 0 and dmax.
+     *
+     * Sets prScore, distribution_score (the shape penalties, i.e. prScore minus roughness)
+     * and the pr* component fields.
+     */
+    public double scoreDistribution() {
         totalInDistribution = prDistribution.getItemCount();
-        double delta = prDistribution.getX(2).doubleValue() - prDistribution.getX(1).doubleValue();
-        /*
-         * assess smoothness
-         */
-        double diff, diff_sum=0, diff_abs_sum = 0;
-        int negativity = 0;
-        double max = 0;
-        int indexOfMax = 0;
+        final int n = totalInDistribution;
+        prRoughness = prNegTail = prNegHead = prOscillation = prEndConcave = prTailExcess = prDeadZone = prNegDepth = 0;
+        prNegZ = Double.NaN;
+        prNegSignificance = 0;
+        prReversals = 0;
 
-        double value = prDistribution.getY(1).doubleValue();
-        double normalizationSum = Math.abs(value);
-        int mid = totalInDistribution/2-1;
-        for(int r=2; r<(totalInDistribution-2); r++){
-            value = prDistribution.getY(r).doubleValue();
-            normalizationSum += Math.abs(value);
-            if (value > max){
-                max = value;
-                indexOfMax=r;
-            }
-            if (value < 0 && r > mid){
-                //diff_sum = 1000;
-                negativity += 1;
-                //break;
-            }
-            diff = (prDistribution.getY(r+1).doubleValue() - 2.0*value + prDistribution.getY(r-1).doubleValue());
-            diff_abs_sum += Math.abs(diff);
-            diff_sum += diff*diff;
+        if (n < 6) {                                  // too few points to judge the shape
+            distribution_score = prScore = Double.MAX_VALUE;
+            return prScore;
         }
 
-        value = prDistribution.getY(totalInDistribution-1).doubleValue();
-        normalizationSum += Math.abs(value);
-
-        double delta2 = delta*delta;
-        diff_sum *= 1.0/(delta2*delta2); // squared value from above
-        diff_abs_sum *= 1.0/delta2;
-        /*
-         * spacing between r_0 and r_1 and r_(n-2) and dmax are not event
-         */
-        double p1 = 2*(-(1.5*delta)*prDistribution.getY(1).doubleValue() + 0.5*delta*prDistribution.getY(2).doubleValue())/(0.5*delta*delta*(0.5*delta+delta));
-        double p2 = 2*(-(1.5*delta)*prDistribution.getY(totalInDistribution-2).doubleValue() + 0.5*delta*prDistribution.getY(totalInDistribution-3).doubleValue())/(0.5*delta*delta*(0.5*delta+delta));
-        double p3 = (prDistribution.getY(totalInDistribution-2).doubleValue() - 2.0*prDistribution.getY(totalInDistribution-3).doubleValue() + prDistribution.getY(totalInDistribution-4).doubleValue());
-
-        negativity += (prDistribution.getY(totalInDistribution-2).doubleValue() < 0) ? 1 : 0;
-
-        diff_sum += p1*p1;
-        diff_sum += p2*p2;
-        diff_abs_sum += (Math.abs(p1) + Math.abs(p2));
-
-        normalizationSum = 1.0/(normalizationSum*delta);
-
-        p3 *= normalizationSum/(delta*delta);
-        p2 *= normalizationSum;
-        p1 *= normalizationSum;
-
-        diff_abs_sum *= normalizationSum;
-
-        //diff_sum *= 1.0/(double)(totalInDistribution-2)*normalizationSum*normalizationSum;
-        diff_sum = 1.0/(double)(totalInDistribution-2)*diff_abs_sum;
-        //System.out.println("DIFF SUM " + diff_sum);
-
-        /*
-         * assess the finish near dmax
-         */
-        double slopeScore = 1; // default value
-        double slope5diff = 0;
-        int totalAfterPeak = totalInDistribution - indexOfMax - 2;
-        XYDataItem item = prDistribution.getDataItem(totalInDistribution-3);
-        double x3 = dmax - item.getXValue();
-        double y3 = Math.abs(item.getYValue()*normalizationSum);
-        double a31 = Math.atan(y3/x3);
-        // point 2
-        item = prDistribution.getDataItem(totalInDistribution-2);
-        double x2 = dmax - item.getXValue();
-        double y2 = Math.abs(item.getYValue()*normalizationSum);
-        // point -3 to -2
-        double diffy3y2 = Math.abs(y3-y2);
-        double a32 = Math.atan(diffy3y2/(x3-x2));
-
-        double a21 = Math.atan(y2/x2);
-
-        slopeScore = (Math.toDegrees(a31) + Math.toDegrees(a32) + Math.toDegrees(a21));
-
-        XYDataItem item4 = prDistribution.getDataItem(totalInDistribution-4);
-        double x4 = dmax - item4.getXValue(); // translate coordinates to origin
-        double y4 = Math.abs(item4.getYValue()*normalizationSum);
-
-        distribution_score = 0;
-
-        if (totalAfterPeak > 4 ){
-            // point -4 to -2
-            double diffy4y2 = Math.abs(y2-y4);
-            double a42 = Math.atan(diffy4y2/(x4-x2));
-            // point -4 to -3
-            double diffy4y3 = Math.abs(y4-y3);
-            double a34 = Math.atan(diffy4y3/(x4-x3));
-
-            //System.out.println("Angles " + Math.toDegrees(a31) + " " + Math.toDegrees(a32) + " " + Math.toDegrees(a21) + " " + Math.toDegrees(Math.atan(y4/x4)));
-            slopeScore += Math.toDegrees(Math.atan(y4/x4));//Math.toDegrees(a42) + Math.toDegrees(a34));
-
-            double areaT = (x4-x3)*(y4+y3);
-            areaT += (x3-x2)*(y3+y2);
-            areaT += x2*y2;
-
-                item = prDistribution.getDataItem(totalInDistribution-5);
-                double x5 = dmax - item.getXValue(); // translate coordinates to origin
-                double y5 = Math.abs(item.getYValue())*normalizationSum;
-
-                double slope5 = -y5/x5;
-                double intercept = -dmax*slope5;
-                double tempy4 = item4.getXValue()*slope5 + intercept;
-
-
-                double aread5 = x5*y5;
-                areaT += (x5-x4)*(y5+y4);
-                double diff1 = Math.abs(areaT-aread5)/aread5;
-                //System.out.println("5 diff1 " + diff1 + " " + ((x5-x4)*(y5+y4)) + " " + ((x4-x3)*(y4+y3)) + " " +((x3-x2)*(y3+y2)) + " " + x2*y2);
-                slope5diff = 1.0/diff1;
-
-            if (tempy4 < y4){
-                slope5diff += 10*(1-tempy4/y4);
-            }
-
-        } else {
-
-            if (totalAfterPeak == 4){
-                double aread4 = x3*y3;
-                double areaT = (x3-x2)*(y2+y3);
-                areaT += x2*y2;
-                double diff1 = Math.abs(areaT-aread4)/aread4;
-
-                slope5diff = 1.0/diff1;
-
-            } else {
-                double aread4 = x3*y3;
-                double areaT = (x3-x2)*(y2+y3);
-                areaT += x2*y2;
-                double diff1 = Math.abs(areaT-aread4)/aread4;
-
-                slope5diff = 1.0/diff1;
-            }
+        // values are read several times below, so take them out of the series once
+        double[] r = new double[n], p = new double[n];
+        for (int i = 0; i < n; i++) {
+            r[i] = prDistribution.getX(i).doubleValue();
+            p[i] = prDistribution.getY(i).doubleValue();
         }
 
+        // --- normalise to unit area on u = r/dmax ------------------------------------------
+        double absArea = 0;
+        for (int i = 1; i < n; i++) absArea += 0.5 * (Math.abs(p[i]) + Math.abs(p[i - 1])) * (r[i] - r[i - 1]);
+        if (!(absArea > 0)) {
+            distribution_score = prScore = Double.MAX_VALUE;
+            return prScore;
+        }
+        double[] u = new double[n], f = new double[n];
+        for (int i = 0; i < n; i++) { u[i] = r[i] / dmax; f[i] = p[i] * dmax / absArea; }
 
-        /*
-         * check for oscillations at the Ns nodes
-         * prDistributionForFitting does not include r=0 or r=dmax
-         */
-        indexOfMax = 0;
-        int totalInNsDistribution = prDistributionForFitting.getItemCount();
-        max = prDistributionForFitting.getY(0).doubleValue();
-        for(int r=1; r < totalInNsDistribution; r++){
-            value = prDistributionForFitting.getY(r).doubleValue();
-            if (value > max){
-                max = value;
-                indexOfMax=r;
-            }
+        int peak = 1;
+        for (int i = 1; i < n - 1; i++) if (f[i] > f[peak]) peak = i;
+        final double fMax = f[peak];
+        if (!(fMax > 0)) {
+            distribution_score = prScore = Double.MAX_VALUE;
+            return prScore;
         }
 
-        /*
-         * penalize bulge
-         */
-        double pointns2 = prDistributionForFitting.getY(totalInNsDistribution-1).doubleValue();
-        double pointns3 = prDistributionForFitting.getY(totalInNsDistribution-2).doubleValue();
-        double pointns4 = prDistributionForFitting.getY(totalInNsDistribution-3).doubleValue();
-        if (pointns2 > pointns3){
-            double diffit = pointns2 - pointns3;
-            distribution_score += Math.abs(diffit/pointns3);
+        // --- second derivative, non-uniform 3-point stencil (handles half-steps at 0 and dmax)
+        double[] d2 = new double[n];
+        for (int i = 1; i < n - 1; i++) {
+            double h1 = u[i] - u[i - 1], h2 = u[i + 1] - u[i];
+            d2[i] = 2.0 * (f[i - 1] * h2 - f[i] * (h1 + h2) + f[i + 1] * h1) / (h1 * h2 * (h1 + h2));
         }
 
-        if (pointns2 > pointns4){
-            double diffit = pointns2 - pointns4;
-            distribution_score += Math.abs(diffit/pointns4);
+        // --- roughness, measured on the particle's own size (Rg from P(r)), not dmax ----------
+        double m0 = 0, m2 = 0;
+        for (int i = 1; i < n; i++) {
+            double dr = r[i] - r[i - 1];
+            m0 += 0.5 * (p[i] + p[i - 1]) * dr;
+            m2 += 0.5 * (r[i] * r[i] * p[i] + r[i - 1] * r[i - 1] * p[i - 1]) * dr;
+        }
+        double rgOverD = (m0 > 0 && m2 > 0) ? Math.sqrt(m2 / (2 * m0)) / dmax : 0.5;
+        double ss = 0;
+        for (int i = 1; i < n - 1; i++) ss += d2[i] * d2[i] * 0.5 * (u[i + 1] - u[i - 1]);
+        prRoughness = Math.log10(1.0 + Math.sqrt(ss) * Math.pow(rgOverD, 2.5));
+
+        // --- negativity, split at the peak ---------------------------------------------------
+        for (int i = 1; i < n; i++) {
+            double neg = 0.5 * (Math.max(-f[i], 0) + Math.max(-f[i - 1], 0)) * (u[i] - u[i - 1]);
+            if (i > peak) prNegTail += neg; else prNegHead += neg;
         }
 
-        if (pointns3 > pointns4){
-            double diffit = pointns3 - pointns4;
-            distribution_score += Math.abs(diffit/(pointns4-pointns2));
+        // --- depth of negative P(r) after the peak, weighted toward dmax --------------------
+        // max over r > r_peak of (-P/Pmax) * ((r - r_peak)/(dmax - r_peak))^NEG_DEPTH_POWER
+        for (int i = peak + 1; i < n; i++) {
+            if (f[i] >= 0) continue;
+            double ramp = Math.pow((u[i] - u[peak])/(1.0 - u[peak]), NEG_DEPTH_POWER);
+            prNegDepth = Math.max(prNegDepth, -f[i]/fMax*ramp);
         }
 
-        /*
-         * in the paper we index with P(last) => dmax
-         * in prDistributinoForFitting, dmax is not included
-         * Oscillations only looks at the even points, see paper
-         */
-        int even = 2;
-        final int totalAfter = (totalInNsDistribution - indexOfMax - 1);
-        double factor = 1.0d;
-        boolean continueOn = true;
-        int oscCount = 0;
-        // super penalty if oscillation is reversed
-        double ns2 = prDistributionForFitting.getY((totalInNsDistribution-even)+1).doubleValue();
-        if (ns2 < 0){
-            even = 1;
-            ns2 = prDistributionForFitting.getY((totalInNsDistribution-even)).doubleValue();
-            double ns3 = prDistributionForFitting.getY((totalInNsDistribution-even)-1).doubleValue();
-
-            if (ns2 < ns3){ // check for a valley at ns2
-                double diffIt = ns3-ns2;
-                distribution_score += 100*Math.abs(diffIt/ns3)*factor;
-                factor *= 3;
-                oscCount += 1;
-            } else {
-                continueOn = false;
-            }
-            even += 2;
-
-            while (even < totalAfter && continueOn){ // -1, -3 are valleys
-
-                ns2 = prDistributionForFitting.getY((totalInNsDistribution-even)+1).doubleValue();
-                ns3 = prDistributionForFitting.getY(totalInNsDistribution-even).doubleValue();
-                double ns4 = prDistributionForFitting.getY((totalInNsDistribution-even)-1).doubleValue();
-
-                if (ns2 > ns3 && ns4 > ns3){
-                    double diffIt = Math.min((ns2-ns3), (ns4-ns3));
-                    distribution_score += 100*Math.abs(diffIt/ns3)*factor;
-                    factor *= 3;
-                    oscCount += 1;
-                } else {
-                    continueOn = false;
+        // --- significance of negative P(r) after the peak (needs basis + covariance) ---------
+        prNegZ = Double.NaN;
+        prNegSignificance = 0;
+        if (prDistributionBasis != null && prDistributionBasis.length == n && coefficientCovariance != null) {
+            double window = NEG_SIG_WINDOW_BINS*Math.PI/qmax;
+            double zmin = Double.POSITIVE_INFINITY;
+            for (int i = peak + 1; i < n - 1; i++) {
+                if (prDistributionBasis[i] == null) continue;
+                int k = prDistributionBasis[i].length;
+                double[] v = new double[k];
+                double mean = 0;
+                int count = 0;
+                for (int j = i; j < n - 1 && r[j] < r[i] + window; j++) {
+                    double[] b = prDistributionBasis[j];
+                    if (b == null) continue;
+                    for (int c = 0; c < k; c++) v[c] += b[c];
+                    mean += p[j];
+                    count++;
                 }
-                even += 2;
+                if (count == 0) continue;
+                double sd = sigmaOfLinear(v);              // sd of the window sum
+                if (sd > 0) zmin = Math.min(zmin, mean/sd);
             }
-        } else {
-            while (even < totalAfter && continueOn){
-                ns2 = prDistributionForFitting.getY((totalInNsDistribution-even)+1).doubleValue();
-                double ns3 = prDistributionForFitting.getY(totalInNsDistribution-even).doubleValue();
-                double ns4 = prDistributionForFitting.getY((totalInNsDistribution-even)-1).doubleValue();
-
-                if (ns2 > ns3 && ns3 < ns4){
-                    double diffIt = Math.max((ns2-ns3), (ns4-ns3));
-                    distribution_score += Math.abs(diffIt/ns3)*factor;
-                    factor *= 3;
-                    oscCount += 1;
-                } else {
-                    continueOn = false;
-                }
-                even += 2;
+            if (zmin < Double.POSITIVE_INFINITY) {
+                prNegZ = zmin;
+                double excess = -zmin - NEG_SIG_ALLOWED;
+                if (excess > 0) prNegSignificance = excess*excess;
             }
         }
 
-        /*
-         * for samples with few shannon points, like 4 it may not be possible to evaluate the above accurately)
-         */
-        //distribution_score = (distribution_score == 0 && (pointn2 < 0 || pointn3 < 0 )) ? 1 : distribution_score;
-        diff_sum = 1.0/Math.abs(Math.log10(diff_sum));
-
-        // negativity penality
-        //System.out.println("Negativity " + negativity + " " + Math.pow(7,negativity)*1.933 + " OSC " + oscCount + " " + distribution_score);
-        if (negativity > 0 && prDistributionForFitting.getY(totalInNsDistribution-1).doubleValue() < 0){
-            distribution_score += Math.pow(7,negativity)*19.33;
-        } else if (negativity > 0) {
-            distribution_score += Math.pow(7,negativity)*1.933;
+        // --- oscillation at the Shannon nodes: excess total variation after the peak ---------
+        int ns_count = (prDistributionForFitting == null) ? 0 : prDistributionForFitting.getItemCount();
+        if (ns_count >= 2) {
+            double[] pn = new double[ns_count];
+            int pk = 0;
+            for (int i = 0; i < ns_count; i++) {
+                pn[i] = prDistributionForFitting.getY(i).doubleValue();
+                if (pn[i] > pn[pk]) pk = i;
+            }
+            double tv = 0, prevStep = 0;
+            for (int i = pk + 1; i <= ns_count; i++) {
+                double next = (i == ns_count) ? 0.0 : pn[i];     // close the path at P(dmax) = 0
+                double step = next - pn[i - 1];
+                tv += Math.abs(step);
+                if (prevStep != 0 && step != 0 && Math.signum(step) != Math.signum(prevStep)) prReversals++;
+                if (step != 0) prevStep = step;
+            }
+            double top = pn[pk];
+            prOscillation = (top > 0) ? Math.max(0, tv - top) / (2 * top) : 1.0;
         }
 
-        // if background is not necessary, first value gets depressed
-        if (prDistribution.getX(1).doubleValue() < 0){
-            distribution_score += Math.pow(7,negativity)*19.33;
+        // --- the final stretch before dmax -------------------------------------------------------
+        double uStart = u[peak] + (1.0 - END_FRACTION) * (1.0 - u[peak]);
+        int a = n - 2;
+        while (a > peak && u[a - 1] >= uStart) a--;
+        if (a > n - 3) a = Math.max(peak, n - 3);        // at least two interior points
+
+        // concave-down finish = dmax truncated
+        double cc = 0, cAll = 0;
+        for (int i = a; i < n - 1; i++) {
+            double w = 0.5 * (u[i + 1] - u[i - 1]);
+            cAll += Math.abs(d2[i]) * w;
+            cc += Math.max(-d2[i], 0) * w;
+        }
+        prEndConcave = (cAll > 0) ? cc / cAll : 0;
+
+        // tail area vs chord: quadratic approach -> 2/3, straight line -> 1, bulge -> > 1
+        double tailArea = 0;
+        for (int i = a + 1; i < n; i++) tailArea += 0.5 * (f[i] + f[i - 1]) * (u[i] - u[i - 1]);
+        double chord = 0.5 * (1.0 - u[a]) * f[a];
+        if (f[a] > MIN_ANCHOR * fMax) {
+            double ratio = Math.min(tailArea / chord, 2.0);
+            prTailExcess = Math.max(0, ratio - 2.0 / 3.0) * 3.0;
         }
 
+        // dead zone: range sitting at ~0 before dmax = dmax too large
+        int z = n - 1;
+        while (z > peak && Math.abs(f[z - 1]) < MIN_ANCHOR * fMax) z--;
+        prDeadZone = Math.max(0, (1.0 - u[z]) - DEAD_ZONE_ALLOWED);
 
-        if (p2 < 0){ // convex/concave
-            diff_sum += 13.1*Math.abs(p2/p3);
-        } else { // concave with small value
-            diff_sum -= diff_sum*(p2/diff_abs_sum);
-        }
-
-        //System.out.println("slope5diff " +slope5diff);
-//        if (prDistribution.getDataItem(totalInDistribution-2).getYValue() < 0){
-//            slope5diff = 1.0/0.1;
-//        }
-
-        //slope5diff=0;
-        //slopeScore = (slopeScore==1) ? 0 : slopeScore;// inverse because the angle is obtuse
-        //prScore = (distribution_score + diff_sum) + 500*slopeScore + 50*slope5diff;
-        prScore = distribution_score + (10*diff_sum) + 2*slope5diff;
-        //System.out.println(dmax + " " + prScore + " " + distribution_score + " " + diff_sum + " " + slopeScore + " 5diff " + slope5diff + "  " + diff_abs_sum);
+        distribution_score = W_NEG_SIG * prNegSignificance + W_NEG_DEPTH * prNegDepth + W_NEG_TAIL * prNegTail + W_NEG_HEAD * prNegHead + W_OSC * prOscillation
+                + W_END_CONCAVE * prEndConcave + W_TAIL * prTailExcess + W_DEAD * prDeadZone;
+        prScore = W_ROUGH * prRoughness + distribution_score;
         return prScore;
+    }
+
+    /**
+     * Indices of the local minima of a dmax scan whose score is within {@code tolerance}
+     * (e.g. 1.5 = 50%) of the best. More than one well-separated minimum is a strong sign
+     * of a mixture or aggregation: one at the main species' size, one at the large species'.
+     */
+    public static List<Integer> competingMinima(double[] scanScores, double tolerance) {
+        List<Integer> out = new ArrayList<>();
+        double best = Double.MAX_VALUE;
+        for (double s : scanScores) best = Math.min(best, s);
+        for (int i = 0; i < scanScores.length; i++) {
+            boolean left = (i == 0) || scanScores[i] <= scanScores[i - 1];
+            boolean right = (i == scanScores.length - 1) || scanScores[i] <= scanScores[i + 1];
+            if (left && right && scanScores[i] <= best * tolerance) out.add(i);
+        }
+        return out;
     }
 
     public double getPrScore() { return prScore;}
@@ -2049,9 +2445,8 @@ double topB = 1000;
         XYDataItem startItem = nonData.getDataItem(0);
         double limit = 1.05/this.rg;
         int nnextItem = 0;
-        while(startItem.getXValue() < limit){
+        while(nnextItem < total && nonData.getX(nnextItem).doubleValue() < limit){ // was unbounded
             nnextItem+=1;
-            startItem = nonData.getDataItem(nnextItem);
         }
         // use all points up to limit for Guinier extrapolation
 
