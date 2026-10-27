@@ -7,21 +7,13 @@ package FileManager;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.jfree.data.general.SeriesException;
 import org.jfree.data.xy.XYSeries;
 import version4.LogIt;
-
-import javax.swing.*;
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.text.DecimalFormat;
 import java.text.DecimalFormatSymbols;
-import java.text.NumberFormat;
-import java.text.ParseException;
-import java.util.ArrayList;
 import java.util.Locale;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 import java.util.regex.Pattern;
 
 
@@ -44,15 +36,15 @@ public class LoadedFile {
     public XYSeries allDataError;
     private String ext;
     public String filebase;
-    private Pattern dataFormat = Pattern.compile("(-?[0-9].[0-9]+[Ee][+-]?[0-9]+)|(-?[0-9]+.[0-9]+)");
+    private final Pattern dataFormat = Pattern.compile("(-?[0-9].[0-9]+[Ee][+-]?[0-9]+)|(-?[0-9]+.[0-9]+)");
 
     private String json ="";
     private boolean jsonPresent = false;
 
-    private Locale loc = Locale.getDefault(Locale.Category.FORMAT);
+    private final Locale loc = Locale.getDefault(Locale.Category.FORMAT);
     private boolean isUSUK = false;
     private boolean validFile = true;
-    private DecimalFormat df = new DecimalFormat("#.#", new DecimalFormatSymbols(Locale.US));
+    private final DecimalFormat df = new DecimalFormat("#.#", new DecimalFormatSymbols(Locale.US));
     // add parameters for reading header from txt file
     // REMARK   INFO
 
