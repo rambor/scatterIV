@@ -114,6 +114,13 @@ public class LangevinFitter {
             minParams[2] = settings.shellThickness * (1 - tol);
             maxParams[2] = settings.shellThickness * (1 + tol);
         }
+        if (family == ShapeFamily.POLYMER_MICELLE && settings.brushRg > 0) {
+            // restrict the corona chain Rg to brushRg (1 +- tolerance)
+            minParams = minParams.clone(); maxParams = maxParams.clone();
+            double tol = Math.max(1e-3, settings.brushTolerance);
+            minParams[1] = settings.brushRg * (1 - tol);
+            maxParams[1] = settings.brushRg * (1 + tol);
+        }
         for (int k = 0; k < d; k++) {
             if (!(minParams[k] > 0 && maxParams[k] > minParams[k])) throw new IllegalArgumentException("bad bounds for param " + k);
             lo[k] = Math.log(minParams[k]);
@@ -121,9 +128,9 @@ public class LangevinFitter {
             rmax = Math.max(rmax, maxParams[k]);
         }
         double qmax = q[nq - 1];
-        if (family == ShapeFamily.CORESHELL_SPHEROID) rmax = Math.max(maxParams[0], maxParams[1]) + maxParams[2];
+        rmax = family.tableRadius(maxParams);
         this.table = new FormFactorTable(qmax * rmax * 1.05 + 1.0, settings.tableStep);
-        this.kernel = family.create(table, qmax, settings);
+        this.kernel = family.create(table, qmax, settings, minParams, maxParams);
         double im = 0;
         for (double v : this.I) im = Math.max(im, Math.abs(v));
         this.iMax = im;

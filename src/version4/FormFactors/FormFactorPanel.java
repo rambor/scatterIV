@@ -6,6 +6,9 @@ import org.jfree.chart.JFreeChart;
 import version4.FormFactors.LangevinFitter;
 import version4.FormFactors.LangevinResult;
 import version4.FormFactors.LangevinSettings;
+import version4.FormFactors.PolymerAnalysis;
+import version4.FormFactors.ParameterProfile;
+import version4.FormFactors.GelModels;
 import version4.FormFactors.SpeciesProfile;
 
 import javax.swing.*;
@@ -75,9 +78,36 @@ public class FormFactorPanel extends JPanel {
     private final JComboBox<FormFactorCharts.Weighting> weighting = new JComboBox<>(FormFactorCharts.Weighting.values());
     private final JComboBox<String> pairBox = new JComboBox<>();
 
+    // polymer analysis (independent of the distribution fit)
+    private final JPanel polymerTab = new JPanel(new BorderLayout());
+    private final JPanel polymerCharts = new JPanel(new GridLayout(2, 2, 6, 6));
+    private final JTextArea polymerText = new JTextArea();
+    private final JButton analyseButton = new JButton("Analyse"), useNu = new JButton("Use ν in excluded-volume model"),
+            useKuhn = new JButton("Use b in wormlike model");
+    private final JLabel polymerInfo = new JLabel(" ");
+    private PolymerAnalysis.Result polymerResult;
+    private String polymerKey;
+    private final java.util.Map<String, JFreeChart> polymerChartMap = new java.util.LinkedHashMap<>();
+
+    // gel / network fits (independent of the distribution fit)
+    private final JPanel gelTab = new JPanel(new BorderLayout());
+    private final JPanel gelCenter = new JPanel(new BorderLayout());
+    private final JTextArea gelText = new JTextArea();
+    private final JComboBox<Object> gelModelBox = new JComboBox<>();
+    private final JComboBox<String> gelShowBox = new JComboBox<>();
+    private final JCheckBox gelBackground = new JCheckBox("Fit background", true);
+    private final JButton gelFitButton = new JButton("Fit");
+    private final JLabel gelInfo = new JLabel(" ");
+    private java.util.List<GelModels.Fit> gelFits;
+    private double[][] gelData;
+    private JFreeChart gelChart;
+    private String gelHeader = "";
+    private static final String COMPARE_ALL = "Compare all models (rank by BIC)";
+
     private Worker worker;
     private LangevinResult result;
     private SpeciesProfile.Profile profile;
+    private ParameterProfile.Profile paramProfile;
     private String resultTitle = "";
     private final java.util.Map<String, JFreeChart> charts = new java.util.LinkedHashMap<>();
 
@@ -114,6 +144,13 @@ public class FormFactorPanel extends JPanel {
         tabs.addTab("Convergence", convTab);
         tabs.addTab("Profile", profileTab);
         tabs.addTab("Report", new JScrollPane(report));
+        tabs.addTab("Polymer", polymerTab);
+        buildPolymerTab();
+        tabs.addTab("Gel", gelTab);
+        buildGelTab();
+        tabs.addChangeListener(e -> {
+            if (tabs.getSelectedComponent() == polymerTab && worker == null && !currentPolymerKey().equals(polymerKey)) analysePolymer();
+        });
         clearResults("Select a dataset and a model, then press Run");
 
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, scroll, tabs);
@@ -300,6 +337,8 @@ public class FormFactorPanel extends JPanel {
                 dm > 0 ? String.format(" · P(r) Dmax %.0f Å", dm) : ""));
         if (dm > 0 && dmaxMode.getSelectedIndex() == 0) dmaxMode.setSelectedIndex(1);
         if (!sameRange) resetRange();
+        if (polymerResult != null && !currentPolymerKey().equals(polymerKey)) clearPolymer("Dataset or range changed: press Analyse");
+        if (gelFits != null) clearGel("Dataset changed: press Fit");
     }
 
     private void resetRange() {
@@ -384,7 +423,7 @@ public class FormFactorPanel extends JPanel {
             return;
         }
         setRunning(true);
-        clearResults(spec.profileScan ? "Profile scan running…" : "Fit running…");
+        clearResults(spec.profileScan || spec.paramScan != null ? "Profile scan running…" : "Fit running…");
         worker = new Worker(data, spec);
         worker.execute();
     }
@@ -400,7 +439,7 @@ public class FormFactorPanel extends JPanel {
     private void setRunning(boolean running) {
         runButton.setEnabled(!running);
         stopButton.setEnabled(running);
-        saveButton.setEnabled(!running && result != null);
+        saveButton.setEnabled(!running && (result != null || polymerResult != null || gelFits != null));
         datasetBox.setEnabled(!running);
         refresh.setEnabled(!running);
     }
@@ -429,7 +468,7 @@ public class FormFactorPanel extends JPanel {
         @Override
         protected Object doInBackground() {
             final int R = Math.max(1, spec.settings.replicas);
-            if (!spec.profileScan) {
+            if (!spec.profileScan && spec.paramScan == null) {
                 fitter = new LangevinFitter(data[0], data[1], data[2], spec.family, spec.min, spec.max, spec.settings);
                 if (stopped) fitter.cancel();
                 return fitter.fit((rep, step, total, phase, T, chi2) ->
@@ -441,6 +480,11 @@ public class FormFactorPanel extends JPanel {
                 double within = (rep * (double) total + step + 1) / ((double) R * total);
                 report((i + within) / n, String.format("point %d/%d · replica %d/%d · %s · red. χ² %.3f", i + 1, n, rep + 1, R, phase, chi2));
             };
+            if (spec.paramScan != null) {
+                ModelSettingsPanel.ParamScan ps = spec.paramScan;
+                return ParameterProfile.run(data[0], data[1], data[2], spec.family, spec.min, spec.max, spec.settings,
+                        ps.parameter, ps.unit, ps.setter, ps.grid, ps.logScale, ps.repeats, ctl);
+            }
             return SpeciesProfile.run(data[0], data[1], data[2], spec.family, spec.min, spec.max, spec.settings,
                     spec.profileStep, spec.profileRepeats, null, ctl);
         }
@@ -487,11 +531,15 @@ public class FormFactorPanel extends JPanel {
                 clearResults("Stopped – no result");
             } else {
                 barString(String.format("Finished in %s", time((System.nanoTime() - t0) * 1e-9)));
+                profile = null;
+                paramProfile = null;
                 if (out instanceof SpeciesProfile.Profile) {
                     profile = (SpeciesProfile.Profile) out;
                     result = profile.best.result;
+                } else if (out instanceof ParameterProfile.Profile) {
+                    paramProfile = (ParameterProfile.Profile) out;
+                    result = paramProfile.best.result;
                 } else {
-                    profile = null;
                     result = (LangevinResult) out;
                 }
                 say(result.warning != null ? "⚠ " + firstLine(result.warning) : String.format("red. χ² %.3f", result.chi2Reduced));
@@ -526,6 +574,7 @@ public class FormFactorPanel extends JPanel {
     private void clearResults(String message) {
         result = null;
         profile = null;
+        paramProfile = null;
         charts.clear();
         for (JPanel p : new JPanel[]{fitTab, distTab, jointTab, convTab, profileTab}) {
             p.removeAll();
@@ -568,8 +617,9 @@ public class FormFactorPanel extends JPanel {
         tabs.setEnabledAt(2, pm.getSize() > 0);
         showJoint();
         setChart("convergence", convTab, FormFactorCharts.convergenceChart(result));
-        if (profile != null) {
-            JFreeChart full = FormFactorCharts.profileChart(profile, false), zoom = FormFactorCharts.profileChart(profile, true);
+        if (profile != null || paramProfile != null) {
+            JFreeChart full = profile != null ? FormFactorCharts.profileChart(profile, false) : FormFactorCharts.parameterProfileChart(paramProfile, false);
+            JFreeChart zoom = profile != null ? FormFactorCharts.profileChart(profile, true) : FormFactorCharts.parameterProfileChart(paramProfile, true);
             charts.put("profile", full);
             charts.put("profile_zoom", zoom);
             JPanel two = new JPanel(new GridLayout(1, 2, 6, 0));
@@ -587,10 +637,11 @@ public class FormFactorPanel extends JPanel {
         sb.append("REMARK 265 FORMFACTORS (MEAN-FIELD LANGEVIN)   SCATTER ").append(version).append('\n');
         sb.append("REMARK 265 DATASET/MODEL : ").append(resultTitle).append('\n');
         if (profile != null) sb.append(profile.toRemarks()).append('\n');
+        if (paramProfile != null) sb.append(paramProfile.toRemarks()).append('\n');
         sb.append(result.toRemarks());
         report.setText(sb.toString());
         report.setCaretPosition(0);
-        tabs.setSelectedIndex(profile != null ? 4 : 0);
+        tabs.setSelectedIndex(profile != null || paramProfile != null ? 4 : 0);
         saveButton.setEnabled(true);
     }
 
@@ -644,10 +695,256 @@ public class FormFactorPanel extends JPanel {
         tab.repaint();
     }
 
+    // ------------------------------------------------------------------ polymer analysis
+
+    private void buildPolymerTab() {
+        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        analyseButton.setToolTipText("Guinier, Debye, excluded-volume and wormlike single-chain fits, high-q power law and "
+                + "dimensionless Kratky for the selected dataset and q range");
+        analyseButton.addActionListener(e -> analysePolymer());
+        useNu.setToolTipText("Copy the fitted Flory exponent into the excluded-volume chain model and select it");
+        useNu.addActionListener(e -> {
+            if (polymerResult == null || !polymerResult.excludedVolume.ok) return;
+            model.setFloryExponent(polymerResult.excludedVolume.values[2]);
+            model.selectModel(ModelSettingsPanel.Model.EV_CHAIN);
+            say(String.format("Excluded-volume model: ν set to %.3f", polymerResult.excludedVolume.values[2]));
+        });
+        useKuhn.setToolTipText("Copy the fitted Kuhn length into the wormlike chain model and select it");
+        useKuhn.addActionListener(e -> {
+            if (polymerResult == null || !polymerResult.wormlike.ok) return;
+            model.setKuhnLength(polymerResult.wormlike.values[2]);
+            model.selectModel(ModelSettingsPanel.Model.WORMLIKE);
+            say(String.format("Wormlike model: b set to %.1f Å", polymerResult.wormlike.values[2]));
+        });
+        bar.add(analyseButton);
+        bar.add(useNu);
+        bar.add(useKuhn);
+        polymerInfo.setForeground(FormFactorCharts.MUTED);
+        bar.add(polymerInfo);
+        polymerTab.add(bar, BorderLayout.NORTH);
+        polymerText.setEditable(false);
+        polymerText.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        polymerText.setLineWrap(true);
+        polymerText.setWrapStyleWord(true);
+        polymerText.setBorder(new EmptyBorder(6, 8, 6, 8));
+        polymerCharts.setBackground(Color.WHITE);
+        polymerTab.add(polymerCharts, BorderLayout.CENTER);
+        clearPolymer("Press Analyse (runs on the selected dataset and q range)");
+    }
+
+    private String currentPolymerKey() {
+        return datasetBox.getSelectedItem() + "|" + qminField.getText().trim() + "|" + qmaxField.getText().trim();
+    }
+
+    private void clearPolymer(String message) {
+        polymerResult = null;
+        polymerKey = null;
+        polymerChartMap.clear();
+        polymerCharts.removeAll();
+        polymerCharts.setLayout(new BorderLayout());
+        polymerCharts.add(new ChartPanel(FormFactorCharts.placeholder(message)), BorderLayout.CENTER);
+        polymerText.setText("");
+        useNu.setEnabled(false);
+        useKuhn.setEnabled(false);
+        polymerInfo.setText(" ");
+        polymerCharts.revalidate();
+        polymerCharts.repaint();
+    }
+
+    /** runs the model-free / single-chain analysis on the selected dataset and q range */
+    void analysePolymer() {
+        int idx = datasetBox.getSelectedIndex();
+        if (idx < 0) return;
+        double[][] d;
+        try {
+            double qmin = Fields.pos(qminField, "q min"), qmax = Fields.pos(qmaxField, "q max");
+            Fields.order(qmin, qmax, "q range");
+            d = extract(provider.data(idx), qmin, qmax);
+            if (d[0].length < 10) throw new IllegalArgumentException("Only " + d[0].length + " usable points in the q-range");
+        } catch (IllegalArgumentException ex) {
+            clearPolymer(ex.getMessage());
+            return;
+        }
+        final String key = currentPolymerKey();
+        analyseButton.setEnabled(false);
+        polymerInfo.setText("Analysing…");
+        new SwingWorker<PolymerAnalysis.Result, Void>() {
+            @Override protected PolymerAnalysis.Result doInBackground() { return PolymerAnalysis.analyse(d[0], d[1], d[2]); }
+            @Override protected void done() {
+                analyseButton.setEnabled(true);
+                try {
+                    polymerResult = get();
+                    polymerKey = key;
+                    showPolymer();
+                } catch (Exception ex) {
+                    Throwable c = ex.getCause() == null ? ex : ex.getCause();
+                    clearPolymer("Analysis failed: " + c.getMessage());
+                }
+            }
+        }.execute();
+    }
+
+    private void showPolymer() {
+        PolymerAnalysis.Result r = polymerResult;
+        polymerChartMap.clear();
+        polymerChartMap.put("polymer_kratky", FormFactorCharts.kratkyChart(r));
+        polymerChartMap.put("polymer_fits", FormFactorCharts.polymerFitChart(r));
+        polymerChartMap.put("polymer_guinier", FormFactorCharts.guinierChart(r));
+        polymerCharts.removeAll();
+        polymerCharts.setLayout(new GridLayout(2, 2, 6, 6));
+        for (JFreeChart c : polymerChartMap.values()) polymerCharts.add(new ChartPanel(c));
+        polymerText.setText(r.summary());
+        polymerText.setCaretPosition(0);
+        polymerCharts.add(new JScrollPane(polymerText));
+        polymerCharts.revalidate();
+        polymerCharts.repaint();
+        boolean nuOk = r.excludedVolume.ok && !r.excludedVolume.poor, bOk = r.wormlike.ok && !r.wormlike.poor;
+        useNu.setEnabled(nuOk);
+        useKuhn.setEnabled(bOk);
+        polymerInfo.setText(nuOk ? String.format("ν = %.3f ± %.3f", r.excludedVolume.values[2], r.excludedVolume.errors[2])
+                + (bOk ? String.format(" · b = %.1f Å", r.wormlike.values[2]) : "") : "single-chain models do not describe these data");
+        saveButton.setEnabled(worker == null);
+    }
+
+    public PolymerAnalysis.Result getPolymerResult() { return polymerResult; }
+
+    // ------------------------------------------------------------------ gel / network fits
+
+    private void buildGelTab() {
+        DefaultComboBoxModel<Object> m = new DefaultComboBoxModel<>();
+        m.addElement(COMPARE_ALL);
+        for (GelModels.Model g : GelModels.Model.values()) m.addElement(g);
+        gelModelBox.setModel(m);
+        gelModelBox.setToolTipText("<html>Shape-independent network models (SasView equations):<br>"
+                + "Ornstein–Zernike: mesh size ξ · Debye–Bueche: frozen-in inhomogeneities a · OZ + DB: both<br>"
+                + "Gauss–Lorentz gel · Gel fit (fractal dimension D + clusters) · Correlation length (Hammouda)<br>"
+                + "Two Lorentzian · Broad peak (charged gels) · Unified Beaucage (2 levels)</html>");
+        gelFitButton.addActionListener(e -> fitGel());
+        gelShowBox.addActionListener(e -> showGel());
+        JPanel bar = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
+        bar.add(new JLabel("Model"));
+        bar.add(gelModelBox);
+        bar.add(gelBackground);
+        bar.add(gelFitButton);
+        bar.add(new JLabel("  Show"));
+        bar.add(gelShowBox);
+        gelInfo.setForeground(FormFactorCharts.MUTED);
+        bar.add(gelInfo);
+        gelTab.add(bar, BorderLayout.NORTH);
+        gelText.setEditable(false);
+        gelText.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        gelText.setLineWrap(true);
+        gelText.setWrapStyleWord(true);
+        gelText.setBorder(new EmptyBorder(6, 8, 6, 8));
+        JScrollPane ts = new JScrollPane(gelText);
+        ts.setPreferredSize(new Dimension(420, 200));
+        JSplitPane sp = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, gelCenter, ts);
+        sp.setResizeWeight(0.62);
+        gelTab.add(sp, BorderLayout.CENTER);
+        clearGel("Choose a model (or Compare all) and press Fit – runs on the selected dataset and q range");
+    }
+
+    private void clearGel(String message) {
+        gelFits = null;
+        gelChart = null;
+        gelShowBox.setModel(new DefaultComboBoxModel<>());
+        gelShowBox.setEnabled(false);
+        gelCenter.removeAll();
+        gelCenter.add(new ChartPanel(FormFactorCharts.placeholder(message)), BorderLayout.CENTER);
+        gelText.setText("");
+        gelInfo.setText(" ");
+        gelCenter.revalidate();
+        gelCenter.repaint();
+    }
+
+    /** fits the selected gel model (or all of them) to the selected dataset and q range */
+    void fitGel() {
+        int idx = datasetBox.getSelectedIndex();
+        if (idx < 0) return;
+        double[][] d;
+        try {
+            double qmin = Fields.pos(qminField, "q min"), qmax = Fields.pos(qmaxField, "q max");
+            Fields.order(qmin, qmax, "q range");
+            d = extract(provider.data(idx), qmin, qmax);
+            if (d[0].length < 15) throw new IllegalArgumentException("Only " + d[0].length + " usable points in the q-range");
+        } catch (IllegalArgumentException ex) {
+            clearGel(ex.getMessage());
+            return;
+        }
+        final Object sel = gelModelBox.getSelectedItem();
+        final boolean bg = gelBackground.isSelected();
+        final String name = String.valueOf(datasetBox.getSelectedItem());
+        gelFitButton.setEnabled(false);
+        gelInfo.setText(sel == COMPARE_ALL ? "Fitting all models…" : "Fitting…");
+        new SwingWorker<java.util.List<GelModels.Fit>, Void>() {
+            @Override protected java.util.List<GelModels.Fit> doInBackground() {
+                if (sel == COMPARE_ALL) return GelModels.compareAll(d[0], d[1], d[2], bg);
+                java.util.List<GelModels.Fit> one = new ArrayList<>();
+                one.add(GelModels.fit((GelModels.Model) sel, d[0], d[1], d[2], bg));
+                return one;
+            }
+            @Override protected void done() {
+                gelFitButton.setEnabled(true);
+                try {
+                    java.util.List<GelModels.Fit> fits = get();
+                    fits.removeIf(f -> !f.ok);
+                    if (fits.isEmpty()) { clearGel("Fit failed"); return; }
+                    gelFits = fits;
+                    gelData = d;
+                    DefaultComboBoxModel<String> sm = new DefaultComboBoxModel<>();
+                    for (GelModels.Fit f : fits) sm.addElement(f.model.label);
+                    gelShowBox.setModel(sm);
+                    gelShowBox.setEnabled(fits.size() > 1);
+                    gelShowBox.setSelectedIndex(0);
+                    gelHeader = gelSummary(name, fits);
+                    showGel();
+                    saveButton.setEnabled(worker == null);
+                } catch (Exception ex) {
+                    Throwable c = ex.getCause() == null ? ex : ex.getCause();
+                    clearGel("Fit failed: " + c.getMessage());
+                }
+            }
+        }.execute();
+    }
+
+    /** dataset name and, when several models were fitted, the BIC ranking */
+    private static String gelSummary(String name, java.util.List<GelModels.Fit> fits) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(name).append("\n\n");
+        if (fits.size() > 1) {
+            sb.append("Ranked by BIC (ΔBIC > 10: strong evidence against)\n");
+            sb.append(String.format("   %-19s %8s %8s%n", "model", "red.χ²", "ΔBIC"));
+            double b0 = fits.get(0).bic;
+            for (int k = 0; k < fits.size(); k++) {
+                GelModels.Fit f = fits.get(k);
+                sb.append(String.format("%d. %-19s %8.2f %8.1f%n", k + 1, f.model.shortLabel(), f.chi2Reduced, f.bic - b0));
+            }
+            sb.append('\n');
+        }
+        return sb.toString();
+    }
+
+    private void showGel() {
+        if (gelFits == null || gelShowBox.getSelectedIndex() < 0) return;
+        GelModels.Fit f = gelFits.get(gelShowBox.getSelectedIndex());
+        gelChart = FormFactorCharts.gelFitChart(gelData[0], gelData[1], gelData[2], f,
+                chartTitle(String.valueOf(datasetBox.getSelectedItem()) + " — " + f.model.label));
+        gelCenter.removeAll();
+        gelCenter.add(new ChartPanel(gelChart), BorderLayout.CENTER);
+        gelCenter.revalidate();
+        gelCenter.repaint();
+        gelText.setText(gelHeader + f.summary()
+                + (gelFits.size() > 1 ? "\n(choose another model under Show to see its fit and parameters)\n" : ""));
+        gelText.setCaretPosition(0);
+        gelInfo.setText(String.format("%s: red. χ² %.2f", f.model.label, f.chi2Reduced) + (f.note.isEmpty() ? "" : "  ⚠"));
+    }
+
+    public java.util.List<GelModels.Fit> getGelFits() { return gelFits; }
+
     // ------------------------------------------------------------------ save
 
     private void save() {
-        if (result == null) return;
+        if (result == null && polymerResult == null && gelFits == null) return;
         String wd = workingDirectory.get();
         JFileChooser ch = wd == null ? new JFileChooser() : new JFileChooser(wd);
         ch.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
@@ -673,13 +970,51 @@ public class FormFactorPanel extends JPanel {
     /** writes CSVs (fit, distributions, pairs, profile), the report and a PNG of every chart */
     public List<Path> saveTo(Path dir, String prefix) throws IOException {
         Files.createDirectories(dir);
-        List<Path> out = new ArrayList<>(result.writeCsv(dir, prefix));
-        Path rem = dir.resolve(prefix + "_report.txt");
-        Files.write(rem, report.getText().getBytes(StandardCharsets.UTF_8));
-        out.add(rem);
+        List<Path> out = new ArrayList<>();
+        if (result != null) {
+            out.addAll(result.writeCsv(dir, prefix));
+            Path rem = dir.resolve(prefix + "_report.txt");
+            Files.write(rem, report.getText().getBytes(StandardCharsets.UTF_8));
+            out.add(rem);
+        }
+        if (gelFits != null) {
+            StringBuilder sb = new StringBuilder("REMARK 265\nREMARK 265 GEL / NETWORK FITS\n");
+            for (GelModels.Fit f : gelFits) sb.append(f.toRemarks());
+            Path gp = dir.resolve(prefix + "_gel.txt");
+            Files.write(gp, sb.toString().getBytes(StandardCharsets.UTF_8));
+            out.add(gp);
+            Path gc = dir.resolve(prefix + "_gel_fit.csv");
+            GelModels.Fit f = gelFits.get(Math.max(0, gelShowBox.getSelectedIndex()));
+            try (java.io.PrintWriter w = new java.io.PrintWriter(Files.newBufferedWriter(gc))) {
+                w.println("q,I,sigma,fit");
+                for (int j = 0; j < gelData[0].length; j++)
+                    w.printf("%.6e,%.6e,%.6e,%.6e%n", gelData[0][j], gelData[1][j], gelData[2][j], f.curve[j]);
+            }
+            out.add(gc);
+            if (gelChart != null) {
+                File cf = dir.resolve(prefix + "_gel_fit.png").toFile();
+                ChartUtilities.saveChartAsPNG(cf, gelChart, 1000, 750);
+                out.add(cf.toPath());
+            }
+        }
+        if (polymerResult != null) {
+            Path pr = dir.resolve(prefix + "_polymer.txt");
+            Files.write(pr, polymerResult.toRemarks().getBytes(StandardCharsets.UTF_8));
+            out.add(pr);
+            for (java.util.Map.Entry<String, JFreeChart> c : polymerChartMap.entrySet()) {
+                File f = dir.resolve(prefix + "_" + c.getKey() + ".png").toFile();
+                ChartUtilities.saveChartAsPNG(f, c.getValue(), 900, 650);
+                out.add(f.toPath());
+            }
+        }
         if (profile != null) {
             Path pf = dir.resolve(prefix + "_profile.csv");
             profile.writeCsv(pf);
+            out.add(pf);
+        }
+        if (paramProfile != null) {
+            Path pf = dir.resolve(prefix + "_" + paramProfile.parameter + "_profile.csv");
+            paramProfile.writeCsv(pf);
             out.add(pf);
         }
         for (java.util.Map.Entry<String, JFreeChart> c : charts.entrySet()) {

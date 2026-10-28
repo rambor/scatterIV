@@ -17,7 +17,13 @@ public class ModelSettingsPanel extends JPanel {
         SPHERE("Sphere"),
         SPHEROID("Spheroid (ellipsoid of revolution)"),
         TRIAXIAL("Triaxial ellipsoid"),
-        CORESHELL("Core-shell spheroid");
+        CORESHELL("Core-shell spheroid"),
+        GAUSSIAN_CHAIN("Polymer: Gaussian chain (Debye)"),
+        EV_CHAIN("Polymer: excluded-volume chain (ν)"),
+        WORMLIKE("Polymer: wormlike chain (flexible cylinder)"),
+        MICELLE("Block-copolymer micelle");
+
+        public boolean isPolymer() { return ordinal() >= GAUSSIAN_CHAIN.ordinal(); }
 
         final String label;
         Model(String label) { this.label = label; }
@@ -33,6 +39,16 @@ public class ModelSettingsPanel extends JPanel {
         public double profileStep = 0.1;
         public int profileRepeats = 2;
         public String description;
+        /** scan of a global setting (Flory exponent, Kuhn length) with a distribution fit at each value; null = single fit */
+        public ParamScan paramScan;
+    }
+
+    public static final class ParamScan {
+        public String parameter, unit;
+        public java.util.function.BiConsumer<LangevinSettings, Double> setter;
+        public double[] grid;
+        public boolean logScale;
+        public int repeats = 2;
     }
 
     private final JComboBox<Model> modelBox = new JComboBox<>(Model.values());
@@ -69,6 +85,23 @@ public class ModelSettingsPanel extends JPanel {
             fixFraction = new JRadioButton("Fix at");
     private final JTextField fixedFraction = Fields.num("0.5"), profileStep = Fields.num("0.1");
 
+    // polymer chains
+    private final JTextField gRgMin = Fields.num(""), gRgMax = Fields.num("");
+    private final JTextField eRgMin = Fields.num(""), eRgMax = Fields.num(""), eNu = Fields.num("0.588");
+    private final JRadioButton eNuFixed = new JRadioButton("Fixed", true), eNuScan = new JRadioButton("Estimate by scan");
+    private final JTextField eNuLo = Fields.num("0.40"), eNuHi = Fields.num("0.70"), eNuStep = Fields.num("0.05");
+    private final JRadioButton wKFixed = new JRadioButton("Fixed", true), wKScan = new JRadioButton("Estimate by scan");
+    private final JTextField wKLo = Fields.num("20"), wKHi = Fields.num("400");
+    private final JTextField wLMin = Fields.num(""), wLMax = Fields.num(""), wKuhn = Fields.num("100"), wRadius = Fields.num("0");
+    // micelle
+    private final JTextField mRMin = Fields.num(""), mRMax = Fields.num("");
+    private final JRadioButton brushFixed = new JRadioButton("Rg", true), brushRange = new JRadioButton("Range");
+    private final JTextField brushRg = Fields.num("15"), brushTol = Fields.num("20"), brushMin = Fields.num("5"), brushMax = Fields.num("40");
+    private final JTextField mRhoSolvent = Fields.num("9.42"), mRhoCore = Fields.num("9.0"), mRhoCorona = Fields.num("10.2");
+    private final JTextField mVCore = Fields.num("20000"), mVCorona = Fields.num("30000"), mPacking = Fields.num("1.0"), mPen = Fields.num("1.0");
+    private final JLabel nAggInfo = new JLabel(" ");
+    private double lastQmin = Double.NaN, lastQmax = Double.NaN;
+
     public ModelSettingsPanel() {
         super(new BorderLayout(0, 6));
         setBorder(new TitledBorder("Model"));
@@ -77,6 +110,10 @@ public class ModelSettingsPanel extends JPanel {
         cardPanel.add(spheroidPanel(), Model.SPHEROID.name());
         cardPanel.add(triaxialPanel(), Model.TRIAXIAL.name());
         cardPanel.add(coreShellPanel(), Model.CORESHELL.name());
+        cardPanel.add(gaussianPanel(), Model.GAUSSIAN_CHAIN.name());
+        cardPanel.add(evPanel(), Model.EV_CHAIN.name());
+        cardPanel.add(wormlikePanel(), Model.WORMLIKE.name());
+        cardPanel.add(micellePanel(), Model.MICELLE.name());
         add(cardPanel, BorderLayout.CENTER);
         modelBox.addActionListener(e -> {
             cards.show(cardPanel, ((Model) modelBox.getSelectedItem()).name());
@@ -96,6 +133,43 @@ public class ModelSettingsPanel extends JPanel {
         if (hi <= lo * 1.5) hi = lo * 10;
         for (JTextField f : new JTextField[]{rMin, sAMin, sCMin, tMin, cAMin, cCMin}) f.setText(Fields.fmt(lo));
         for (JTextField f : new JTextField[]{rMax, sAMax, sCMax, tMax, cAMax, cCMax}) f.setText(Fields.fmt(hi));
+        lastQmin = qmin;
+        lastQmax = qmax;
+        // chains: Rg from ~1/qmax up to what q min still resolves (q min Rg ~ 1.5)
+        double rgLo = Math.max(2.0, Math.floor(1.0 / qmax)), rgHi = Math.max(3 * rgLo, Math.ceil(1.5 / Math.max(qmin, 1e-6)));
+        for (JTextField f : new JTextField[]{gRgMin, eRgMin}) f.setText(Fields.fmt(rgLo));
+        for (JTextField f : new JTextField[]{gRgMax, eRgMax}) f.setText(Fields.fmt(Math.min(2000, rgHi)));
+        suggestWormlike();
+        mRMin.setText(Fields.fmt(lo));
+        mRMax.setText(Fields.fmt(Math.min(hi, 1000)));
+        updateNAgg();
+    }
+
+    /** contour length bounds: L_min ~ b/2, L_max where the model Rg reaches 1.5 / q min */
+    private void suggestWormlike() {
+        if (Double.isNaN(lastQmin)) return;
+        double b;
+        try { b = Double.parseDouble(wKuhn.getText().trim()); } catch (NumberFormatException e) { return; }
+        if (!(b > 0)) return;
+        double rgHi = 1.5 / lastQmin, L = Math.max(4 * b, 10);
+        while (L < 1e6 && version4.FormFactors.PolymerMath.wormlikeRg(L, b) < rgHi) L *= 1.05;
+        double lo = Math.max(5, Math.min(b / 2, L / 20));
+        wLMin.setText(Fields.fmt(Math.round(lo)));
+        wLMax.setText(Fields.fmt(Math.round(L)));
+    }
+
+    private void updateNAgg() {
+        try {
+            double v = Double.parseDouble(mVCore.getText().trim()), pk = Double.parseDouble(mPacking.getText().trim());
+            double r0 = Double.parseDouble(mRMin.getText().trim()), r1 = Double.parseDouble(mRMax.getText().trim());
+            if (!(v > 0 && pk > 0 && r0 > 0 && r1 > r0)) { nAggInfo.setText(" "); return; }
+            double n0 = pk * 4 * Math.PI / 3 * r0 * r0 * r0 / v, n1 = pk * 4 * Math.PI / 3 * r1 * r1 * r1 / v;
+            nAggInfo.setText(String.format("<html>N<sub>agg</sub> over the R_core range: %s – %s%s</html>",
+                    n0 < 10 ? String.format("%.1f", n0) : Fields.fmt(Math.round(n0)), Fields.fmt(Math.round(n1)),
+                    n0 < 2 ? " (below 2 at R min: raise R min)" : ""));
+        } catch (NumberFormatException e) {
+            nAggInfo.setText(" ");
+        }
     }
 
     // ------------------------------------------------------------------ panels
@@ -120,6 +194,112 @@ public class ModelSettingsPanel extends JPanel {
         f.note("Expensive kernel: 300-500 particles are usually enough.");
         return f.panel();
     }
+
+    private JPanel gaussianPanel() {
+        Fields.Form f = new Fields.Form();
+        f.row("Rg min / max (Å)", Fields.pair(gRgMin, gRgMax), "Radius-of-gyration bounds of the chains");
+        f.note("Ideal (theta-solvent) chains. The fitted distribution is the chain-size distribution; volume weighting = mass weighting.");
+        return f.panel();
+    }
+
+    private JPanel evPanel() {
+        Fields.Form f = new Fields.Form();
+        f.row("Rg min / max (Å)", Fields.pair(eRgMin, eRgMax), "Radius-of-gyration bounds of the chains");
+        ButtonGroup ng = new ButtonGroup();
+        ng.add(eNuFixed);
+        ng.add(eNuScan);
+        f.row("Flory exponent ν", Fields.flow(eNuFixed, eNu), "Same for every chain: 0.5 theta, 0.588 good solvent, ~0.33 collapsed. A starting value comes from the Polymer tab.");
+        f.row("", Fields.flow(eNuScan, eNuLo, new JLabel("-"), eNuHi, new JLabel("step"), eNuStep),
+                "Fit the distribution at each ν and take the χ² minimum (with 68 / 95 % interval). Needed for polydisperse samples: "
+                        + "polydispersity biases the single-chain ν upwards.");
+        Runnable enN = () -> {
+            eNu.setEnabled(eNuFixed.isSelected());
+            for (JTextField t : new JTextField[]{eNuLo, eNuHi, eNuStep}) t.setEnabled(eNuScan.isSelected());
+        };
+        eNuFixed.addActionListener(e -> enN.run());
+        eNuScan.addActionListener(e -> enN.run());
+        enN.run();
+        f.note("Excluded-volume chains (SasView polymer_excl_volume, Porod exponent 1/ν). Volume weighting = mass weighting.");
+        return f.panel();
+    }
+
+    private JPanel wormlikePanel() {
+        Fields.Form f = new Fields.Form();
+        f.row("L min / max (Å)", Fields.pair(wLMin, wLMax), "Contour-length bounds. The suggested maximum is where the chain Rg reaches 1.5 / q min: longer chains are not resolved.");
+        ButtonGroup kg = new ButtonGroup();
+        kg.add(wKFixed);
+        kg.add(wKScan);
+        f.row("Kuhn length b (Å)", Fields.flow(wKFixed, wKuhn, new JLabel("= 2 × persistence")), "Same for every chain. A starting value comes from the Polymer tab.");
+        f.row("", Fields.flow(wKScan, wKLo, new JLabel("-"), wKHi, new JLabel("Å")),
+                "Fit the contour-length distribution at 7 log-spaced b values (plus refinement) and take the χ² minimum");
+        Runnable enK = () -> {
+            wKuhn.setEnabled(wKFixed.isSelected());
+            wKLo.setEnabled(wKScan.isSelected());
+            wKHi.setEnabled(wKScan.isSelected());
+        };
+        wKFixed.addActionListener(e -> enK.run());
+        wKScan.addActionListener(e -> enK.run());
+        enK.run();
+        f.row("Cross-section R (Å)", Fields.flow(wRadius), "Chain cross-section radius (flexible cylinder); 0 = thin chain");
+        f.note("Wormlike chain with excluded volume (SasView flexible_cylinder / WormLikeChainEXV, Pedersen–Schurtenberger + Chen 2006). "
+                + "The fitted distribution is the contour-length distribution; volume weighting = mass weighting.");
+        wKuhn.addActionListener(e -> suggestWormlike());
+        wKuhn.addFocusListener(new java.awt.event.FocusAdapter() {
+            @Override public void focusLost(java.awt.event.FocusEvent e) { suggestWormlike(); }
+        });
+        return f.panel();
+    }
+
+    private JPanel micellePanel() {
+        Fields.Form f = new Fields.Form();
+        f.row("R_core min / max (Å)", Fields.pair(mRMin, mRMax), "Core radius bounds; the aggregation number follows the core size");
+        ButtonGroup bg = new ButtonGroup();
+        bg.add(brushFixed);
+        bg.add(brushRange);
+        f.row("Brush (corona chain)", Fields.flow(brushFixed, brushRg, new JLabel("Å  ±"), brushTol, new JLabel("%")),
+                "Restrict the corona chain Rg to Rg ± tolerance (e.g. 15 Å ± 20 %); brush thickness ~ 2 Rg");
+        f.row("", Fields.flow(brushRange, brushMin, new JLabel("-"), brushMax, new JLabel("Å")), "Or let the corona Rg vary inside a range");
+        f.row("SLD solvent / core / corona", Fields.flow(mRhoSolvent, new JLabel("/"), mRhoCore, new JLabel("/"), mRhoCorona),
+                "Scattering length densities of solvent, core block and corona block (consistent units, e.g. 1e-6/Å²)");
+        f.row("Block volume core / corona (Å³)", Fields.pair(mVCore, mVCorona),
+                "Molecular volume of one core block and one corona block: V(Å³) = 1.66 × M(g/mol) / ρ(g/cm³)");
+        f.row("Core packing / penetration d", Fields.pair(mPacking, mPen),
+                "Packing: polymer volume fraction in the core (N_agg = packing·4/3πR³ / V_core). d: chains centred at R + d·Rg (d ≈ 1, no penetration)");
+        f.full(nAggInfo);
+        f.note("Pedersen–Gerstenberg micelle (SasView polymer_micelle). The data fix the mean corona Rg well but not its spread: "
+                + "keep the brush window narrow and read its width as an assumption.");
+        nAggInfo.setForeground(new Color(0x6e7781));
+        javax.swing.event.DocumentListener upd = new javax.swing.event.DocumentListener() {
+            @Override public void insertUpdate(javax.swing.event.DocumentEvent e) { updateNAgg(); }
+            @Override public void removeUpdate(javax.swing.event.DocumentEvent e) { updateNAgg(); }
+            @Override public void changedUpdate(javax.swing.event.DocumentEvent e) { updateNAgg(); }
+        };
+        for (JTextField t : new JTextField[]{mVCore, mPacking, mRMin, mRMax}) t.getDocument().addDocumentListener(upd);
+        Runnable en = () -> {
+            brushRg.setEnabled(brushFixed.isSelected());
+            brushTol.setEnabled(brushFixed.isSelected());
+            brushMin.setEnabled(brushRange.isSelected());
+            brushMax.setEnabled(brushRange.isSelected());
+        };
+        brushFixed.addActionListener(e -> en.run());
+        brushRange.addActionListener(e -> en.run());
+        en.run();
+        return f.panel();
+    }
+
+    /** used by the Polymer tab: copy fitted values into the chain models */
+    public void setFloryExponent(double nu) {
+        eNu.setText(String.format("%.3f", nu));
+        if (!eNuFixed.isSelected()) eNuFixed.doClick();
+    }
+
+    public void setKuhnLength(double b) {
+        wKuhn.setText(String.format("%.1f", b));
+        if (!wKFixed.isSelected()) wKFixed.doClick();
+        suggestWormlike();
+    }
+
+    public void selectModel(Model m) { modelBox.setSelectedItem(m); }
 
     private JPanel coreShellPanel() {
         Fields.Form f = new Fields.Form();
@@ -206,6 +386,109 @@ public class ModelSettingsPanel extends JPanel {
                 spec.min = new double[]{lo, lo, lo};
                 spec.max = new double[]{hi, hi, hi};
                 spec.description = "Triaxial ellipsoid";
+                break;
+            }
+            case GAUSSIAN_CHAIN: {
+                spec.family = ShapeFamily.GAUSSIAN_CHAIN;
+                double lo = Fields.pos(gRgMin, "Rg min"), hi = Fields.pos(gRgMax, "Rg max");
+                Fields.order(lo, hi, "Rg");
+                spec.min = new double[]{lo};
+                spec.max = new double[]{hi};
+                spec.description = String.format("Gaussian chains, Rg %s-%s Å", Fields.fmt(lo), Fields.fmt(hi));
+                break;
+            }
+            case EV_CHAIN: {
+                spec.family = ShapeFamily.EXCLUDED_VOLUME_CHAIN;
+                double lo = Fields.pos(eRgMin, "Rg min"), hi = Fields.pos(eRgMax, "Rg max");
+                Fields.order(lo, hi, "Rg");
+                spec.min = new double[]{lo};
+                spec.max = new double[]{hi};
+                if (eNuScan.isSelected()) {
+                    double a = Fields.pos(eNuLo, "ν from"), b = Fields.pos(eNuHi, "ν to"), st = Fields.pos(eNuStep, "ν step");
+                    Fields.order(a, b, "ν scan");
+                    if (a <= 0.26 || b >= 1) throw new IllegalArgumentException("ν scan must stay between 0.26 and 1");
+                    int n = (int) Math.round((b - a) / st) + 1;
+                    if (n < 3 || n > 25) throw new IllegalArgumentException("ν scan needs 3-25 grid points (check the step)");
+                    ParamScan ps = new ParamScan();
+                    ps.parameter = "nu";
+                    ps.unit = "";
+                    ps.setter = (set, v) -> set.chainNu = v;
+                    ps.grid = new double[n];
+                    for (int k = 0; k < n; k++) ps.grid[k] = Math.round((a + k * st) * 1e6) / 1e6;
+                    spec.paramScan = ps;
+                    s.chainNu = ps.grid[n / 2];
+                    spec.description = String.format("Excluded-volume chains, ν scanned %s-%s, Rg %s-%s Å", Fields.fmt(a), Fields.fmt(b), Fields.fmt(lo), Fields.fmt(hi));
+                } else {
+                    double nu = Fields.pos(eNu, "Flory exponent");
+                    if (nu <= 0.26 || nu >= 1) throw new IllegalArgumentException("Flory exponent must be between 0.26 and 1");
+                    s.chainNu = nu;
+                    spec.description = String.format("Excluded-volume chains (ν %.3f), Rg %s-%s Å", nu, Fields.fmt(lo), Fields.fmt(hi));
+                }
+                break;
+            }
+            case WORMLIKE: {
+                spec.family = ShapeFamily.WORMLIKE_CHAIN;
+                double lo = Fields.pos(wLMin, "L min"), hi = Fields.pos(wLMax, "L max");
+                Fields.order(lo, hi, "L");
+                s.chainRadius = Fields.nonNeg(wRadius, "cross-section radius");
+                spec.min = new double[]{lo};
+                spec.max = new double[]{hi};
+                if (wKScan.isSelected()) {
+                    double a = Fields.pos(wKLo, "b from"), b = Fields.pos(wKHi, "b to");
+                    Fields.order(a, b, "b scan");
+                    ParamScan ps = new ParamScan();
+                    ps.parameter = "b";
+                    ps.unit = " A";
+                    ps.setter = (set, v) -> set.kuhnLength = v;
+                    ps.logScale = true;
+                    ps.grid = new double[7];
+                    for (int k = 0; k < 7; k++) ps.grid[k] = Math.round(a * Math.pow(b / a, k / 6.0) * 10) / 10.0;
+                    spec.paramScan = ps;
+                    s.kuhnLength = ps.grid[3];
+                    spec.description = String.format("Wormlike chains (b scanned %s-%s Å, R %s Å), L %s-%s Å", Fields.fmt(a), Fields.fmt(b),
+                            Fields.fmt(s.chainRadius), Fields.fmt(lo), Fields.fmt(hi));
+                } else {
+                    s.kuhnLength = Fields.pos(wKuhn, "Kuhn length");
+                    spec.description = String.format("Wormlike chains (b %s Å, R %s Å), L %s-%s Å", Fields.fmt(s.kuhnLength),
+                            Fields.fmt(s.chainRadius), Fields.fmt(lo), Fields.fmt(hi));
+                }
+                break;
+            }
+            case MICELLE: {
+                spec.family = ShapeFamily.POLYMER_MICELLE;
+                double lo = Fields.pos(mRMin, "R_core min"), hi = Fields.pos(mRMax, "R_core max");
+                Fields.order(lo, hi, "R_core");
+                double g0, g1;
+                if (brushFixed.isSelected()) {
+                    double rg = Fields.pos(brushRg, "brush Rg"), tol = Fields.nonNeg(brushTol, "brush tolerance") / 100.0;
+                    if (tol <= 0 || tol >= 1) throw new IllegalArgumentException("Brush tolerance must be between 0 and 100 %");
+                    s.brushRg = rg;
+                    s.brushTolerance = tol;
+                    g0 = rg * (1 - tol);
+                    g1 = rg * (1 + tol);
+                } else {
+                    g0 = Fields.pos(brushMin, "brush Rg min");
+                    g1 = Fields.pos(brushMax, "brush Rg max");
+                    Fields.order(g0, g1, "brush Rg");
+                    s.brushRg = Double.NaN;
+                }
+                s.solventDensity = Fields.num(mRhoSolvent, "solvent SLD");
+                s.micelleCoreDensity = Fields.num(mRhoCore, "core SLD");
+                s.micelleCoronaDensity = Fields.num(mRhoCorona, "corona SLD");
+                s.micelleCoreBlockVolume = Fields.pos(mVCore, "core block volume");
+                s.micelleCoronaBlockVolume = Fields.pos(mVCorona, "corona block volume");
+                s.micellePacking = Fields.pos(mPacking, "core packing");
+                if (s.micellePacking > 1) throw new IllegalArgumentException("Core packing is a volume fraction (<= 1)");
+                s.micellePenetration = Fields.num(mPen, "penetration d");
+                double bsum = s.micelleCoreBlockVolume * (s.micelleCoreDensity - s.solventDensity)
+                        + s.micelleCoronaBlockVolume * (s.micelleCoronaDensity - s.solventDensity);
+                if (Math.abs(bsum) < 1e-9) throw new IllegalArgumentException("Core and corona contrasts cancel: no forward scattering");
+                double n0 = s.micellePacking * 4 * Math.PI / 3 * lo * lo * lo / s.micelleCoreBlockVolume;
+                if (n0 < 1) throw new IllegalArgumentException(String.format("N_agg is %.2f at R_core min: raise R_core min or lower the core block volume", n0));
+                spec.min = new double[]{lo, g0};
+                spec.max = new double[]{hi, g1};
+                spec.description = String.format("Block-copolymer micelle, R_core %s-%s Å, brush Rg %s-%s Å", Fields.fmt(lo), Fields.fmt(hi),
+                        Fields.fmt(g0), Fields.fmt(g1));
                 break;
             }
             default: {

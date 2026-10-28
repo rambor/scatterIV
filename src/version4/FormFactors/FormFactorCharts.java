@@ -24,6 +24,7 @@ import org.jfree.data.xy.YIntervalSeriesCollection;
 import org.jfree.ui.RectangleEdge;
 import org.jfree.ui.RectangleInsets;
 import version4.FormFactors.LangevinResult;
+import version4.FormFactors.PolymerAnalysis;
 import version4.FormFactors.SpeciesProfile;
 
 import java.awt.*;
@@ -42,7 +43,7 @@ public final class FormFactorCharts {
     private FormFactorCharts() {}
 
     public enum Weighting {
-        VOLUME("Volume fraction"), NUMBER("Number"), INTENSITY("Intensity (as sampled)");
+        VOLUME("Volume (mass) fraction"), NUMBER("Number"), INTENSITY("Intensity (as sampled)");
         final String label;
         Weighting(String l) { label = l; }
         @Override public String toString() { return label; }
@@ -478,6 +479,340 @@ public final class FormFactorCharts {
         chart.addSubtitle(new TextTitle(sub, SMALL));
         finish(chart);
         return chart;
+    }
+
+    /** profile of a global setting (Flory exponent, Kuhn length): full range (log 1 + Δχ²) or zoom near the minimum */
+    public static JFreeChart parameterProfileChart(version4.FormFactors.ParameterProfile.Profile p, boolean zoom) {
+        XYSeries pts = new XYSeries("fits (incl. seed repeats)", false, true);
+        java.util.TreeMap<Double, Double> env = new java.util.TreeMap<>();
+        double off = zoom ? 0 : 1, maxD = 0, vmin = Double.POSITIVE_INFINITY, vmax = Double.NEGATIVE_INFINITY;
+        for (version4.FormFactors.ParameterProfile.Point pt : p.points) {
+            double d = pt.chi2Total - p.bestChi2Total;
+            pts.add(pt.value, d + off);
+            env.merge(pt.value, d, Math::min);
+            maxD = Math.max(maxD, d);
+            vmin = Math.min(vmin, pt.value);
+            vmax = Math.max(vmax, pt.value);
+        }
+        XYSeries line = new XYSeries("lower envelope");
+        for (java.util.Map.Entry<Double, Double> e : env.entrySet()) line.add(e.getKey().doubleValue(), e.getValue() + off);
+        XYSeriesCollection c = new XYSeriesCollection();
+        c.addSeries(line);
+        c.addSeries(pts);
+        XYLineAndShapeRenderer rend = new XYLineAndShapeRenderer();
+        rend.setSeriesLinesVisible(0, true);
+        rend.setSeriesShapesVisible(0, false);
+        rend.setSeriesPaint(0, FIT);
+        rend.setSeriesLinesVisible(1, false);
+        rend.setSeriesShape(1, new Ellipse2D.Double(-3, -3, 6, 6));
+        rend.setSeriesShapesFilled(1, false);
+        rend.setSeriesPaint(1, FIT);
+        String name = p.parameter.equals("nu") ? "Flory exponent ν" : p.parameter.equals("b") ? "Kuhn length b (Å)" : p.parameter;
+        NumberAxis x = new NumberAxis(name);
+        x.setTickLabelFont(SMALL);
+        x.setAutoRangeIncludesZero(false);
+        org.jfree.chart.axis.ValueAxis y;
+        if (zoom) {
+            double half = Math.max(p.hi95 - p.bestValue, p.bestValue - p.lo95);
+            if (!Double.isNaN(p.parabolaHalfWidth95)) half = Math.max(half, p.parabolaHalfWidth95);
+            half = Math.max(half * 1.6, 0.02 * Math.abs(p.bestValue));
+            x.setRange(Math.max(vmin, p.bestValue - half), Math.min(vmax, p.bestValue + half));
+            NumberAxis ny = new NumberAxis("Δχ² (total)");
+            ny.setTickLabelFont(SMALL);
+            ny.setRange(-0.5, 16);
+            y = ny;
+            if (!Double.isNaN(p.parabolaCentre)) {
+                XYSeries par = new XYSeries("parabola (3 lowest points)");
+                double A = 1 / (p.parabolaHalfWidth68 * p.parabolaHalfWidth68);
+                for (int k = 0; k <= 100; k++) {
+                    double f = x.getLowerBound() + k * (x.getUpperBound() - x.getLowerBound()) / 100;
+                    double v = A * (f - p.parabolaCentre) * (f - p.parabolaCentre);
+                    if (v <= 17) par.add(f, v);
+                }
+                c.addSeries(par);
+                rend.setSeriesLinesVisible(2, true);
+                rend.setSeriesShapesVisible(2, false);
+                rend.setSeriesPaint(2, GOOD);
+                rend.setSeriesStroke(2, new BasicStroke(1.2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 1f, new float[]{5, 3}, 0));
+            }
+        } else {
+            x.setRange(vmin - 0.02 * (vmax - vmin), vmax + 0.02 * (vmax - vmin));
+            LogAxis ly = logAxis("1 + Δχ² (total)");
+            ly.setSmallestValue(0.5);
+            ly.setRange(0.7, Math.max(100, maxD * 2));
+            ly.setTickUnit(new NumberTickUnit(1, ly.getNumberFormatOverride()));
+            y = ly;
+        }
+        XYPlot plot = new XYPlot(c, x, y, rend);
+        style(plot);
+        for (double lev : new double[]{1, 4}) {
+            ValueMarker m = new ValueMarker(lev + off, MUTED, new BasicStroke(0.8f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 1f,
+                    lev == 1 ? new float[]{5, 3} : new float[]{2, 2}, 0));
+            m.setLabel("Δχ² = " + (int) lev);
+            m.setLabelFont(SMALL);
+            m.setLabelAnchor(org.jfree.ui.RectangleAnchor.TOP_LEFT);
+            m.setLabelTextAnchor(org.jfree.ui.TextAnchor.BOTTOM_LEFT);
+            plot.addRangeMarker(m);
+        }
+        if (p.hi68 > p.lo68) plot.addDomainMarker(new IntervalMarker(p.lo68, p.hi68, new Color(37, 99, 235, 40)), org.jfree.ui.Layer.BACKGROUND);
+        plot.addDomainMarker(new ValueMarker(p.bestValue, ACCENT, new BasicStroke(1.2f)));
+        String fmt = p.parameter.equals("nu") ? "%.3f" : "%.1f";
+        String head = zoom
+                ? (Double.isNaN(p.parabolaCentre) ? "Near the minimum" : String.format("Near the minimum: parabola " + fmt + " ± " + fmt, p.parabolaCentre, p.parabolaHalfWidth68))
+                : String.format("Profile: %s = " + fmt + " (68 %%: " + fmt + "-" + fmt + ", 95 %%: " + fmt + "-" + fmt + ")",
+                    name, p.bestValue, p.lo68, p.hi68, p.lo95, p.hi95);
+        JFreeChart chart = new JFreeChart(head, TITLE, plot, true);
+        String sub = zoom ? "shaded: 68 % interval; dashed green: parabola through the 3 lowest points"
+                : String.format("distribution re-fitted at each value; optimiser noise sd %.2f%s", p.optimizerNoise,
+                    p.optimizerNoise > 0.5 ? " (≈ Δχ² = 1: interval approximate)" : "");
+        chart.addSubtitle(new TextTitle(sub, SMALL));
+        finish(chart);
+        return chart;
+    }
+
+    // ------------------------------------------------------------------ gel / network fits
+
+    /** log-log data with the gel model, its components and the background, plus normalised residuals */
+    public static JFreeChart gelFitChart(double[] q, double[] I, double[] s, version4.FormFactors.GelModels.Fit f, String title) {
+        YIntervalSeries data = new YIntervalSeries("data");
+        double ymin = Double.POSITIVE_INFINITY;
+        for (int j = 0; j < q.length; j++) {
+            if (!(I[j] > 0)) continue;
+            double lo = I[j] - s[j];
+            if (lo <= 0) lo = I[j] * 0.1;
+            data.add(q[j], I[j], lo, I[j] + s[j]);
+            ymin = Math.min(ymin, I[j]);
+        }
+        YIntervalSeriesCollection dc = new YIntervalSeriesCollection();
+        dc.addSeries(data);
+        XYErrorRenderer err = new XYErrorRenderer();
+        err.setBaseLinesVisible(false);
+        err.setSeriesShape(0, new Ellipse2D.Double(-1.5, -1.5, 3, 3));
+        err.setSeriesPaint(0, DATA);
+        err.setErrorPaint(new Color(0xd5d9de));
+        err.setDrawXError(false);
+        err.setCapLength(0);
+
+        XYSeriesCollection lines = new XYSeriesCollection();
+        XYLineAndShapeRenderer lr = new XYLineAndShapeRenderer(true, false);
+        XYSeries tot = new XYSeries(String.format("%s (red. χ² %.2f)", f.model.label, f.chi2Reduced), false, true);
+        for (int j = 0; j < q.length; j++) if (f.curve[j] > 0) tot.add(q[j], f.curve[j]);
+        lines.addSeries(tot);
+        lr.setSeriesPaint(0, FIT);
+        lr.setSeriesStroke(0, new BasicStroke(1.8f));
+        java.util.List<String> comps = version4.FormFactors.GelModels.componentNames(f.model);
+        double[] p = f.params();
+        Color[] cc = {ACCENT, GOOD, PURPLE};
+        for (int k = 0; k < comps.size(); k++) {
+            XYSeries c = new XYSeries(comps.get(k), false, true);
+            for (int j = 0; j < q.length; j++) {
+                double v = version4.FormFactors.GelModels.component(f.model, k, p, q[j]);
+                if (v > ymin * 0.02) c.add(q[j], v);
+            }
+            if (c.getItemCount() == 0) continue;
+            lines.addSeries(c);
+            int idx = lines.getSeriesCount() - 1;
+            lr.setSeriesPaint(idx, cc[k % cc.length]);
+            lr.setSeriesStroke(idx, new BasicStroke(1.2f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 1f, new float[]{6, 4}, 0));
+        }
+        if (f.background() > ymin * 0.02) {
+            XYSeries bgs = new XYSeries("background", false, true);
+            bgs.add(q[0], f.background());
+            bgs.add(q[q.length - 1], f.background());
+            lines.addSeries(bgs);
+            int idx = lines.getSeriesCount() - 1;
+            lr.setSeriesPaint(idx, MUTED);
+            lr.setSeriesStroke(idx, new BasicStroke(0.8f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 1f, new float[]{2, 3}, 0));
+        }
+        LogAxis y = logAxis("I(q)");
+        y.setSmallestValue(ymin > 0 && ymin < Double.POSITIVE_INFINITY ? ymin * 0.3 : 1e-6);
+        XYPlot top = new XYPlot(lines, null, y, lr);
+        top.setDataset(1, dc);
+        top.setRenderer(1, err);
+        top.setDatasetRenderingOrder(org.jfree.chart.plot.DatasetRenderingOrder.FORWARD);
+        style(top);
+
+        XYSeries res = new XYSeries("residuals", false, true);
+        for (int j = 0; j < q.length; j++) res.add(q[j], (I[j] - f.curve[j]) / s[j]);
+        XYLineAndShapeRenderer rr = new XYLineAndShapeRenderer(true, true);
+        rr.setSeriesPaint(0, FIT);
+        rr.setSeriesShape(0, new Ellipse2D.Double(-1.5, -1.5, 3, 3));
+        rr.setSeriesStroke(0, new BasicStroke(0.8f));
+        rr.setSeriesVisibleInLegend(0, false);
+        NumberAxis ry = new NumberAxis("(I − fit)/σ");
+        ry.setTickLabelFont(SMALL);
+        XYPlot bottom = new XYPlot(new XYSeriesCollection(res), null, ry, rr);
+        style(bottom);
+        bottom.addRangeMarker(new IntervalMarker(-2, 2, new Color(0xd0d7de), new BasicStroke(0f), null, null, 0.35f), org.jfree.ui.Layer.BACKGROUND);
+        bottom.addRangeMarker(new ValueMarker(0, MUTED, new BasicStroke(0.8f)));
+
+        LogAxis x = logAxis("q (Å⁻¹)");
+        x.setSmallestValue(1e-5);
+        CombinedDomainXYPlot plot = new CombinedDomainXYPlot(x);
+        plot.setGap(6);
+        plot.add(top, 3);
+        plot.add(bottom, 1);
+        JFreeChart chart = new JFreeChart(title, TITLE, plot, true);
+        finish(chart);
+        return chart;
+    }
+
+    // ------------------------------------------------------------------ polymer analysis
+
+    /** dimensionless Kratky plot with Gaussian-coil and compact-sphere references */
+    public static JFreeChart kratkyChart(PolymerAnalysis.Result r) {
+        YIntervalSeries data = new YIntervalSeries("data");
+        double xmax = 0;
+        for (int j = 0; j < r.kratkyX.length; j++) {
+            double x = r.kratkyX[j];
+            if (x > 10) break;
+            data.add(x, r.kratkyY[j], r.kratkyY[j] - r.kratkyErr[j], r.kratkyY[j] + r.kratkyErr[j]);
+            xmax = x;
+        }
+        YIntervalSeriesCollection dc = new YIntervalSeriesCollection();
+        dc.addSeries(data);
+        XYErrorRenderer err = new XYErrorRenderer();
+        err.setBaseLinesVisible(false);
+        err.setSeriesShape(0, new Ellipse2D.Double(-2, -2, 4, 4));
+        err.setSeriesPaint(0, DATA);
+        err.setErrorPaint(new Color(0xc4c9cf));
+        err.setDrawXError(false);
+        err.setCapLength(0);
+        XYSeries deb = new XYSeries("Gaussian coil (Debye)"), sph = new XYSeries("compact sphere");
+        for (int k = 1; k <= 400; k++) {
+            double x = k * Math.max(xmax, 1) / 400;
+            deb.add(x, PolymerAnalysis.kratkyDebye(x));
+            sph.add(x, PolymerAnalysis.kratkySphere(x));
+        }
+        XYSeriesCollection refs = new XYSeriesCollection();
+        refs.addSeries(deb);
+        refs.addSeries(sph);
+        XYLineAndShapeRenderer rr = new XYLineAndShapeRenderer(true, false);
+        rr.setSeriesPaint(0, FIT);
+        rr.setSeriesPaint(1, ACCENT);
+        rr.setSeriesStroke(0, new BasicStroke(1.4f));
+        rr.setSeriesStroke(1, new BasicStroke(1.4f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 1f, new float[]{6, 4}, 0));
+        NumberAxis x = new NumberAxis("q Rg");
+        x.setTickLabelFont(SMALL);
+        x.setRange(0, Math.max(xmax, 1) * 1.02);
+        NumberAxis y = new NumberAxis("(q Rg)² I(q) / I(0)");
+        y.setTickLabelFont(SMALL);
+        y.setAutoRangeIncludesZero(true);
+        XYPlot plot = new XYPlot(refs, x, y, rr);
+        plot.setDataset(1, dc);
+        plot.setRenderer(1, err);
+        style(plot);
+        plot.addDomainMarker(new ValueMarker(Math.sqrt(3), GRID.darker(), new BasicStroke(0.8f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 1f, new float[]{3, 3}, 0)));
+        JFreeChart c = new JFreeChart("Dimensionless Kratky", TITLE, plot, true);
+        c.addSubtitle(new TextTitle(String.format("Guinier Rg %.1f Å, I(0) %.4g; compact: peak 1.10 at √3, coil: plateau → 2",
+                r.guinier.ok ? r.guinier.values[1] : Double.NaN, r.guinier.ok ? r.guinier.values[0] : Double.NaN), SMALL));
+        finish(c);
+        return c;
+    }
+
+    /** log-log data with the single-chain fits and the high-q power law */
+    public static JFreeChart polymerFitChart(PolymerAnalysis.Result r) {
+        YIntervalSeries data = new YIntervalSeries("data");
+        double ymin = Double.POSITIVE_INFINITY;
+        for (int j = 0; j < r.q.length; j++) {
+            if (!(r.I[j] > 0)) continue;
+            double lo = r.I[j] - r.sigma[j];
+            if (lo <= 0) lo = r.I[j] * 0.1;
+            data.add(r.q[j], r.I[j], lo, r.I[j] + r.sigma[j]);
+            ymin = Math.min(ymin, r.I[j]);
+        }
+        YIntervalSeriesCollection dc = new YIntervalSeriesCollection();
+        dc.addSeries(data);
+        XYErrorRenderer err = new XYErrorRenderer();
+        err.setBaseLinesVisible(false);
+        err.setSeriesShape(0, new Ellipse2D.Double(-1.5, -1.5, 3, 3));
+        err.setSeriesPaint(0, DATA);
+        err.setErrorPaint(new Color(0xd5d9de));
+        err.setDrawXError(false);
+        err.setCapLength(0);
+        XYSeriesCollection fits = new XYSeriesCollection();
+        XYLineAndShapeRenderer fr = new XYLineAndShapeRenderer(true, false);
+        PolymerAnalysis.Fit[] fs = {r.excludedVolume, r.wormlike, r.debye, r.powerLaw};
+        String[] labels = {"excluded-volume chain", "wormlike chain", "Debye (q Rg ≤ 3)", "power law"};
+        Color[] cols = {FIT, GOOD, PURPLE, ACCENT};
+        for (int k = 0; k < fs.length; k++) {
+            PolymerAnalysis.Fit f = fs[k];
+            if (f == null || !f.ok || f.curve == null) continue;
+            String lab = labels[k] + (k == 3 ? String.format(" (ν_app %.3f)", f.values[1])
+                    : String.format(" (red. χ² %.2f)", f.chi2Reduced)) + (f.poor ? " – poor" : "");
+            XYSeries sr = new XYSeries(lab, false, true);
+            for (int j = 0; j < r.q.length; j++) if (f.curve[j] > ymin * 0.05) sr.add(r.q[j], f.curve[j]);
+            if (sr.getItemCount() == 0) continue;
+            fits.addSeries(sr);
+            int idx = fits.getSeriesCount() - 1;
+            fr.setSeriesPaint(idx, cols[k]);
+            fr.setSeriesStroke(idx, k >= 2 ? new BasicStroke(1.3f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 1f, new float[]{6, 4}, 0)
+                    : new BasicStroke(f.poor ? 1.0f : 1.7f));
+        }
+        LogAxis x = logAxis("q (Å⁻¹)");
+        x.setSmallestValue(1e-5);
+        LogAxis y = logAxis("I(q)");
+        y.setSmallestValue(ymin > 0 && ymin < Double.POSITIVE_INFINITY ? ymin * 0.3 : 1e-6);
+        XYPlot plot = new XYPlot(fits, x, y, fr);
+        plot.setDataset(1, dc);
+        plot.setRenderer(1, err);
+        plot.setDatasetRenderingOrder(org.jfree.chart.plot.DatasetRenderingOrder.FORWARD);
+        style(plot);
+        JFreeChart c = new JFreeChart("Single-chain fits", TITLE, plot, true);
+        if (r.excludedVolume.ok && !r.excludedVolume.poor)
+            c.addSubtitle(new TextTitle(String.format("excluded volume: Rg %.1f Å, ν %.3f ± %.3f", r.excludedVolume.values[1],
+                    r.excludedVolume.values[2], r.excludedVolume.errors[2]), SMALL));
+        if (r.wormlike.ok && !r.wormlike.poor)
+            c.addSubtitle(new TextTitle(String.format("wormlike: L %.0f Å, b %.1f Å (lp %.1f Å)", r.wormlike.values[1],
+                    r.wormlike.values[2], r.wormlike.values[2] / 2), SMALL));
+        finish(c);
+        return c;
+    }
+
+    /** Guinier plot ln I vs q^2 over q Rg <= 2 with the fitted range highlighted */
+    public static JFreeChart guinierChart(PolymerAnalysis.Result r) {
+        double rg = r.guinier.ok ? r.guinier.values[1] : 1 / r.q[Math.min(5, r.q.length - 1)];
+        YIntervalSeries in = new YIntervalSeries("fitted points"), out = new YIntervalSeries("other points");
+        for (int j = 0; j < r.q.length; j++) {
+            if (!(r.I[j] > 0) || r.q[j] * rg > 2) continue;
+            double y = Math.log(r.I[j]), e = r.sigma[j] / r.I[j];
+            (r.guinier.ok && j < r.guinier.to ? in : out).add(r.q[j] * r.q[j], y, y - e, y + e);
+        }
+        YIntervalSeriesCollection dc = new YIntervalSeriesCollection();
+        dc.addSeries(in);
+        dc.addSeries(out);
+        XYErrorRenderer err = new XYErrorRenderer();
+        err.setBaseLinesVisible(false);
+        err.setSeriesShape(0, new Ellipse2D.Double(-2, -2, 4, 4));
+        err.setSeriesShape(1, new Ellipse2D.Double(-2, -2, 4, 4));
+        err.setSeriesPaint(0, FIT);
+        err.setSeriesPaint(1, DATA);
+        err.setErrorPaint(new Color(0xc4c9cf));
+        err.setDrawXError(false);
+        err.setCapLength(0);
+        XYSeriesCollection line = new XYSeriesCollection();
+        if (r.guinier.ok) {
+            XYSeries l = new XYSeries(String.format("Rg %.2f ± %.2f Å", rg, r.guinier.errors[1]));
+            double i0 = r.guinier.values[0], qm = 2 / rg;
+            l.add(0, Math.log(i0));
+            l.add(qm * qm, Math.log(i0) - qm * qm * rg * rg / 3);
+            line.addSeries(l);
+        }
+        XYLineAndShapeRenderer lr = new XYLineAndShapeRenderer(true, false);
+        lr.setSeriesPaint(0, ACCENT);
+        NumberAxis x = new NumberAxis("q² (Å⁻²)");
+        x.setTickLabelFont(SMALL);
+        x.setAutoRangeIncludesZero(true);
+        NumberAxis y = new NumberAxis("ln I(q)");
+        y.setTickLabelFont(SMALL);
+        y.setAutoRangeIncludesZero(false);
+        XYPlot plot = new XYPlot(dc, x, y, err);
+        plot.setDataset(1, line);
+        plot.setRenderer(1, lr);
+        style(plot);
+        JFreeChart c = new JFreeChart("Guinier (q Rg ≤ 1)", TITLE, plot, true);
+        finish(c);
+        return c;
     }
 
     // ------------------------------------------------------------------ styling

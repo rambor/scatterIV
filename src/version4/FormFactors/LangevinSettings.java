@@ -167,6 +167,25 @@ public class LangevinSettings {
     public long seed = 20161027L;
     public int threads = Runtime.getRuntime().availableProcessors();
 
+    // ---- polymers (ShapeFamily GAUSSIAN_CHAIN, EXCLUDED_VOLUME_CHAIN, WORMLIKE_CHAIN, POLYMER_MICELLE)
+
+    /** Flory exponent of EXCLUDED_VOLUME_CHAIN (0.5 theta solvent / Gaussian, 0.588 good solvent, 1/3 collapsed) */
+    public double chainNu = 0.588;
+    /** WORMLIKE_CHAIN: Kuhn length b = 2 x persistence length (Angstrom), the same for every chain */
+    public double kuhnLength = 100.0;
+    /** WORMLIKE_CHAIN: cross-section radius of the chain (Angstrom); 0 = thin chain */
+    public double chainRadius = 0.0;
+    /** POLYMER_MICELLE: volume of one core block and one corona block (Angstrom^3) */
+    public double micelleCoreBlockVolume = 20000, micelleCoronaBlockVolume = 30000;
+    /** POLYMER_MICELLE: SLDs of core block and corona block (solvent: solventDensity) */
+    public double micelleCoreDensity = 8.0, micelleCoronaDensity = 10.5;
+    /** POLYMER_MICELLE: chain centres at R + d Rg (d ~ 1: chains do not penetrate the core) */
+    public double micellePenetration = 1.0;
+    /** POLYMER_MICELLE: polymer volume fraction in the core; N_agg = packing (4/3 pi R^3) / core block volume */
+    public double micellePacking = 1.0;
+    /** POLYMER_MICELLE: restrict the corona chain Rg to brushRg (1 +- brushTolerance); NaN = use the bounds */
+    public double brushRg = Double.NaN, brushTolerance = 0.2;
+
     public int histogramBins = 60;
     /** lookup table spacing in x = qR */
     public double tableStep = 1e-3;
