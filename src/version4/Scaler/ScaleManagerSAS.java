@@ -1,5 +1,7 @@
 package version4.Scaler;
 
+import version4.Ui;
+
 import org.ejml.data.SingularMatrixException;
 import org.ejml.simple.SimpleMatrix;
 import org.jfree.data.statistics.Statistics;
@@ -56,10 +58,10 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
     protected Void doInBackground() {
 
         XYSeries signals = secFile.getSignalSeries();
-        label.setText("Scaling frames");
-        progressBar.setVisible(true);
-        progressBar.setValue(0);
-        progressBar.setMaximum(endIndex - startIndex + 1);
+        Ui.setText(label, "Scaling frames");
+        Ui.setVisible(progressBar, true);
+        Ui.setValue(progressBar, 0);
+        Ui.setMaximum(progressBar, endIndex - startIndex + 1);
 
         refIndex = startIndex;
         double maxIt=0;
@@ -106,7 +108,7 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
         ArrayList<Double> ref = secFile.getSubtractedFrameAt(refIndex);
         int index = startIndex;
         scaleFactors = new ArrayList<>();
-        label.setText("Calculating scale factor using reference frame " + refIndex);
+        Ui.setText(label, "Calculating scale factor using reference frame " + refIndex);
 
         long startTime = System.currentTimeMillis();
         int count=0;
@@ -328,7 +330,7 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
     @Override
     protected void process(List<Integer> chunks) {
         int i = chunks.get(chunks.size()-1);
-        progressBar.setValue(i);
+        Ui.setValue(progressBar, i);
         super.process(chunks);
     }
 

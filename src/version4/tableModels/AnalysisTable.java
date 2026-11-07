@@ -55,6 +55,7 @@ public class AnalysisTable {
 
         analysisTable.setRowHeight(30);
         analysisTable.setBackground(Color.WHITE);
+        analysisTable.setForeground(Color.BLACK); // white table: keep text dark in every theme
         analysisTable.getColumnModel().getColumn(0).setPreferredWidth(10);
         analysisTable.getColumnModel().getColumn(1).setPreferredWidth(30);
         analysisTable.getColumnModel().getColumn(2).setPreferredWidth(35);

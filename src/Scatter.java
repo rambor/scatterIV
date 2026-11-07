@@ -20,6 +20,7 @@ import java.util.concurrent.ExecutionException;
 public class Scatter {
     private static String OUTPUT_DIR_SUBTRACTION_NAME="";
     private static String ATSAS_DIRECTORY="";
+    private static String THEME = version4.Theme.DEFAULT; // dark, light, system or off; "theme" in scatter.config
     private static String THRESHOLD="";
 
     public static String version = "IV.v";
@@ -465,66 +466,41 @@ public class Scatter {
     public static void main(String[] args) {
 
         WORKING_DIRECTORY = new WorkingDirectory();
-        File propertyFile = new File("scatter.config");
 
-        if (propertyFile.exists() && !propertyFile.isDirectory()){
+        // settings live in the user's application-data folder (see version4.AppConfig);
+        // an old scatter.config in the current directory is copied there the first time
+        System.out.println("User Home :: " + System.getProperty("user.home"));
+        System.out.println("User  Dir :: " + System.getProperty("user.dir"));
+        System.out.println("Settings  :: " + version4.AppConfig.configFile());
+        Properties prop = version4.AppConfig.load();
 
-            Properties prop = new Properties();
-            InputStream input = null;
+        if (prop.getProperty("workingDirectory") != null) {
+            WORKING_DIRECTORY.setWorkingDirectory(prop.getProperty("workingDirectory"));
+            File theDir = new File(WORKING_DIRECTORY.getWorkingDirectory());
+            if (!theDir.exists()) {
+                WORKING_DIRECTORY = new WorkingDirectory(System.getProperty("user.home"));
+            }
+        }
 
-            try {
-                input = new FileInputStream("scatter.config");
-                // load a properties file
-                prop.load(input);
-                System.out.println("User Home :: " + System.getProperty("user.home"));
-                System.out.println("User  Dir :: " + System.getProperty("user.dir"));
+        if (prop.getProperty("atsasDirectory") != null) {
+            ATSAS_DIRECTORY = prop.getProperty("atsasDirectory");
+            File theDir = new File(ATSAS_DIRECTORY);
+            if (!theDir.exists()) {
+                ATSAS_DIRECTORY = System.getProperty("user.home");
+            }
+            Settings setIt = Settings.getInstance();
+            setIt.setATSASDir(ATSAS_DIRECTORY);
+        }
 
-                if (prop.getProperty("workingDirectory") != null) {
-                    //WORKING_DIRECTORY_NAME = prop.getProperty("workingDirectory");
-                    //check directory exists
-                    WORKING_DIRECTORY.setWorkingDirectory(prop.getProperty("workingDirectory"));
-                    File theDir = new File(WORKING_DIRECTORY.getWorkingDirectory());
-                    if (!theDir.exists()) {
-                        WORKING_DIRECTORY = new WorkingDirectory(System.getProperty("user.home"));
-                    }
-                    // WORKING_DIRECTORY.setWorkingDirectory(prop.getProperty("workingDirectory"));
-                    // WORKING_DIRECTORY = new WorkingDirectory(prop.getProperty("workingDirectory"));
-                }
+        if (prop.getProperty("theme") != null) {
+            THEME = prop.getProperty("theme");
+        }
 
-
-
-                if (prop.getProperty("atsasDirectory") != null) {
-                    ATSAS_DIRECTORY = prop.getProperty("atsasDirectory");
-
-                    File theDir = new File(ATSAS_DIRECTORY);
-                    if (!theDir.exists()) {
-                        ATSAS_DIRECTORY = System.getProperty("user.home");
-                    }
-
-                    Settings setIt = Settings.getInstance();
-                    setIt.setATSASDir(ATSAS_DIRECTORY);
-                }
-
-                if (prop.getProperty("subtractionDirectory") != null) {
-
-                    OUTPUT_DIR_SUBTRACTION_NAME = prop.getProperty("subtractionDirectory");
-                    File theDir = new File(OUTPUT_DIR_SUBTRACTION_NAME);
-                    if (!theDir.exists()) {
-                        OUTPUT_DIR_SUBTRACTION_NAME = System.getProperty("user.home");
-                    }
-                }
-
-            } catch (IOException ex) {
-
-                ex.printStackTrace();
-            } finally {
-                if (input != null) {
-                    try {
-                        input.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
+        if (prop.getProperty("subtractionDirectory") != null) {
+            OUTPUT_DIR_SUBTRACTION_NAME = prop.getProperty("subtractionDirectory");
+            File theDir = new File(OUTPUT_DIR_SUBTRACTION_NAME);
+            if (!theDir.exists()) {
+                OUTPUT_DIR_SUBTRACTION_NAME = System.getProperty("user.home");
             }
         }
 
@@ -533,41 +509,35 @@ public class Scatter {
             WORKING_DIRECTORY = new WorkingDirectory(System.getProperty("user.home"));
         }
 
-        frame = new JFrame("ScatterIV");
-        frame.setContentPane(new Scatter().bg);
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.pack();
-        frame.setVisible(true);
+        // -Dscatter.theme=light overrides scatter.config
+        THEME = System.getProperty("scatter.theme", THEME);
+
+        // Swing must be set up and used on the Event Dispatch Thread
+        SwingUtilities.invokeLater(() -> {
+            version4.EdtChecker.installIfRequested(); // -Dscatter.checkEdt=true reports off-EDT Swing calls
+            version4.Theme.apply(THEME);
+            frame = new JFrame("ScatterIV");
+            frame.setContentPane(new Scatter().bg);
+            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            frame.pack();
+            frame.setVisible(true);
+        });
     }
 
     public static void updateProp(){
         Properties prop = new Properties();
-        OutputStream output = null;
-
         Settings setit = Settings.getInstance();
         ATSAS_DIRECTORY = setit.getATSASDir();
         System.out.println("Updating prop " + ATSAS_DIRECTORY);
+
+        prop.setProperty("workingDirectory", WORKING_DIRECTORY.getWorkingDirectory());
+        if (ATSAS_DIRECTORY != null) prop.setProperty("atsasDirectory", ATSAS_DIRECTORY);
+        if (OUTPUT_DIR_SUBTRACTION_NAME != null) prop.setProperty("subtractionDirectory", OUTPUT_DIR_SUBTRACTION_NAME);
+        prop.setProperty("theme", THEME);
         try {
-            output = new FileOutputStream("scatter.config");
-
-            // set the properties value
-            prop.setProperty("workingDirectory", WORKING_DIRECTORY.getWorkingDirectory());
-            prop.setProperty("atsasDirectory", ATSAS_DIRECTORY);
-            prop.setProperty("subtractionDirectory", OUTPUT_DIR_SUBTRACTION_NAME);
-            // save properties to project root folder
-            prop.store(output, null);
-            output.close();
-
+            version4.AppConfig.save(prop); // user's application-data folder
         } catch (IOException io) {
-            io.printStackTrace();
-        } finally {
-            if (output != null) {
-                try {
-                    output.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
+            System.out.println("Could not save settings to " + version4.AppConfig.configFile() + " :: " + io.getMessage());
         }
     }
 

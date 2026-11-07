@@ -56,7 +56,9 @@ public class Bruker {
                     input = zipFile.getInputStream(entry);
                     // convert to file and make a LoadedFile object
                     // write the inputStream to a FileOutputStream
-                    outputStream = new FileOutputStream(new File("tempBruker.brml"));
+                    File tempBruker = File.createTempFile("tempBruker", ".brml"); // not the current directory: may be read-only
+                    tempBruker.deleteOnExit();
+                    outputStream = new FileOutputStream(tempBruker);
                     BufferedReader br = new BufferedReader(new InputStreamReader(input, "UTF-8"));
                     // need wavelength and theta values to calculate q
                     while ((brukerLine = br.readLine()) != null) {

@@ -209,6 +209,34 @@ public class SECFile {
     /** Format version of the file on disk (1 = written before versioning). */
     public int getFormatVersion() { return reader.getFormatVersion(); }
 
+    /** Averaged buffer intensities at {@link #getQvalues()}, or null if the file has none. */
+    public double[] getAveragedBuffer() {
+        Integer line = secFormat.getAveraged_buffer_index();
+        if (line == null || line <= 0) return null;
+        try {
+            return reader.readVector(line, Double.NaN);
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
+    private BaselineCheck.Result baselineCheck;
+
+    /**
+     * Compare the baseline after the elution peak with the baseline before it (see {@link BaselineCheck}).
+     * Computed on first use and cached.
+     */
+    public BaselineCheck.Result getBaselineCheck() {
+        if (baselineCheck == null) {
+            try {
+                baselineCheck = BaselineCheck.analyse(this);
+            } catch (IOException e) {
+                throw new java.io.UncheckedIOException(e);
+            }
+        }
+        return baselineCheck;
+    }
+
     /** Number of frames flagged as buffer, read from the file. */
     public int getBufferCount() {
         try {
@@ -279,6 +307,7 @@ public class SECFile {
         StringBuilder bufferLine = new StringBuilder(totalFrames * 2);
         for (int flag : flags) bufferLine.append(SecFileWriter.convertSingleBinaryToString(flag));
         replace(secFormat.getBackground_index(), vector(bufferLine.toString()));
+        baselineCheck = null; // pre-peak baseline frames changed
     }
 
     /** @param newLine values only, e.g. "1.234E+01 2.345E+01 " */

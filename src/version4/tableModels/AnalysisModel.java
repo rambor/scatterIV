@@ -205,10 +205,14 @@ public class AnalysisModel extends AbstractTableModel implements ChangeListener,
             }
         } else if (evt.getPropertyName() == "mainCollection"){
 
-            if (datalist.size() < collection.getTotalDatasets()){ // need to add
-                this.addDataset(collection.getLast());
-            } else if (datalist.size() > collection.getTotalDatasets()){ // need to remove
-
+            // Events arrive on the EDT, possibly after several datasets were added by a background loader,
+            // so add every dataset of the collection that is not yet in the table (in collection order).
+            java.util.Set<Dataset> present = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<>());
+            present.addAll(datalist);
+            int total = collection.getTotalDatasets();
+            for (int i = 0; i < total; i++) {
+                Dataset candidate = collection.getDataset(i);
+                if (present.add(candidate)) this.addDataset(candidate);
             }
         }
     }

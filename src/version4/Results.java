@@ -32,6 +32,7 @@ public class Results extends JDialog {
 
         resultsTable.setRowHeight(30);
         resultsTable.setBackground(Color.WHITE);
+        resultsTable.setForeground(Color.BLACK); // white table: keep text dark in every theme
         resultsTable.getColumnModel().getColumn(0).setPreferredWidth(10); // file row
         resultsTable.getColumnModel().getColumn(1).setPreferredWidth(250); // filename
         resultsTable.getColumnModel().getColumn(1).setCellRenderer( leftRenderer );

@@ -183,7 +183,7 @@ public class SECSAXSUVSignalDDTW {
 
 
         try {
-            fstream = new FileWriter("ddtw.txt");
+            fstream = new FileWriter(new java.io.File(System.getProperty("java.io.tmpdir"), "ddtw.txt")); // debug output
             BufferedWriter out = new BufferedWriter(fstream);
             for (int i=0; i<path.size(); i++){
                 ColMajorCell cell = path.get(i);

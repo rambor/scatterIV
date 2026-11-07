@@ -326,11 +326,20 @@ public class Collection {
             v = (Vector) propChangeListeners.clone();
         }
 
-        // fire the event to all listeners
-        int cnt = v.size();
-        for (int i = 0; i < cnt; i++) {
-            PropertyChangeListener client = (PropertyChangeListener)v.elementAt(i);
-            client.propertyChange(evt);
+        // fire the event to all listeners. The listeners are Swing views (the analysis table, plots), so they
+        // are notified on the Event Dispatch Thread; datasets are often added from a background loader.
+        final Vector listeners = v;
+        Runnable fire = () -> {
+            int cnt = listeners.size();
+            for (int i = 0; i < cnt; i++) {
+                PropertyChangeListener client = (PropertyChangeListener) listeners.elementAt(i);
+                client.propertyChange(evt);
+            }
+        };
+        if (javax.swing.SwingUtilities.isEventDispatchThread()) {
+            fire.run();
+        } else {
+            javax.swing.SwingUtilities.invokeLater(fire);
         }
     }
 

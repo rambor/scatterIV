@@ -1,5 +1,7 @@
 package version4.plots;
 
+import version4.Ui;
+
 import org.ejml.data.DMatrix;
 import org.ejml.data.DMatrixD1;
 import org.ejml.data.DMatrixRMaj;
@@ -14,7 +16,6 @@ import org.jfree.chart.title.PaintScaleLegend;
 import org.jfree.data.xy.DefaultXYZDataset;
 import org.jfree.ui.RectangleEdge;
 import org.jfree.ui.RectangleInsets;
-import org.junit.Assert;
 import version4.Constants;
 import version4.SEC.SECFile;
 
@@ -66,9 +67,9 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
         DMatrixRMaj errors = new DMatrixRMaj(total, totalq);
 
         // populate matrix
-        progressBar.setIndeterminate(true);
-        progressBar.setStringPainted(false);
-        status.setText("Assembling Data Matrix");
+        Ui.setIndeterminate(progressBar, true);
+        Ui.setStringPainted(progressBar, false);
+        Ui.setText(status, "Assembling Data Matrix");
 
         int row=0;
         for(int i=startIndex; i<endIndex; i++){
@@ -86,7 +87,7 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
         /*
          * calculate residuals
          */
-        status.setText("Calculating Durbin-Watson score");
+        Ui.setText(status, "Calculating Durbin-Watson score");
         DMatrixRMaj ref = new DMatrixRMaj(1,totalq);
         DMatrixRMaj tar = new DMatrixRMaj(1,totalq);
         DMatrixRMaj tarE = new DMatrixRMaj(1,totalq);
@@ -132,8 +133,8 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
             residualDataset.addSeries("Series_" + i, dataset);
         }
 
-        progressBar.setIndeterminate(false);
-        progressBar.setStringPainted(false);
+        Ui.setIndeterminate(progressBar, false);
+        Ui.setStringPainted(progressBar, false);
         return null;
     }
 
@@ -283,7 +284,7 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
     @Override
     protected void process(List<Integer> chunks) {
         int i = chunks.get(chunks.size()-1);
-        progressBar.setValue(i);
+        Ui.setValue(progressBar, i);
         super.process(chunks);
     }
 
@@ -292,7 +293,7 @@ public class DWSimilarityPlot  extends SwingWorker<Void, Integer> {
         // make similarity plot
         try {
             get();
-            status.setText("FINISHED");
+            Ui.setText(status, "FINISHED");
         } catch (ExecutionException | InterruptedException e) {
             e.printStackTrace();
         }

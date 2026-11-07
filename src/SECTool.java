@@ -21,6 +21,9 @@ import org.jfree.ui.*;
 import version4.Collection;
 import version4.Constants;
 import version4.ReportPDF.SECReport;
+import org.jfree.chart.annotations.XYLineAnnotation;
+import org.jfree.chart.annotations.XYPolygonAnnotation;
+import version4.SEC.BaselineCheck;
 import version4.SEC.SECBuilder;
 import version4.SEC.SECFile;
 import version4.SVDCorMap;
@@ -226,98 +229,7 @@ public class SECTool extends JDialog {
 
             @Override
             public void filesDropped(final File[] files) {
-
-                new Thread() {
-                    public void run() {
-
-                        try {
-                            ReceivedDroppedFiles rec1 = null;
-                            sampleFilesModel.removeAllElements();
-                            collection.removeAllDatasets();
-
-                            if (files.length == 1) { // auto build list from file if list == 1 and extension is not .sec
-
-                                String[] filename = files[0].getName().split("\\.(?=[^\\.]+$)");
-                                String ext = (filename.length > 1) ? filename[1] : "";
-
-                                if (SECFile.isSecFileName(files[0].getName())){ // .sec or .sec.gz
-                                    /*
-                                     * validate file
-                                     * grab JSON
-                                     * load signals and associated graphs
-                                     */
-                                    try {
-                                        secFile = new SECFile(files[0]);
-                                        status.setText("Please wait... loading " + secFile.getFilename());
-                                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(secFile.getParentPath());
-                                        updateOutputDirLabel(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
-
-                                        updateSignalPlot();
-                                        selectedIndices.clear();
-
-                                        for(int i=0;i<secFile.getTotalFrames(); i++){
-                                            selectedIndices.add(false);
-                                        }
-
-                                        framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
-                                        selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
-
-                                        secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
-                                        secFileLabel.setForeground(Color.cyan);
-                                        TRACEButton.setText("UPDATE");
-                                        status.setText("");
-                                        thresholdField.setText(String.format("%.3f", secFile.getThreshold()));
-                                        exportTraceButton.setEnabled(true);
-                                    } catch (IOException e) {
-                                        exportTraceButton.setEnabled(false);
-                                        e.printStackTrace();
-                                    }
-
-                                } else if (ext.equals("dat")) { // dropping single file that ends in dat
-                                    exportTraceButton.setEnabled(false);
-                                    try {
-                                        FileListBuilder builder = new FileListBuilder(files[0], Scatter.WORKING_DIRECTORY.getWorkingDirectory());
-                                        status.setText("Loading " + builder.getFoundFiles().length + " files, please wait");
-                                        rec1 = new ReceivedDroppedFiles(builder.getFoundFiles(),
-                                                collection,
-                                                sampleFilesModel,
-                                                status,
-                                                convertNm1ToCheckBox.isSelected(),
-                                                true,
-                                                progressBar,
-                                                Scatter.WORKING_DIRECTORY.getWorkingDirectory());
-
-                                        saveAsTextField.setText(builder.getBase());
-                                    } catch (Exception e) {
-                                        //programInstance.status.setText(" DROP only one file please");
-
-                                    }
-                                }
-
-                            } else { // multiple files dropped
-                                rec1 = new ReceivedDroppedFiles(files, collection, sampleFilesModel, status, convertNm1ToCheckBox.isSelected(), true, progressBar, Scatter.WORKING_DIRECTORY.getWorkingDirectory());
-                            }
-
-                            if (rec1 instanceof Object){
-                                rec1.run();
-                                rec1.get();
-                                status.setText("Click TRACE to extract chromatogram");
-                            }
-
-                            samplesList.revalidate();
-                            samplesList.repaint();
-                            samplesList.validate();
-                            samplesList.updateUI();
-                            progressBar.setStringPainted(false);
-                            progressBar.setValue(0);
-                            // convert Collection to a SECFile using SECBuilder
-
-                        } catch (InterruptedException | ExecutionException e1) {
-                            e1.printStackTrace();
-                        }
-
-                    }
-                }.start();
+                openFiles(files, false); // drop events arrive on the EDT
             }
         });
 
@@ -364,214 +276,7 @@ public class SECTool extends JDialog {
         TRACEButton.addActionListener(new   ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                    /*
-                     * update trace plot from SECBuilder
-                     */
-                if (saveAsTextField.getText().length() < 3 && !(secFile instanceof SECFile)){
-                    Toolkit.getDefaultToolkit().beep();
-                    JOptionPane optionPane = new JOptionPane("Too short, provide a meaningful name",JOptionPane.WARNING_MESSAGE);
-                    JDialog dialog = optionPane.createDialog("Warning!");
-                    dialog.setAlwaysOnTop(true);
-                    dialog.setVisible(true);
-                    return;
-                }
-
-                if (collection.getTotalDatasets() > 2 && !(secFile instanceof SECFile)){ // make new SEC FILE
-
-                    new Thread() {
-                        public void run() {
-
-                            // build new SEC file
-                            try { // no secFile loaded, only data files
-                                TRACEButton.setEnabled(false);
-                                SetBufferButton.setEnabled(false);
-
-                                int totalNotSelected = collection.getTotalNotSelected();
-                                while(totalNotSelected > 0){ // remove unused datasets from collection
-                                    for(int i=0; i<collection.getTotalDatasets(); i++){
-                                        if (!collection.getDataset(i).getInUse()){
-                                            collection.removeDataset(i);
-                                            //samplesList.remove(i);
-                                            sampleFilesModel.remove(i);
-                                            break;
-                                        }
-                                    }
-                                    totalNotSelected = collection.getTotalNotSelected();
-                                }
-
-                                SECBuilder secBuilder = new SECBuilder(collection, status, progressBar, saveAsTextField.getText(),  Scatter.WORKING_DIRECTORY.getWorkingDirectory(), Double.parseDouble(thresholdField.getText()));
-                                secBuilder.setExcludePoints(Integer.parseInt(excludeComboBox.getSelectedItem().toString()));
-
-                                secBuilder.run();
-                                secBuilder.get();
-
-                                progressBar.setStringPainted(false);
-                                progressBar.setValue(0);
-
-                                secFile = new SECFile(new File(secBuilder.getOutputname()));
-                                updateSignalPlot();
-                                selectedIndices.clear();
-
-                                for(int i=0;i<secFile.getTotalFrames(); i++){
-                                    selectedIndices.add(false);
-                                }
-
-                                framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
-                                selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
-
-                                TRACEButton.setEnabled(true);
-                                SetBufferButton.setEnabled(true);
-                                TRACEButton.setText("UPDATE");
-
-                                sampleFilesModel.removeAllElements();
-                                collection.removeAllDatasets();
-                                secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
-                                status.setText("Using *.sec file now clearing samples list");
-
-                            } catch (InterruptedException | ExecutionException | IOException e1) {
-                                TRACEButton.setEnabled(true);
-                                SetBufferButton.setEnabled(true);
-                                e1.printStackTrace();
-                            }
-                        }
-                    }.start();
-
-                } else if (setBuffer){ // if new buffer region is set, rebuild entire file
-
-                    if (selectedBuffers.size() > 1){
-
-                        // populate collection
-                        collection.removeAllDatasets();
-                        TRACEButton.setEnabled(false);
-                        SetBufferButton.setEnabled(false);
-                        new Thread() {
-                            public void run() {
-                                try {
-                                    SECBuilder secBuilder = new SECBuilder(secFile, selectedBuffers, status, progressBar, Scatter.WORKING_DIRECTORY.getWorkingDirectory(), Double.parseDouble(thresholdField.getText()));
-                                    secBuilder.setExcludePoints(Integer.parseInt(excludeComboBox.getSelectedItem().toString()));
-
-                                    secFile.closeFile();
-                                    secBuilder.run();
-                                    secBuilder.get();
-                                    // reset secFile
-                                    progressBar.setStringPainted(false);
-                                    progressBar.setIndeterminate(true);
-                                    status.setText("Loading updated SEC file");
-                                    secFile = new SECFile(new File(secBuilder.getOutputname()));
-                                    updateSignalPlot();
-                                    selectedIndices.clear();
-
-                                    for(int i=0;i<secFile.getTotalFrames(); i++){
-                                        selectedIndices.add(false);
-                                    }
-
-                                    framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
-                                    selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
-                                    TRACEButton.setEnabled(true);
-                                    SetBufferButton.setEnabled(true);
-                                    status.setText("Finished loading SEC file");
-                                } catch (InterruptedException | ExecutionException | IOException e1) {
-                                    TRACEButton.setEnabled(true);
-                                    SetBufferButton.setEnabled(true);
-                                    e1.printStackTrace();
-                                }
-                                status.setText("Finished");
-                                progressBar.setIndeterminate(false);
-                                progressBar.setStringPainted(false);
-                                progressBar.setValue(0);
-                            }
-                        }.start();
-                    }
-
-                } else {
-                    // just update details
-                    if (secFile instanceof SECFile){
-                        // if threhold value change, recalculate Rg and Izero
-                        String secfilename = secFile.getAbsolutePath();
-                        double tval = Double.parseDouble(thresholdField.getText());
-                        if (Math.abs(tval - secFile.getThreshold()) > 0.001){
-
-                            TRACEButton.setEnabled(false);
-                            SetBufferButton.setEnabled(false);
-                            new Thread() {
-                                public void run() {
-                                    SECBuilder secBuilder = null;
-                                    try {// SECFile oldsecfile, JLabel status, JProgressBar bar, String workingDirectoryName, double threshold, int excludePoints
-                                        secBuilder = new SECBuilder(
-                                                secFile,
-                                                status,
-                                                progressBar,
-                                                Scatter.WORKING_DIRECTORY.getWorkingDirectory(),
-                                                Double.parseDouble(thresholdField.getText()),
-                                                Integer.parseInt(excludeComboBox.getSelectedItem().toString()));
-                                        secFile.closeFile();
-                                        secBuilder.run();
-                                        secBuilder.get();
-
-                                        // reset secFile
-                                        status.setText("Loading updated SEC file");
-
-//                                secFile = new SECFile(new File(secBuilder.getOutputname()));
-//                                updateSignalPlot();
-//                                selectedIndices.clear();
-//
-//                                for(int i=0;i<secFile.getTotalFrames(); i++){
-//                                    selectedIndices.add(false);
-//                                }
-                                        System.out.println("SECFILENAME " + secfilename);
-                                        try {
-                                            secFile = new SECFile(new File(secfilename));
-                                            if (selectedEnd > selectedStart){
-                                                updateSelectedRegionPanel();
-                                            }
-                                        } catch (IOException ex) {
-                                            ex.printStackTrace();
-                                        }
-
-                                        framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
-                                        selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
-                                        status.setText("Finished loading SEC file");
-
-                                    } catch (IOException | InterruptedException | ExecutionException ex) {
-                                        ex.printStackTrace();
-                                    }
-                                    TRACEButton.setEnabled(true);
-                                    SetBufferButton.setEnabled(true);
-                                }
-                            }.start();
-
-                            // reopen file and set reference
-//                            try {
-//                                secFile = new SECFile(new File(secfilename));
-//                            } catch (IOException ex) {
-//                                ex.printStackTrace();
-//                            }
-
-                        } else {
-
-                            /*
-                             * write the edited sample metadata to the header line;
-                             * done in place when it fits, otherwise one atomic rewrite (works on all platforms)
-                             */
-                            try {
-                                secFile.updateHeader();
-                            } catch (UncheckedIOException ex) {
-                                status.setText("Could not update SEC file header :: " + ex.getMessage());
-                                ex.printStackTrace();
-                            }
-                            secFile.closeFile();
-
-                            try {
-                                secFile = new SECFile(new File(secfilename));
-                            } catch (IOException ex) {
-                                ex.printStackTrace();
-                            }
-                        }
-                    }
-
-                }
-                exportTraceButton.setEnabled(true);
-                setBuffer = false;
+                traceOrUpdate();
             }
         });
 
@@ -637,77 +342,47 @@ public class SECTool extends JDialog {
                     peakToMerge.setUpperLowerQLimits(Double.parseDouble(qminSECField.getText()), Double.parseDouble(qmaxSECField.getText()));
                     String nameofnew = (saveAsTextField.getText().length() < 3) ? (secFile.getFilebase() + "_"+ Scatter.collectionSelected.getTotalDatasets()) : saveAsTextField.getText().replaceAll("\\W","_");
 
-                    disableAllButtons();
+                    final SECFile source = secFile;
+                    runInBackground("Merging frames " + frameToMergeStart + " to " + frameToMergeEnd + "... please wait", () -> {
+                        peakToMerge.run(); // runs doInBackground on this worker thread
+                        peakToMerge.get();
+                        // create new dataset from averaged and load into Analysis
+                        Scatter.collectionSelected.createDataset(peakToMerge.getMerged(), peakToMerge.getMergedErrors(), nameofnew, true);
+                        Scatter.collectionSelected.getLast().setSasObject(source.getSasObject());
+                        FileObject dataToWrite = new FileObject(new File(source.getParentPath()), Scatter.version);
+                        dataToWrite.writeSAXSFile(nameofnew, Scatter.collectionSelected.getLast());
 
-                    Thread mergeIt = new Thread() {
-                        public void run() {
-                            peakToMerge.run();
-                            try {
-                                peakToMerge.get();
-                                /*
-                                 * create new dataset from averaged and load into Analysis
-                                 */
-                                Scatter.collectionSelected.createDataset(peakToMerge.getMerged(), peakToMerge.getMergedErrors(), nameofnew, true);
-                                // set SaSobject of last dataset
-                                Scatter.collectionSelected.getLast().setSasObject(secFile.getSasObject());
-                                // write dataset to file
-                                FileObject dataToWrite = new FileObject(new File(secFile.getParentPath()), Scatter.version);
-                                dataToWrite.writeSAXSFile(nameofnew, Scatter.collectionSelected.getLast());
-
-                                enableAllButtons();
-
-                            } catch (InterruptedException | ExecutionException ex) {
-                                enableAllButtons();
-                                ex.printStackTrace();
-                            }
-
-                            report.setScaleFactors(peakToMerge.getScaleFactors());
-                            report.setMergedAndMedian(peakToMerge.getMerged(), peakToMerge.getMedian());
-
-                            report.writeReport(nameofnew);
-
-                            progressBar.setValue(0);
-                            progressBar.setStringPainted(false);
-
-                        }
-                    };
-                    mergeIt.start();
-//                    try {
-//                        mergeIt.join();
-//                    } catch (Exception ex) {
-//                        System.out.println(ex);
-//                    }
-                    // wait here to finish
+                        report.setScaleFactors(peakToMerge.getScaleFactors());
+                        report.setMergedAndMedian(peakToMerge.getMerged(), peakToMerge.getMedian());
+                        report.writeReport(nameofnew);
+                        return nameofnew;
+                    }, name -> status.setText("Merged frames written :: " + name));
 
                 } else if (frameToMergeEnd > frameToMergeStart) { // write out selected frames
 
-                    ArrayList<Double> qvalues = secFile.getQvalues();
-                    int totalIn = qvalues.size();
-
-                    for(int i=frameToMergeStart; i<=frameToMergeEnd; i++){
-
-                        ArrayList<Double> iofq = secFile.getSubtractedFrameAt(i);
-                        ArrayList<Double> eofq = secFile.getUnSubtractedErrorFrameAt(i);
-
-                        XYSeries one = new XYSeries("iofq");
-                        XYSeries two = new XYSeries("eofq");
-
-                        double qvalue;
-                        for(int q=0; q<totalIn; q++){
-                            qvalue=qvalues.get(q);
-                            one.add(qvalue, iofq.get(q));
-                            two.add(qvalue, eofq.get(q));
+                    final SECFile source = secFile;
+                    final int first = frameToMergeStart, last = frameToMergeEnd;
+                    runInBackground("Writing frames " + first + " to " + last + "...", () -> {
+                        ArrayList<Double> qvalues = source.getQvalues();
+                        int totalIn = qvalues.size();
+                        for (int i = first; i <= last; i++) {
+                            ArrayList<Double> iofq = source.getSubtractedFrameAt(i);
+                            ArrayList<Double> eofq = source.getUnSubtractedErrorFrameAt(i);
+                            XYSeries one = new XYSeries("iofq");
+                            XYSeries two = new XYSeries("eofq");
+                            for (int q = 0; q < totalIn; q++) {
+                                double qvalue = qvalues.get(q);
+                                one.add(qvalue, iofq.get(q));
+                                two.add(qvalue, eofq.get(q));
+                            }
+                            FileObject dataToWrite = new FileObject(new File(source.getParentPath()), Scatter.version);
+                            String nameofnew = source.getFilebase() + "_frame_" + i;
+                            Scatter.collectionSelected.createDataset(one, two, nameofnew, true);
+                            dataToWrite.writeSAXSFile(nameofnew, Scatter.collectionSelected.getLast());
                         }
-
-                        FileObject dataToWrite = new FileObject(new File(secFile.getParentPath()), Scatter.version);
-
-                        String nameofnew = secFile.getFilebase() +"_frame_"+i;
-                        Scatter.collectionSelected.createDataset(one, two, nameofnew, true);
-
-                        dataToWrite.writeSAXSFile(nameofnew, Scatter.collectionSelected.getLast());
-                    }
-
-                    report.writeReport("unmerged_sec_report");
+                        report.writeReport("unmerged_sec_report");
+                        return last - first + 1;
+                    }, count -> status.setText(count + " frames written"));
                 }
             }
 
@@ -723,6 +398,7 @@ public class SECTool extends JDialog {
                 secFileLabel.setForeground(Color.white);
                 chart.setNotify(false);
                 signalPlot.removeAllSeries();
+                clearBaselineCheck(chart.getXYPlot()); // baseline lines, red band and warning title
                 chart.setNotify(true);
 
                 totalBuffers = 0;
@@ -794,107 +470,8 @@ public class SECTool extends JDialog {
 
                 if(option == JFileChooser.APPROVE_OPTION){
                     File[] files = fc.getSelectedFiles();
-                    String[] filename = files[0].getName().split("\\.(?=[^\\.]+$)");
-                    String ext = (filename.length > 1) ? filename[1] : "";
-
                     status.setText("Selected file(s) :: " + files.length);
-
-                    if (files.length == 1){
-
-                            if (SECFile.isSecFileName(files[0].getName())){ // .sec or .sec.gz
-                                /*
-                                 * validate file
-                                 * grab JSON
-                                 * load signals and associated graphs
-                                 */
-                                try {
-                                    secFile = new SECFile(files[0]);
-                                    sampleFilesModel.removeAllElements();
-                                    collection.removeAllDatasets();
-
-                                    secFileLabel.setText("Using SEC FILE :: " + secFile.getFilename());
-                                    updateSignalPlot();
-                                    selectedIndices.clear();
-
-                                    for(int i=0;i<secFile.getTotalFrames(); i++){
-                                        selectedIndices.add(false);
-                                    }
-
-                                    framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames() );
-                                    selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
-
-                                    secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
-                                    secFileLabel.setForeground(Color.cyan);
-
-                                } catch (IOException ee) {
-                                    ee.printStackTrace();
-                                }
-
-                            } else if (ext.equals("dat")) { // dropping single file that ends in dat
-
-                                new Thread() {
-                                    public void run() {
-                                        FileListBuilder builder = null;
-                                        try {
-                                            builder = new FileListBuilder(files[0], Scatter.WORKING_DIRECTORY.getWorkingDirectory());
-                                            status.setText("Loading " + builder.getFoundFiles().length + " files, please wait");
-
-                                            ReceivedDroppedFiles rec1 = new ReceivedDroppedFiles(builder.getFoundFiles(),
-                                                    collection,
-                                                    sampleFilesModel,
-                                                    status,
-                                                    convertNm1ToCheckBox.isSelected(),
-                                                    true,
-                                                    progressBar,
-                                                    Scatter.WORKING_DIRECTORY.getWorkingDirectory());
-
-                                            saveAsTextField.setText(builder.getBase());
-                                            rec1.run();
-                                            rec1.get();
-
-                                        } catch (Exception ex) {
-                                            ex.printStackTrace();
-                                        }
-
-                                        status.setText("Click TRACE to extract chromatogram");
-                                        samplesList.revalidate();
-                                        samplesList.repaint();
-                                        samplesList.validate();
-                                        samplesList.updateUI();
-                                        progressBar.setStringPainted(false);
-                                        progressBar.setValue(0);
-                                    }
-                                }.start();
-                            }
-
-                    } else if (files.length > 1 && ext.equals("dat")) {
-
-                            new Thread() {
-                                public void run() {
-
-                                    try {
-
-                                        status.setText("Loading " + files.length + " files, please wait");
-                                        ReceivedDroppedFiles rec1 = new ReceivedDroppedFiles(files,
-                                                collection,
-                                                sampleFilesModel,
-                                                status,
-                                                convertNm1ToCheckBox.isSelected(),
-                                                true,
-                                                progressBar,
-                                                Scatter.WORKING_DIRECTORY.getWorkingDirectory());
-
-                                        String basenamefilename = FilenameUtils.removeExtension(files[0].getName());
-                                        saveAsTextField.setText(basenamefilename);
-
-                                        rec1.run();
-                                        rec1.get();
-                                    } catch (Exception e1) {
-                                        e1.printStackTrace();
-                                    }
-                                }
-                            }.start();
-                    }
+                    openFiles(files, true);
 
                     Scatter.WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
                     Scatter.updateProp();
@@ -1060,7 +637,108 @@ public class SECTool extends JDialog {
         signalRenderer.setSeriesOutlineStroke(0, new BasicStroke(1.0f));
 
         //plot.mapDatasetToRangeAxis(0, 0);//1st dataset to 1st y-axis
+        showBaselineCheck(plot);
         chart.setNotify(true);
+    }
+
+    private XYLineAnnotation baselineLine;
+    private XYLineAnnotation baselinePostLine;
+    private XYPolygonAnnotation baselineBand;
+    private IntervalMarker baselineTailMarker;
+    private TextTitle baselineWarning;
+
+    /** Remove the baseline lines, red band, shading and warning title from the signal plot. */
+    private void clearBaselineCheck(XYPlot plot) {
+        if (baselineLine != null) plot.removeAnnotation(baselineLine);
+        if (baselinePostLine != null) plot.removeAnnotation(baselinePostLine);
+        if (baselineBand != null && signalRenderer != null) signalRenderer.removeAnnotation(baselineBand);
+        baselinePostLine = null;
+        baselineBand = null;
+        if (baselineTailMarker != null) plot.removeDomainMarker(baselineTailMarker);
+        if (baselineWarning != null) chart.removeSubtitle(baselineWarning);
+        baselineLine = null;
+        baselineTailMarker = null;
+        baselineWarning = null;
+    }
+
+    /**
+     * Draw the pre-peak baseline across the whole run. If the post-peak baseline does not return to it
+     * (e.g. capillary fouling), draw the post-peak level over the shifted frames, fill the displacement
+     * between the two lines in red and show a warning above the plot and in the status bar.
+     * Otherwise lightly shade the tail that was compared.
+     */
+    private void showBaselineCheck(XYPlot plot) {
+        clearBaselineCheck(plot);
+
+        BaselineCheck.Result check;
+        try {
+            check = secFile.getBaselineCheck();
+        } catch (RuntimeException ex) {
+            ex.printStackTrace();
+            return;
+        }
+        System.out.println("SEC baseline check :: " + check.summary());
+        if (check.status == BaselineCheck.Status.NOT_ASSESSABLE) return;
+
+        boolean flagged = check.isFlagged();
+        Color lineColor = flagged ? new Color(220, 60, 30) : new Color(120, 120, 120);
+        int lastFrame = secFile.getTotalFrames() - 1;
+        baselineLine = new XYLineAnnotation(0, check.baselineAt(0), lastFrame, check.baselineAt(lastFrame),
+                new BasicStroke(1.5f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10.0f, new float[]{6.0f, 4.0f}, 0.0f),
+                lineColor);
+        baselineLine.setToolTipText("pre-peak baseline " + String.format("%.5f", check.intercept));
+        plot.addAnnotation(baselineLine);
+
+        if (flagged) {
+            // post-peak level as a second horizontal line over the shifted frames, and the displacement
+            // between it and the pre-peak baseline filled in red
+            // start where elution has finished and the signal reaches the post-peak level
+            int first = (check.plateauFirst >= 0) ? check.plateauFirst : check.tailFirst;
+            double base = check.baselineAt(first);
+            double level = base + check.offset;
+            Color red = new Color(220, 30, 30);
+
+            baselineBand = new XYPolygonAnnotation(new double[]{
+                    first, base, check.tailLast, base, check.tailLast, level, first, level},
+                    null, null, new Color(220, 30, 30, 70));
+            baselineBand.setToolTipText(String.format("displacement %.4f (%.1f%% of peak height)",
+                    check.offset, check.offsetPercentOfPeak()));
+            signalRenderer.addAnnotation(baselineBand, Layer.BACKGROUND); // behind the data points
+
+            baselinePostLine = new XYLineAnnotation(first, level, check.tailLast, level, new BasicStroke(2.0f), red);
+            baselinePostLine.setToolTipText(String.format("post-peak baseline %.5f", level));
+            plot.addAnnotation(baselinePostLine);
+
+        } else {
+            // light band over the tail that was compared
+            baselineTailMarker = new IntervalMarker(check.tailFirst, check.tailLast);
+            baselineTailMarker.setPaint(new Color(180, 180, 180));
+            baselineTailMarker.setAlpha(0.12f);
+            baselineTailMarker.setLabel("baseline OK");
+            baselineTailMarker.setLabelAnchor(RectangleAnchor.TOP);
+            baselineTailMarker.setLabelTextAnchor(TextAnchor.TOP_CENTER);
+            baselineTailMarker.setLabelPaint(lineColor);
+            plot.addDomainMarker(baselineTailMarker, Layer.BACKGROUND);
+        }
+
+        if (flagged) {
+            String shape = (check.shape == BaselineCheck.Shape.LOW_Q)
+                    ? "excess scattering at low q - possible capillary fouling or aggregation"
+                    : (check.shape == BaselineCheck.Shape.UNIFORM)
+                    ? "similar excess at all q - check normalisation or transmission"
+                    : "cause not determined";
+            String run = check.neverReturns()
+                    ? String.format("signal never returns to baseline after the peak (frames %d-%d)", check.runFirst, check.tailLast)
+                    : (check.runFirst >= 0 ? check.runDescription() : "");
+            baselineWarning = new TextTitle(String.format("Post-peak baseline %s by %.1f%% of peak height%s%n%s",
+                    check.offset > 0 ? "elevated" : "lowered", Math.abs(check.offsetPercentOfPeak()),
+                    run.isEmpty() ? "" : ": " + run, shape));
+            baselineWarning.setPaint(lineColor);
+            baselineWarning.setFont(new Font("SansSerif", Font.BOLD, 12));
+            chart.addSubtitle(baselineWarning);
+            final String summary = check.summary();
+            SwingUtilities.invokeLater(() -> status.setText(summary));
+        }
     }
 
     public void setupSignalPlot(){
@@ -1135,31 +813,17 @@ public class SECTool extends JDialog {
 
                     final int finalStartingIndex = startingIndex;
 
-                    Thread makeIt = new Thread(){
-                        public void run() {
-                            progressBar.setIndeterminate(true);
-                            status.setText("SVD please wait, may take a minute...");
-                            final SVDCorMap svd = new SVDCorMap(Double.parseDouble(qminSECField.getText()), Double.parseDouble(qmaxSECField.getText()), tempCollection, finalStartingIndex);
-                            svd.execute();
-
-                            try {
-                                svd.get();
-                                svd.createPlot();
-                                progressBar.setIndeterminate(false);
-                                status.setText("SVD finished");
-                            } catch (InterruptedException e1) {
-                                e1.printStackTrace();
-                                progressBar.setIndeterminate(false);
-                                status.setText("");
-                            } catch (ExecutionException e1) {
-                                e1.printStackTrace();
-                                progressBar.setIndeterminate(false);
-                                status.setText("");
-                            }
-                        }
-                    };
-
-                    makeIt.start();
+                    final double svdQmin = Double.parseDouble(qminSECField.getText());
+                    final double svdQmax = Double.parseDouble(qmaxSECField.getText());
+                    runInBackground("SVD please wait, may take a minute...", () -> {
+                        SVDCorMap svd = new SVDCorMap(svdQmin, svdQmax, tempCollection, finalStartingIndex);
+                        svd.run(); // compute on this worker thread
+                        svd.get();
+                        return svd;
+                    }, svd -> {
+                        svd.createPlot(); // opens a window: EDT only
+                        status.setText("SVD finished");
+                    });
 
                 } else {
                     status.setText("Too few frames for SVD correlation mapping");
@@ -1189,23 +853,10 @@ public class SECTool extends JDialog {
                     return;
                 }
 
-                status.setText((compress ? "Compressing to " : "Saving ") + target.getName() + "...");
-                progressBar.setIndeterminate(true);
-                new Thread(() -> {
-                    String message;
-                    try {
-                        current.exportCopy(target, compress);
-                        message = "Saved " + target.getName() + String.format(" (%.1f MB)", target.length() / 1.0e6);
-                    } catch (IOException ex) {
-                        ex.printStackTrace();
-                        message = "Could not save copy :: " + ex.getMessage();
-                    }
-                    final String done = message;
-                    SwingUtilities.invokeLater(() -> {
-                        progressBar.setIndeterminate(false);
-                        status.setText(done);
-                    });
-                }).start();
+                runInBackground((compress ? "Compressing to " : "Saving ") + target.getName() + "...", () -> {
+                    current.exportCopy(target, compress);
+                    return target.length();
+                }, bytes -> status.setText("Saved " + target.getName() + String.format(" (%.1f MB)", bytes / 1.0e6)));
             }
         }));
 
@@ -1359,34 +1010,45 @@ plot.setRangeGridlinesVisible(false);
         domainAxis.setAutoRange(true);
         combinedPlot.setDomainAxis(domainAxis);
 
-        // create residual dataset
-        Thread dwplotting = new Thread() {
-            public void run() {
-
-                try {
-                    DWSimilarityPlot dw = new DWSimilarityPlot(selectedStart, selectedEnd, Double.parseDouble(qminSECField.getText()), Double.parseDouble(qmaxSECField.getText()), secFile, status, progressBar);
-                    dw.run();
-                    dw.get();
-                    if (dw.isDone()){
-                        combinedPlot.remove(lowerPlot);
-                        lowerPlot = dw.createPlot();
-                        combinedPlot.add(lowerPlot, 1);
-                    }
-                    //combinedPlot.add(dw.createPlot(), 1);
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (ExecutionException e) {
-                    e.printStackTrace();
-                }
-
-            }
-        };
-        dwplotting.start();
-        try {
-            dwplotting.join();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
+        // Durbin-Watson similarity of the selected frames, computed off the EDT; only the latest request is shown.
+        // Moving the frame marker (arrow keys) keeps the same region, so it is only recomputed when that changes.
+        final int dwStart = selectedStart, dwEnd = selectedEnd;
+        final double dwQmin = Double.parseDouble(qminSECField.getText());
+        final double dwQmax = Double.parseDouble(qmaxSECField.getText());
+        final SECFile dwFile = secFile;
+        String dwKey = dwStart + ":" + dwEnd + ":" + dwQmin + ":" + dwQmax + ":" + System.identityHashCode(dwFile);
+        if (dwKey.equals(dwLastKey)) {
+            selectedRegionsChartPanel.requestFocus();
+            combinedPlot.setNotify(true);
+            return;
         }
+        dwLastKey = dwKey;
+        final int request = ++dwRequest;
+        new SwingWorker<DWSimilarityPlot, Void>() {
+            @Override
+            protected DWSimilarityPlot doInBackground() throws Exception {
+                DWSimilarityPlot dw = new DWSimilarityPlot(dwStart, dwEnd, dwQmin, dwQmax, dwFile, status, progressBar);
+                dw.run();
+                dw.get();
+                return dw;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    DWSimilarityPlot dw = get();
+                    if (request != dwRequest) return; // a newer selection is on its way
+                    combinedPlot.remove(lowerPlot);
+                    lowerPlot = dw.createPlot();
+                    combinedPlot.add(lowerPlot, 1);
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException ex) {
+                    ex.getCause().printStackTrace();
+                    status.setText("Similarity plot failed :: " + ex.getCause().getMessage());
+                }
+            }
+        }.execute();
 
 //        selectedRegionsChartPanel.getChart().getXYPlot().getRenderer(0).setBaseToolTipGenerator(new XYToolTipGenerator() {
 //            @Override
@@ -1739,6 +1401,232 @@ plot.setRangeGridlinesVisible(false);
         } else {
             outputDirLabel.setText(text);
         }
+    }
+
+    // ------------------------------------------------------------------ background work
+
+    private int dwRequest = 0;
+    private String dwLastKey = null; // region/q-range/file of the last similarity plot request
+
+    /**
+     * Run {@code work} on a background thread while the buttons are disabled, then {@code onSuccess} with its result
+     * on the Event Dispatch Thread. Errors are shown in the status bar. Call from the EDT.
+     * Background code must not touch widgets directly (use {@link version4.Ui} or a ProgressListener).
+     */
+    private <T> void runInBackground(String message, java.util.concurrent.Callable<T> work, java.util.function.Consumer<T> onSuccess) {
+        disableAllButtons();
+        if (message != null) status.setText(message);
+        new SwingWorker<T, Void>() {
+            @Override
+            protected T doInBackground() throws Exception {
+                return work.call();
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    onSuccess.accept(get());
+                } catch (InterruptedException ex) {
+                    Thread.currentThread().interrupt();
+                } catch (ExecutionException ex) {
+                    Throwable cause = (ex.getCause() == null) ? ex : ex.getCause();
+                    cause.printStackTrace();
+                    status.setText("Error :: " + cause.getMessage());
+                } catch (RuntimeException ex) {
+                    ex.printStackTrace();
+                    status.setText("Error :: " + ex.getMessage());
+                } finally {
+                    enableAllButtons();
+                    progressBar.setIndeterminate(false);
+                    progressBar.setStringPainted(false);
+                    progressBar.setValue(0);
+                }
+            }
+        }.execute();
+    }
+
+    /**
+     * Open dropped or chosen files: a single .sec/.sec.gz, a single .dat (the rest of the series is found in its
+     * directory) or several .dat files. Call from the EDT.
+     *
+     * @param nameFromFirstFile for several files, use the first file's name as the "save as" name
+     */
+    private void openFiles(File[] files, boolean nameFromFirstFile) {
+        if (files == null || files.length == 0) return;
+
+        File first = files[0];
+        String[] parts = first.getName().split("\\.(?=[^\\.]+$)");
+        String ext = (parts.length > 1) ? parts[1].toLowerCase() : "";
+        String workingDir = Scatter.WORKING_DIRECTORY.getWorkingDirectory();
+        boolean convert = convertNm1ToCheckBox.isSelected();
+
+        if (files.length == 1 && SECFile.isSecFileName(first.getName())) {
+            sampleFilesModel.removeAllElements();
+            collection.removeAllDatasets();
+            runInBackground("Please wait... loading " + first.getName(), () -> new SECFile(first), loaded -> {
+                Scatter.WORKING_DIRECTORY.setWorkingDirectory(loaded.getParentPath());
+                updateOutputDirLabel(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+                showSecFile(loaded);
+                status.setText("");
+            });
+            return;
+        }
+
+        if (files.length == 1 && !ext.equals("dat")) {
+            status.setText("Drop a .sec, .sec.gz or .dat file");
+            return;
+        }
+        if (files.length > 1 && nameFromFirstFile && !ext.equals("dat")) {
+            status.setText("Select .dat files");
+            return;
+        }
+
+        sampleFilesModel.removeAllElements();
+        collection.removeAllDatasets();
+        exportTraceButton.setEnabled(false);
+        final String suggestedName = (files.length > 1 && nameFromFirstFile) ? FilenameUtils.removeExtension(first.getName()) : null;
+
+        runInBackground("Loading files, please wait", () -> {
+            File[] toLoad = files;
+            String base = suggestedName;
+            if (files.length == 1) { // single .dat: build the series from its directory
+                FileListBuilder builder = new FileListBuilder(first, workingDir);
+                toLoad = builder.getFoundFiles();
+                base = builder.getBase();
+                version4.Ui.setText(status, "Loading " + toLoad.length + " files, please wait");
+            }
+            ReceivedDroppedFiles rec1 = new ReceivedDroppedFiles(toLoad, collection, sampleFilesModel, status,
+                    convert, true, progressBar, workingDir);
+            rec1.run(); // loads on this worker thread; the list model is updated on the EDT
+            rec1.get();
+            return base;
+        }, base -> {
+            if (base != null) saveAsTextField.setText(base);
+            status.setText("Click TRACE to extract chromatogram");
+            samplesList.revalidate();
+            samplesList.repaint();
+        });
+    }
+
+    /** Show a newly opened or rebuilt SEC file. Call from the EDT. */
+    private void showSecFile(SECFile loaded) {
+        if (secFile != null && secFile != loaded) secFile.closeFile();
+        secFile = loaded;
+        updateSignalPlot();
+        selectedIndices.clear();
+        for (int i = 0; i < secFile.getTotalFrames(); i++) {
+            selectedIndices.add(false);
+        }
+        framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames());
+        selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
+        secFileLabel.setText("SEC FILE :: " + secFile.getFilename());
+        secFileLabel.setForeground(Color.cyan);
+        thresholdField.setText(String.format("%.3f", secFile.getThreshold()));
+        TRACEButton.setText("UPDATE");
+        exportTraceButton.setEnabled(true);
+    }
+
+    /**
+     * TRACE/UPDATE button: build a new SEC file from the loaded frames, rebuild it with a new buffer selection,
+     * recalculate Rg/I(0) for a new threshold, or save edited details. Call from the EDT.
+     */
+    private void traceOrUpdate() {
+        if (saveAsTextField.getText().length() < 3 && !(secFile instanceof SECFile)) {
+            Toolkit.getDefaultToolkit().beep();
+            JOptionPane optionPane = new JOptionPane("Too short, provide a meaningful name", JOptionPane.WARNING_MESSAGE);
+            JDialog dialog = optionPane.createDialog("Warning!");
+            dialog.setAlwaysOnTop(true);
+            dialog.setVisible(true);
+            return;
+        }
+
+        // read every input on the EDT before handing work to the background
+        final String workingDir = Scatter.WORKING_DIRECTORY.getWorkingDirectory();
+        final double threshold;
+        final int excludePoints;
+        try {
+            threshold = Double.parseDouble(thresholdField.getText());
+            excludePoints = Integer.parseInt(excludeComboBox.getSelectedItem().toString());
+        } catch (NumberFormatException ex) {
+            status.setText("Threshold must be a number");
+            return;
+        }
+
+        if (collection.getTotalDatasets() > 2 && !(secFile instanceof SECFile)) { // make new SEC file
+            for (int i = collection.getTotalDatasets() - 1; i >= 0; i--) { // remove unused frames
+                if (!collection.getDataset(i).getInUse()) {
+                    collection.removeDataset(i);
+                    sampleFilesModel.remove(i);
+                }
+            }
+            final String name = saveAsTextField.getText();
+            runInBackground("Building SEC file... please wait", () -> {
+                SECBuilder secBuilder = new SECBuilder(collection, status, progressBar, name, workingDir, threshold);
+                secBuilder.setExcludePoints(excludePoints);
+                secBuilder.run();
+                secBuilder.get();
+                return new SECFile(new File(secBuilder.getOutputname()));
+            }, built -> {
+                showSecFile(built);
+                sampleFilesModel.removeAllElements();
+                collection.removeAllDatasets();
+                status.setText("Using *.sec file now clearing samples list");
+            });
+
+        } else if (setBuffer) { // new buffer region: rebuild the entire file
+            if (selectedBuffers.size() > 1) {
+                collection.removeAllDatasets();
+                final SECFile old = secFile;
+                final TreeSet<Integer> buffers = new TreeSet<>(selectedBuffers);
+                runInBackground("Rebuilding SEC file with new buffer frames... please wait", () -> {
+                    SECBuilder secBuilder = new SECBuilder(old, buffers, status, progressBar, workingDir, threshold);
+                    secBuilder.setExcludePoints(excludePoints);
+                    old.closeFile();
+                    secBuilder.run();
+                    secBuilder.get();
+                    version4.Ui.setText(status, "Loading updated SEC file");
+                    return new SECFile(new File(secBuilder.getOutputname()));
+                }, rebuilt -> {
+                    showSecFile(rebuilt);
+                    status.setText("Finished loading SEC file");
+                });
+            }
+
+        } else if (secFile instanceof SECFile) {
+            final SECFile old = secFile;
+            final String secfilename = old.getAbsolutePath();
+
+            if (Math.abs(threshold - old.getThreshold()) > 0.001) { // threshold changed: recalculate Rg and I(0)
+                runInBackground("Recalculating Rg and I(0)... please wait", () -> {
+                    SECBuilder secBuilder = new SECBuilder(old, status, progressBar, workingDir, threshold, excludePoints);
+                    old.closeFile();
+                    secBuilder.run();
+                    secBuilder.get();
+                    return new SECFile(new File(secfilename));
+                }, updated -> {
+                    secFile = updated;
+                    if (selectedEnd > selectedStart) {
+                        updateSelectedRegionPanel();
+                    }
+                    framesLabel.setText("TOTAL frames :: " + secFile.getTotalFrames());
+                    selectedBufferIndicesLabel.setText("buffers :: " + secFile.getBufferCount());
+                    status.setText("Finished loading SEC file");
+                });
+
+            } else { // only details edited: write the header line (in place when it fits)
+                runInBackground("Saving details...", () -> {
+                    old.updateHeader();
+                    old.closeFile();
+                    return new SECFile(new File(secfilename));
+                }, updated -> {
+                    secFile = updated;
+                    status.setText("Details saved");
+                });
+            }
+        }
+
+        exportTraceButton.setEnabled(secFile instanceof SECFile);
+        setBuffer = false;
     }
 
     private void disableAllButtons(){

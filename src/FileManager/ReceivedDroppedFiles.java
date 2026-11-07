@@ -1,5 +1,7 @@
 package FileManager;
 
+import version4.Ui;
+
 import javax.swing.*;
 import javax.swing.table.AbstractTableModel;
 import java.awt.*;
@@ -77,9 +79,9 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
         }
         int totalFiles = files.length;
 
-        bar.setMaximum(Math.max(1, totalFiles));
-        bar.setStringPainted(true);
-        bar.setValue(0);
+        Ui.setMaximum(bar, Math.max(1, totalFiles));
+        Ui.setStringPainted(bar, true);
+        Ui.setValue(bar, 0);
 
         Comparator<File> fileComparator = new Comparator<File>() {
             @Override
@@ -124,9 +126,9 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
                 String ext = extension(files[i]);
                 if (ext.equals("pdb")){
                     // make Dataset from PDB file and add to collection
-                    status.setText("Reading PDB file " + filebase + " => calculating P(r) - please wait ~ 1 min");
-                    bar.setStringPainted(false);
-                    bar.setIndeterminate(true);
+                    Ui.setText(status, "Reading PDB file " + filebase + " => calculating P(r) - please wait ~ 1 min");
+                    Ui.setStringPainted(bar, false);
+                    Ui.setIndeterminate(bar, true);
                     try {
                         PDBFile tempPDB = new PDBFile(files[i], qmax, exclude, workingDirectoryName);
 
@@ -140,11 +142,11 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
                         targetCollection.getDataset(newIndex).setIsPDB(tempPDB.getPrDistribution(), (int)tempPDB.getDmax(), tempPDB.getRg(), tempPDB.getIzero());
                     } catch (Exception ex) {
                         rejected++;
-                        status.setText("Could not read PDB file " + files[i].getName() + ": " + ex.getMessage());
+                        Ui.setText(status, "Could not read PDB file " + files[i].getName() + ": " + ex.getMessage());
                         LogIt.log(Level.SEVERE, "Could not read PDB file " + files[i].getName() + ": " + ex.getMessage());
                     } finally {
-                        bar.setIndeterminate(false);
-                        bar.setStringPainted(true);
+                        Ui.setIndeterminate(bar, false);
+                        Ui.setStringPainted(bar, true);
                     }
                 } else {
                     if (!addToCollection(loadDroppedFile(files[i], targetCollection.getTotalDatasets()))) {
@@ -165,17 +167,17 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
 
         if (rejected > 0) {
             final String message = rejected + " file" + (rejected == 1 ? " was" : "s were") + " skipped (see log)";
-            SwingUtilities.invokeLater(() -> status.setText(message));
+            SwingUtilities.invokeLater(() -> Ui.setText(status, message));
         }
 
-        bar.setStringPainted(false);
+        Ui.setStringPainted(bar, false);
         return null;
     }
 
     @Override
     protected void process(List<Integer> chunks) {
         int i = chunks.get(chunks.size()-1);
-        bar.setValue(i);
+        Ui.setValue(bar, i);
         super.process(chunks);
     }
 
@@ -261,7 +263,7 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
 
         try {
             if (ext.equals("brml")) {
-                status.setText("Bruker .brml  file detected ");
+                Ui.setText(status, "Bruker .brml  file detected ");
                 File tempFile = Bruker.makeTempDataFile(file, workingDirectoryName);
                 return new LoadedFile(tempFile, assignedfileIndex, convertToAng);
 
@@ -272,7 +274,7 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
             }
 
         } catch (Exception ex) {
-            status.setText(ex.getMessage());
+            Ui.setText(status, ex.getMessage());
             LogIt.log(Level.SEVERE, ex.getMessage());
         }
         return null;
