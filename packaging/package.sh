@@ -16,13 +16,16 @@
 #   TYPE=dmg|pkg|app-image|deb|rpm                          (default dmg on macOS, app-image on Linux)
 #   MAC_SIGN="Developer ID Application: Your Name (TEAMID)" sign the app (needs an Apple Developer ID)
 #   FULL_RUNTIME=1      bundle the whole Java runtime instead of only the modules Scatter uses
+#   APP_NAME=Scatter    app name (default ScÅtter)
 #
 # The installer is written to build/installer/.
 
 set -euo pipefail
 
 VERSION="${1:-4.0.0}"
-APP_NAME="Scatter"
+# Name shown in Applications, the Dock and the menu bar. Set APP_NAME=Scatter for a plain ASCII name.
+APP_NAME="${APP_NAME:-ScÅtter}"
+PACKAGE_NAME="scatter"            # ASCII name where one is required (Linux package name)
 MAIN_CLASS="Scatter"
 VENDOR="Robert Rambo"
 DESCRIPTION="SAXS and SEC-SAXS data analysis"
@@ -41,6 +44,17 @@ case "$(uname -s)" in
 esac
 
 fail() { echo "ERROR: $*" >&2; exit 1; }
+
+# --- a non-ASCII app name (ScÅtter) needs a UTF-8 locale for jpackage ---------
+if printf "%s" "$APP_NAME" | LC_ALL=C grep -q "[^ -~]" && [[ "$(locale charmap 2>/dev/null)" != "UTF-8" ]]; then
+  for loc in C.UTF-8 en_US.UTF-8 en_GB.UTF-8; do
+    if LC_ALL="$loc" locale charmap 2>/dev/null | grep -q "UTF-8"; then export LC_ALL="$loc"; break; fi
+  done
+  if [[ "$(locale charmap 2>/dev/null)" != "UTF-8" ]]; then
+    echo "WARNING: no UTF-8 locale available; using the app name 'Scatter' instead of '$APP_NAME'"
+    APP_NAME="Scatter"
+  fi
+fi
 
 # --- checks --------------------------------------------------------------------
 command -v jpackage >/dev/null || fail "jpackage not found. It comes with JDK 17 or newer; make sure that JDK's bin folder is on your PATH."
@@ -76,6 +90,11 @@ for j in "$JAR_DIR"/*.jar; do
   esac
 done
 echo "Staged $(ls "$STAGING" | wc -l | tr -d ' ') jars from $JAR_DIR (left out $skipped source/javadoc/test jars)"
+
+# licence texts go into the app folder next to the jars
+cp "$PROJECT/LICENSE" "$STAGING/LICENSE.txt" 2>/dev/null || echo "WARNING: no LICENSE file in $PROJECT"
+cp "$PROJECT/THIRD-PARTY-NOTICES.txt" "$STAGING/" 2>/dev/null || true
+[[ -d "$PROJECT/licenses" ]] && cp -R "$PROJECT/licenses" "$STAGING/"
 
 has_class() { # has_class path/in/jar.class
   # ask unzip for that one entry (exit 0 if present). Not "unzip -l | grep -q": with pipefail, grep
@@ -126,14 +145,14 @@ args+=("${MODULE_ARGS[@]+"${MODULE_ARGS[@]}"}")
 args+=(--jlink-options "--strip-debug --no-man-pages --no-header-files --compress=zip-6")
 
 if [[ "$OS" == mac ]]; then
-  args+=(--mac-package-identifier "$MAC_ID" --mac-package-name "$APP_NAME"
-         --java-options "-Dapple.awt.application.name=$APP_NAME")
+  # the bundle name (CFBundleName) is what macOS shows in the menu bar and Dock
+  args+=(--mac-package-identifier "$MAC_ID" --mac-package-name "$APP_NAME")
   if [[ -n "${MAC_SIGN:-}" ]]; then
     args+=(--mac-sign --mac-signing-key-user-name "$MAC_SIGN")
   fi
 fi
 if [[ "$OS" == linux && ( "$TYPE" == deb || "$TYPE" == rpm ) ]]; then
-  args+=(--linux-shortcut --linux-menu-group "Science")
+  args+=(--linux-shortcut --linux-menu-group "Science" --linux-package-name "$PACKAGE_NAME")
 fi
 
 rm -rf "$DEST/$APP_NAME" "$DEST/$APP_NAME.app"

@@ -17,7 +17,7 @@ the macOS one on a Mac, the Windows one on a Windows PC.
 
 | | Command (from the project folder) | Result in `build/installer/` |
 |---|---|---|
-| macOS | `packaging/package.sh 4.0.0` | `Scatter-4.0.0.dmg` |
+| macOS | `packaging/package.sh 4.0.0` | `ScÅtter-4.0.0.dmg` (app name ScÅtter; `APP_NAME=Scatter` for plain ASCII) |
 | Windows | `packaging\package-windows.bat 4.0.0` | `Scatter-4.0.0.msi` |
 | Linux | `TYPE=deb packaging/package.sh 4.0.0` | `.deb` (or `app-image` folder by default) |
 

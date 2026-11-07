@@ -84,6 +84,11 @@ if not exist "%DEST%" mkdir "%DEST%"
 robocopy "%JAR_DIR%" "%STAGING%" *.jar /NFL /NDL /NJH /NJS /NP /XF *-sources.jar *-javadoc.jar *-tests.jar *-test-sources.jar junit*.jar hamcrest*.jar jsr305*.jar >nul
 if errorlevel 8 (echo ERROR: could not copy the jars & exit /b 1)
 
+rem licence texts go into the app folder next to the jars
+if exist "%PROJECT%\LICENSE" copy /y "%PROJECT%\LICENSE" "%STAGING%\LICENSE.txt" >nul
+if exist "%PROJECT%\THIRD-PARTY-NOTICES.txt" copy /y "%PROJECT%\THIRD-PARTY-NOTICES.txt" "%STAGING%\" >nul
+if exist "%PROJECT%\licenses\" robocopy "%PROJECT%\licenses" "%STAGING%\licenses" /E /NFL /NDL /NJH /NJS /NP >nul
+
 set "HAS_FORMS="
 set "HAS_FLATLAF="
 for %%J in ("%STAGING%\*.jar") do (

@@ -1,0 +1,105 @@
+ScÅtter (Scatter IV) - third-party software
+===========================================
+
+ScÅtter is distributed under the GNU General Public License, version 3 or
+(at your option) any later version; see LICENSE.txt.
+
+It includes the following libraries, each under its own licence. The full
+licence texts are in the "licenses" folder:
+  licenses/GPL-3.0.txt     GNU General Public License v3
+  licenses/LGPL-2.1.txt    GNU Lesser General Public License v2.1
+  licenses/Apache-2.0.txt  Apache License 2.0
+MIT, BSD-style and public-domain notices are reproduced below.
+
+The installers also contain a Java runtime built from OpenJDK, licensed under
+the GNU General Public License v2 with the Classpath Exception. Its notices are
+in the runtime's "legal" folder.
+
+
+GNU General Public License v3
+-----------------------------
+JFreeSVG 3.3                  (C) Object Refinery Limited (David Gilbert)
+                              https://github.com/jfree/jfreesvg
+
+
+GNU Lesser General Public License v2.1
+--------------------------------------
+JFreeChart 1.0.19             (C) Object Refinery Limited and Contributors
+                              https://github.com/jfree/jfreechart
+JCommon 1.0.23                (C) Object Refinery Limited and Contributors
+                              https://github.com/jfree/jcommon
+
+These are included as separate, unmodified jar files and can be replaced with
+other compatible versions. Their source code is available from the URLs above.
+
+
+Apache License 2.0
+------------------
+Apache Commons Codec 1.13     Copyright 2002-2019 The Apache Software Foundation
+Apache Commons IO 2.6         Copyright 2002-2017 The Apache Software Foundation
+Apache Commons Logging 1.2    Copyright 2003-2014 The Apache Software Foundation
+Apache Commons Math 3.6.1     Copyright 2001-2016 The Apache Software Foundation
+                              Includes software developed for Orekit by
+                              CS Systemes d'Information (http://www.c-s.fr/)
+Apache PDFBox 2.0.17          Copyright 2002-2019 The Apache Software Foundation
+Apache FontBox 2.0.17         Copyright 2008-2019 The Apache Software Foundation
+  These products include software developed at
+  The Apache Software Foundation (https://www.apache.org/).
+
+Jackson (core, databind,      Copyright FasterXML, LLC and contributors;
+  annotations) 2.9            originally written by Tatu Saloranta
+                              https://github.com/FasterXML/jackson
+EJML 0.38                     Copyright Peter Abeles
+                              https://ejml.org
+Jafama                        Copyright Jeff Hain
+                              https://github.com/jeffhain/jafama
+FlatLaf                       Copyright FormDev Software GmbH
+                              https://www.formdev.com/flatlaf/
+IntelliJ GUI Designer         Copyright JetBrains s.r.o.
+  runtime (forms_rt)          https://github.com/JetBrains/intellij-community
+
+
+MIT License
+-----------
+FastDTW                       Copyright (c) 2004 Stan Salvador, Philip Chan
+                              https://code.google.com/archive/p/fastdtw
+pdfbox-layout 1.0.0           Copyright (c) Ralf Stuckert
+                              https://github.com/ralfstuckert/pdfbox-layout
+
+  Permission is hereby granted, free of charge, to any person obtaining a copy
+  of this software and associated documentation files (the "Software"), to deal
+  in the Software without restriction, including without limitation the rights
+  to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+  copies of the Software, and to permit persons to whom the Software is
+  furnished to do so, subject to the following conditions:
+
+  The above copyright notice and this permission notice shall be included in
+  all copies or substantial portions of the Software.
+
+  THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+  IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+  FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+  AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+  LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+  OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+  SOFTWARE.
+
+
+QuickHull3D
+-----------
+QuickHull3D                   Copyright John E. Lloyd, 2004. All rights reserved.
+                              https://www.cs.ubc.ca/~lloyd/java/quickhull3d.html
+
+  Permission to use, copy, modify and redistribute is granted, provided that
+  this copyright notice is retained and the author is given credit whenever
+  appropriate. This software is distributed "as is", without any warranty,
+  including any implied warranty of merchantability or fitness for a particular
+  use. The author assumes no responsibility for, and shall not be liable for,
+  any special, indirect, or consequential damages, or any damages whatsoever,
+  arising out of or in connection with the use of this software.
+
+
+Public domain
+-------------
+FileDrop                      Robert Harder (public domain)
+                              http://iharder.sourceforge.net/current/java/filedrop/
