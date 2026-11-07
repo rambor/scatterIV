@@ -40,9 +40,13 @@ public class SecFileIOTest {
 
     /** Flat buffer with noise; frames 55-70 carry a Guinier-like particle peak. */
     static Collection syntheticRun() {
+        return syntheticRun(FRAMES);
+    }
+
+    static Collection syntheticRun(int frames) {
         Random random = new Random(42);
         Collection collection = new Collection("synthetic");
-        for (int f = 0; f < FRAMES; f++) {
+        for (int f = 0; f < frames; f++) {
             double amplitude = (f >= 55 && f <= 70) ? 5.0 * Math.exp(-Math.pow((f - 62) / 4.0, 2)) : 0.0;
             XYSeries data = new XYSeries("f" + f);
             XYSeries err = new XYSeries("f" + f);
@@ -128,6 +132,12 @@ public class SecFileIOTest {
             assertTrue("buffers " + buffers, buffers >= SecProcessor.MIN_BUFFER_FRAMES);
             for (int f = 55; f <= 70; f++) {
                 assertTrue("peak frame " + f + " flagged as buffer", sec.getBackground().indexOf((double) f) < 0);
+            }
+
+            // the tail of the run is never used as buffer
+            int last = SecProcessor.lastBufferCandidate(FRAMES);
+            for (int f = last + 1; f < FRAMES; f++) {
+                assertTrue("tail frame " + f + " flagged as buffer", sec.getBackground().indexOf((double) f) < 0);
             }
 
             // Guinier analysis at the peak recovers Rg
@@ -285,6 +295,52 @@ public class SecFileIOTest {
         } finally {
             sec.closeFile();
         }
+    }
+
+    @Test
+    public void shortRunsAreRejected() throws IOException {
+        Collection tooShort = syntheticRun(76);
+        try {
+            new SECBuilder(tooShort, null, null, "short", dir.toString(), 1.004);
+            fail("a 76-frame run must be rejected");
+        } catch (IOException expected) {
+            assertTrue(expected.getMessage(), expected.getMessage().contains("too short"));
+        }
+        // the engine enforces it too
+        SecProcessor.CommonQ common = SecProcessor.findCommonQValues(tooShort);
+        try {
+            new SecProcessor(tooShort, common.qvalues, 1.004, 0, null);
+            fail("SecProcessor must reject a 76-frame run");
+        } catch (IllegalArgumentException expected) {
+            // ok
+        }
+
+        // frames not in use do not count
+        Collection mixed = syntheticRun(SecProcessor.MIN_FRAMES + 1);
+        mixed.getDataset(3).setInUse(false);
+        mixed.getDataset(4).setInUse(false);
+        try {
+            new SECBuilder(mixed, null, null, "mixed", dir.toString(), 1.004);
+            fail("run with only " + (SecProcessor.MIN_FRAMES - 1) + " frames in use must be rejected");
+        } catch (IOException expected) {
+            // ok
+        }
+
+        // the minimum itself is accepted
+        new SECBuilder(syntheticRun(SecProcessor.MIN_FRAMES), null, null, "ok", dir.toString(), 1.004);
+    }
+
+    @Test
+    public void manualBufferSelectionMayIncludeEndOfRun() {
+        Collection run = syntheticRun();
+        SecProcessor.CommonQ common = SecProcessor.findCommonQValues(run);
+        SecProcessor processor = new SecProcessor(run, common.qvalues, 1.004, 0, null);
+        TreeSet<Integer> manual = new TreeSet<>();
+        for (int f = FRAMES - 20; f < FRAMES; f++) manual.add(f);
+        processor.useBufferFrames(manual);
+        SecData data = processor.process();
+        for (int f = FRAMES - 20; f < FRAMES; f++) assertTrue("frame " + f, data.isBuffer(f));
+        assertFalse(data.isBuffer(10));
     }
 
     @Test

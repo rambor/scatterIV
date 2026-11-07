@@ -42,6 +42,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     private SortedSet<Integer> bufferIndices;   // REBUILD
     private String outputname;
     private final String workingDirectory;
+    private boolean compressOutput;             // write .sec.gz instead of .sec
 
     // GUINIER_ONLY
     private String secfilename;
@@ -51,10 +52,12 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     /**
      * New SEC file from a collection of frames.
      *
-     * @param newSecfilename       output name without extension; if empty a name is derived from the first frame
+     * @param newSecfilename       output name; if empty a name is derived from the first frame.
+     *                             A name ending in ".gz" (e.g. "run.sec.gz") writes a compressed file.
      * @param workingDirectoryName directory for the output
      * @param threshold            signal threshold for AutoRg, typically > 1.003
-     * @throws IOException if the frames do not share enough q-values
+     * @throws IOException if the run has fewer than {@link SecProcessor#MIN_FRAMES} frames in use,
+     *                     or the frames do not share enough q-values
      */
     public SECBuilder(Collection collection, JLabel status, JProgressBar bar, String newSecfilename,
                       String workingDirectoryName, double threshold) throws IOException {
@@ -64,6 +67,12 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         this.progress = new SwingProgressListener(status, bar);
         this.workingDirectory = workingDirectoryName;
 
+        int inUse = SecProcessor.framesInUse(collection);
+        if (inUse < SecProcessor.MIN_FRAMES) {
+            progress.message(SecProcessor.tooShortMessage(inUse));
+            throw new IOException(SecProcessor.tooShortMessage(inUse));
+        }
+
         SecProcessor.CommonQ common = SecProcessor.findCommonQValues(collection);
         if (!common.isAcceptable()) {
             progress.message("Improper dataset for SEC SAXS :: Run Scatter via console and examine output");
@@ -71,9 +80,16 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         }
         this.qvalues = common.qvalues;
 
-        this.outputname = (newSecfilename == null || newSecfilename.isEmpty())
+        String requested = (newSecfilename == null) ? "" : newSecfilename.trim();
+        if (requested.toLowerCase().endsWith(SecGzip.EXTENSION)) { // "name.sec.gz" or "name.gz" asks for compression
+            compressOutput = true;
+            requested = SecGzip.stripGzipExtension(requested);
+        }
+        if (requested.toLowerCase().endsWith(".sec")) requested = requested.substring(0, requested.length() - 4);
+
+        this.outputname = requested.isEmpty()
                 ? deriveOutputName(collection.getDataset(0).getFileName())
-                : newSecfilename;
+                : requested;
     }
 
     /**
@@ -88,6 +104,7 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         this.workingDirectory = workingDirectoryName;
         this.bufferIndices = new TreeSet<>(bufferIndices);
         this.outputname = oldsecfile.getFilebase();
+        this.compressOutput = oldsecfile.isCompressed(); // rebuild keeps the original's format
         this.collection = new Collection("rebuild");
 
         ArrayList<Double> oldq = oldsecfile.getQvalues();
@@ -212,11 +229,24 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         }
         if (header == null) header = new SasObject();
 
+        String fileName = outputname + ".sec" + (compressOutput ? SecGzip.EXTENSION : "");
         Path target = (workingDirectory == null || workingDirectory.isEmpty())
-                ? Paths.get(outputname + ".sec")
-                : Paths.get(workingDirectory, outputname + ".sec");
+                ? Paths.get(fileName)
+                : Paths.get(workingDirectory, fileName);
         progress.message("Writing " + target.getFileName());
-        SecFileWriter.write(target, header, data, progress);
+        if (compressOutput) {
+            Path plain = SecFileWriter.siblingTempFile(target.toAbsolutePath());
+            try {
+                SecFileWriter.write(plain, header, data, progress);
+                progress.indeterminate(true);
+                progress.message("Compressing " + target.getFileName());
+                SecGzip.compress(plain, target);
+            } finally {
+                java.nio.file.Files.deleteIfExists(plain);
+            }
+        } else {
+            SecFileWriter.write(target, header, data, progress);
+        }
         outputname = target.toString();
         progress.message("Finished writing " + target.getFileName());
     }
@@ -225,8 +255,19 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
         SecProcessor.GuinierResults results = SecProcessor.autoRg(collection, totalFrames, excludePoints, progress);
         progress.indeterminate(true);
         progress.message("Updating SEC File... please wait");
-        try (SecFileReader reader = new SecFileReader(Paths.get(secfilename))) {
-            SECFile.writeGuinier(reader, sasObject, threshold, results);
+        Path file = Paths.get(secfilename);
+        boolean gz = SecGzip.isGzip(file);
+        Path working = gz ? SecGzip.decompressToTemp(file) : file;
+        try {
+            try (SecFileReader reader = new SecFileReader(working)) {
+                SECFile.writeGuinier(reader, sasObject, threshold, results);
+            }
+            if (gz) {
+                progress.message("Compressing " + file.getFileName());
+                SecGzip.compress(working, file);
+            }
+        } finally {
+            if (gz) java.nio.file.Files.deleteIfExists(working);
         }
         progress.indeterminate(false);
         progress.message("Finished updating SEC file");
@@ -241,6 +282,11 @@ public class SECBuilder extends SwingWorker<Void, Integer> {
     public String getOutputname() { return outputname; }
 
     public void setExcludePoints(int value) { this.excludePoints = value; }
+
+    /** Write the new file gzip-compressed (.sec.gz). Ending the output name in ".gz" does the same. */
+    public void setCompressOutput(boolean compress) { this.compressOutput = compress; }
+
+    public boolean isCompressOutput() { return compressOutput; }
 
     public int getTotalQValues() { return qvalues.size(); }
 

@@ -238,9 +238,9 @@ public class SECTool extends JDialog {
                             if (files.length == 1) { // auto build list from file if list == 1 and extension is not .sec
 
                                 String[] filename = files[0].getName().split("\\.(?=[^\\.]+$)");
-                                String ext = filename[1];
+                                String ext = (filename.length > 1) ? filename[1] : "";
 
-                                if (ext.equals("sec")){
+                                if (SECFile.isSecFileName(files[0].getName())){ // .sec or .sec.gz
                                     /*
                                      * validate file
                                      * grab JSON
@@ -795,13 +795,13 @@ public class SECTool extends JDialog {
                 if(option == JFileChooser.APPROVE_OPTION){
                     File[] files = fc.getSelectedFiles();
                     String[] filename = files[0].getName().split("\\.(?=[^\\.]+$)");
-                    String ext = filename[1];
+                    String ext = (filename.length > 1) ? filename[1] : "";
 
                     status.setText("Selected file(s) :: " + files.length);
 
                     if (files.length == 1){
 
-                            if (ext.equals("sec")){
+                            if (SECFile.isSecFileName(files[0].getName())){ // .sec or .sec.gz
                                 /*
                                  * validate file
                                  * grab JSON
@@ -1164,6 +1164,48 @@ public class SECTool extends JDialog {
                 } else {
                     status.setText("Too few frames for SVD correlation mapping");
                 }
+            }
+        }));
+
+        popupMenu.add(new JMenuItem(new AbstractAction("Save copy as .sec or .sec.gz...") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (!(secFile instanceof SECFile)) {
+                    status.setText("Load a SEC file first");
+                    return;
+                }
+                final SECFile current = secFile;
+                // suggest the other format: compressed copy of a .sec, plain copy of a .sec.gz
+                String suggested = current.getFilebase() + (current.isCompressed() ? ".sec" : ".sec.gz");
+                JFileChooser chooser = new JFileChooser(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+                chooser.setDialogTitle("Save copy (name ending in .gz is compressed)");
+                chooser.setSelectedFile(new File(Scatter.WORKING_DIRECTORY.getWorkingDirectory(), suggested));
+                if (chooser.showSaveDialog(contentPane) != JFileChooser.APPROVE_OPTION) return;
+
+                final File target = chooser.getSelectedFile();
+                final boolean compress = target.getName().toLowerCase().endsWith(".gz");
+                if (target.exists() && JOptionPane.showConfirmDialog(contentPane, target.getName() + " exists. Replace it?",
+                        "Save copy", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+                    return;
+                }
+
+                status.setText((compress ? "Compressing to " : "Saving ") + target.getName() + "...");
+                progressBar.setIndeterminate(true);
+                new Thread(() -> {
+                    String message;
+                    try {
+                        current.exportCopy(target, compress);
+                        message = "Saved " + target.getName() + String.format(" (%.1f MB)", target.length() / 1.0e6);
+                    } catch (IOException ex) {
+                        ex.printStackTrace();
+                        message = "Could not save copy :: " + ex.getMessage();
+                    }
+                    final String done = message;
+                    SwingUtilities.invokeLater(() -> {
+                        progressBar.setIndeterminate(false);
+                        status.setText(done);
+                    });
+                }).start();
             }
         }));
 

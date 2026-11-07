@@ -29,6 +29,12 @@ public class SecProcessor {
     public static final int WINDOW = 37;
     /** Fewest buffer frames accepted before the tolerance is relaxed. */
     public static final int MIN_BUFFER_FRAMES = 6;
+    /**
+     * Fewest frames (in use) for a meaningful SEC run. Shorter runs are rejected as a whole: the background
+     * scan would find few or no windows, and its fallback could reach the end of the run.
+     */
+    public static final int MIN_FRAMES = 2 * WINDOW + 3; // 77, i.e. more than 76
+
     /** Fraction of q-values that must be common to all frames. */
     public static final double MIN_COMMON_Q_FRACTION = 0.6;
 
@@ -58,6 +64,7 @@ public class SecProcessor {
      */
     public SecProcessor(Collection collection, List<? extends Number> qvalues, double threshold, int excludePoints, ProgressListener listener) {
         if (qvalues.isEmpty()) throw new IllegalArgumentException("No q-values");
+        checkRunLength(collection);
         this.collection = collection;
         this.qvalues = new ArrayList<>(qvalues);
         this.threshold = threshold;
@@ -78,6 +85,27 @@ public class SecProcessor {
     public XYSeries getAveragedBuffer() { return buffer; }
 
     public XYSeries getAveragedBufferError() { return bufferError; }
+
+    /** Number of frames in use. */
+    public static int framesInUse(Collection collection) {
+        int n = 0;
+        for (int i = 0; i < collection.getTotalDatasets(); i++) {
+            if (collection.getDataset(i).getInUse()) n++;
+        }
+        return n;
+    }
+
+    /** @throws IllegalArgumentException if the run has fewer than {@value #MIN_FRAMES} frames in use */
+    public static void checkRunLength(Collection collection) {
+        int n = framesInUse(collection);
+        if (n < MIN_FRAMES) {
+            throw new IllegalArgumentException(tooShortMessage(n));
+        }
+    }
+
+    public static String tooShortMessage(int framesInUse) {
+        return "SEC run too short :: " + framesInUse + " frames in use, at least " + MIN_FRAMES + " required";
+    }
 
     // ------------------------------------------------------------------ q-values
 
@@ -168,8 +196,10 @@ public class SecProcessor {
 
         // The spread of each window does not depend on the tolerance, so compute it once.
         // (Previously every relaxation step recomputed all windows.)
+        // Windows end before the last WINDOW frames, so the end of the run is never a buffer candidate
+        // (see lastBufferCandidate). This is intentional: the tail of a SEC run must not enter the buffer average.
         int firstWindowEnd = WINDOW;
-        int lastWindowEnd = totalInCollection - WINDOW; // exclusive; unchanged from the original scan range
+        int lastWindowEnd = totalInCollection - WINDOW; // exclusive
         int windows = Math.max(0, lastWindowEnd - firstWindowEnd);
         double[] spreads = new double[windows];
         for (int k = 0; k < windows; k++) {
@@ -214,6 +244,14 @@ public class SecProcessor {
         }
 
         averageBufferFrames();
+    }
+
+    /**
+     * Highest frame index the automatic background scan can select as buffer. Frames after it, the last
+     * {@code WINDOW + 1} frames of the run, are never used in the buffer average by the estimate.
+     */
+    public static int lastBufferCandidate(int totalFrames) {
+        return totalFrames - WINDOW - 2;
     }
 
     /** Same first-come assignment as the original scan: a frame keeps the first verdict it receives. */

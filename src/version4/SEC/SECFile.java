@@ -22,6 +22,9 @@ import java.util.*;
 public class SECFile {
 
     private final String filename, filebase, absolutePath, parentPath;
+    private final java.nio.file.Path source;   // the file the user opened (.sec or .sec.gz)
+    private final java.nio.file.Path working;  // the uncompressed file actually read and edited
+    private final boolean compressed;
     private final SecFileReader reader;
     private final SecFileEditor editor;
 
@@ -48,9 +51,20 @@ public class SECFile {
         this.filename = file.getName();
         this.absolutePath = file.getAbsolutePath();
         this.parentPath = (file.getParent() == null) ? " " : file.getParent();
-        this.filebase = file.getName().split("\\.(?=[^\\.]+$)")[0];
+        this.filebase = SecGzip.stripGzipExtension(file.getName()).split("\\.(?=[^\\.]+$)")[0];
 
-        this.reader = new SecFileReader(file.toPath());
+        this.source = file.toPath().toAbsolutePath();
+        this.compressed = SecGzip.isGzip(source);
+        this.working = compressed ? SecGzip.decompressToTemp(source) : source;
+
+        SecFileReader opened;
+        try {
+            opened = new SecFileReader(working);
+        } catch (IOException | RuntimeException e) {
+            if (compressed) java.nio.file.Files.deleteIfExists(working);
+            throw e;
+        }
+        this.reader = opened;
         this.editor = new SecFileEditor(reader);
         try {
             this.sasObject = reader.getSasObject();
@@ -70,6 +84,7 @@ public class SECFile {
             }
         } catch (IOException | RuntimeException e) {
             reader.close();
+            if (compressed) java.nio.file.Files.deleteIfExists(working);
             throw e;
         }
 
@@ -241,6 +256,7 @@ public class SECFile {
     private void replace(Map<Integer, String> lines) {
         try {
             editor.replaceLines(lines);
+            if (compressed) SecGzip.compress(working, source); // keep the .gz on disk up to date
         } catch (IOException e) {
             throw new java.io.UncheckedIOException("Could not update " + filename, e);
         }
@@ -366,8 +382,39 @@ public class SECFile {
     public void closeFile() {
         try {
             reader.close();
+            if (compressed) java.nio.file.Files.deleteIfExists(working);
         } catch (IOException e) {
             e.printStackTrace();
+        }
+    }
+
+    // ------------------------------------------------------------------ compression
+
+    /** True for names ending in .sec or .sec.gz (any case). */
+    public static boolean isSecFileName(String name) {
+        String lower = name.toLowerCase();
+        return lower.endsWith(".sec") || lower.endsWith(".sec" + SecGzip.EXTENSION);
+    }
+
+    /** The uncompressed file being read (a temporary file when the source is .sec.gz). */
+    java.nio.file.Path getWorkingPath() { return working; }
+
+    /** True if the file the user opened is gzip-compressed. */
+    public boolean isCompressed() { return compressed; }
+
+    /**
+     * Save a copy of this file, compressed (.sec.gz) or not (.sec). The open file is not changed.
+     * @throws IOException if {@code target} is the open file itself
+     */
+    public void exportCopy(File target, boolean compress) throws IOException {
+        java.nio.file.Path out = target.toPath().toAbsolutePath();
+        if (out.equals(source) || out.equals(working)) {
+            throw new IOException("Choose a different file name: " + target.getName() + " is the open file");
+        }
+        if (compress) {
+            SecGzip.compress(working, out);
+        } else {
+            SecGzip.copy(working, out);
         }
     }
 }
