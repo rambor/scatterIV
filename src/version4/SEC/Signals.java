@@ -1,5 +1,9 @@
 package version4.SEC;
 
+/**
+ * @deprecated no longer used by SECBuilder; per-frame results are held in {@link SecData}.
+ */
+@Deprecated
 public class Signals{
     private final int id;
     private final double signal;
@@ -8,7 +12,7 @@ public class Signals{
     private final double rgError;
     private final double izeroError;
     private double total_qIq;
-    private int isBuffer=1;
+    private int isBuffer=0;
 
     public Signals(int id, double signal, double izero, double rg, double izeroerror, double rgerror){
         this.id = id;

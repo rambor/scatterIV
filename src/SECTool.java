@@ -550,39 +550,16 @@ public class SECTool extends JDialog {
                         } else {
 
                             /*
-                             * on MAC and LINUX can update a single line in the file without closing
-                             * on WINDOWS, must close file, so we update a temp and write to old file.
+                             * write the edited sample metadata to the header line;
+                             * done in place when it fits, otherwise one atomic rewrite (works on all platforms)
                              */
-                            String sasObjectString = secFile.getSasObjectJSON() + secFile.getNew_line_separator();
-                            String parentPath = secFile.getParentPath();
-                            secFile.closeFile();
-
                             try {
-                                int size = 8192 * 16;
-                                // only replacing first line (sasObjectString)
-                                System.out.println( System.getProperty("user.dir"));
-                                BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(secfilename)), size);
-                                br.readLine();
-                                BufferedWriter bw = new BufferedWriter(new FileWriter(parentPath+"/temp.sec"));
-                                bw.write(sasObjectString);
-
-                                int is;
-                                do {
-                                    is = br.read();
-                                    if (is != -1) {
-                                        bw.write((char) is);
-                                    }
-                                } while (is != -1);
-                                bw.close();
-                                br.close();
-                                // overwrite original file
-                                File f1 = new File(parentPath+"/temp.sec");
-                                File f2 = new File(secfilename);
-                                f1.renameTo(f2);
-
-                            } catch (IOException ex) {
+                                secFile.updateHeader();
+                            } catch (UncheckedIOException ex) {
+                                status.setText("Could not update SEC file header :: " + ex.getMessage());
                                 ex.printStackTrace();
                             }
+                            secFile.closeFile();
 
                             try {
                                 secFile = new SECFile(new File(secfilename));

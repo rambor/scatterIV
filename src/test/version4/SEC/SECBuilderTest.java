@@ -64,9 +64,15 @@ public class SECBuilderTest {
 
         rec1.run();
         String name="";
-        SECBuilder secObj = new SECBuilder(collection, status, progressBar, name, "",1.004d);
+        File outDir = java.nio.file.Files.createTempDirectory("secbuilder").toFile();
+        SECBuilder secObj = new SECBuilder(collection, status, progressBar, name, outDir.getAbsolutePath(), 1.004d);
 
         secObj.doInBackground();
+
+        SECFile written = new SECFile(new File(secObj.getOutputname()));
+        Assert.assertEquals(794, written.getTotalFrames());
+        Assert.assertTrue(written.validate(null).isEmpty());
+        written.closeFile();
     }
 
     @Test

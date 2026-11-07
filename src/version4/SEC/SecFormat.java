@@ -1,5 +1,6 @@
 package version4.SEC;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -13,6 +14,12 @@ import com.fasterxml.jackson.databind.ser.std.StdSerializer;
 import java.io.IOException;
 import java.util.ArrayList;
 
+/**
+ * Line layout of a *.sec file, stored as "sec_format" in the JSON header (line 0).
+ * Each *_index is the 0-based line number where that block starts; 0 means "not present".
+ * Unknown keys are ignored so files from newer releases can still be opened.
+ */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class SecFormat {
 
     private int total_momentum_transfer_vectors;
