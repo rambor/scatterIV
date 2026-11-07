@@ -1,5 +1,4 @@
 import FileManager.WorkingDirectory;
-import version4.Modeller.DammiNFManager;
 
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
@@ -198,39 +197,10 @@ public class Modeling implements ChangeListener, PropertyChangeListener {
         STARTButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-
-                new Thread(){
-                    public void run() {
-
-
-                        String filename = outFileLabel.getText();
-                        String damstartFile = damStartLabel.getText();
-                        boolean damminOrIf = damminRadioButton.isSelected();
-                        boolean fastOrSlow = fastRadioButton.isSelected();
-                        Settings setIt = Settings.getInstance();
-
-                        DammiNFManager tempModeling = new DammiNFManager(
-                                Integer.valueOf(cpuBox.getSelectedItem().toString()),
-                                filename,
-                                damminOrIf,
-                                Integer.valueOf(runsComboBox.getSelectedItem().toString()),
-                                symmetryBox.getSelectedItem().toString(),
-                                setIt.getATSASDir(),
-                                workingDirectory.getWorkingDirectory(),
-                                damminfModelsModel,
-                                fastOrSlow,
-                                damstartFile,
-                                damstartStatus,
-                                damRefineCheckBox.isSelected());
-
-//                        if (alignPDBModelRunsCheckBox.isSelected() && supcombFile.exists()){
-//                            tempModeling.setSupcombFile(supcombFile);
-//                        }
-
-                        tempModeling.modelNow(modelingOutputPane);
-
-                    }
-                }.start();
+                // the previous modelling programs were removed; the new ones are not connected yet
+                String message = "Modelling is not available in this version.";
+                status.setText(message);
+                modelingOutputPane.setText(message);
             }
         });
 

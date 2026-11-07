@@ -41,7 +41,7 @@
                 <properties>
                   <font style="1"/>
                   <foreground color="-34442"/>
-                  <text value=" ATSAS DIRECTORY"/>
+                  <text value=" PROGRAMS DIRECTORY"/>
                 </properties>
               </component>
               <hspacer id="60d09">
@@ -49,7 +49,7 @@
                   <grid row="0" column="3" row-span="1" col-span="1" vsize-policy="1" hsize-policy="6" anchor="0" fill="1" indent="0" use-parent-layout="false"/>
                 </constraints>
               </hspacer>
-              <component id="12b29" class="javax.swing.JButton" binding="atsasDirButton">
+              <component id="12b29" class="javax.swing.JButton" binding="programsDirButton">
                 <constraints>
                   <grid row="0" column="1" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
                 </constraints>
@@ -57,7 +57,7 @@
                   <text value="SET"/>
                 </properties>
               </component>
-              <component id="6dee9" class="javax.swing.JLabel" binding="atsasDirLabel">
+              <component id="6dee9" class="javax.swing.JLabel" binding="programsDirLabel">
                 <constraints>
                   <grid row="0" column="2" row-span="1" col-span="1" vsize-policy="0" hsize-policy="0" anchor="8" fill="0" indent="0" use-parent-layout="false"/>
                 </constraints>
@@ -130,7 +130,7 @@
             <properties>
               <font size="14" style="1"/>
               <foreground color="-14902"/>
-              <text value="Set the ATSAS directory (location of the ATSAS binaries, i.e, dammin.exe)"/>
+              <text value="Set the directory of the modelling programs used by MODEL"/>
             </properties>
           </component>
         </children>

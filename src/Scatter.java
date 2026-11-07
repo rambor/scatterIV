@@ -19,7 +19,7 @@ import java.util.concurrent.ExecutionException;
 
 public class Scatter {
     private static String OUTPUT_DIR_SUBTRACTION_NAME="";
-    private static String ATSAS_DIRECTORY="";
+    private static String PROGRAMS_DIRECTORY="";
     private static String THEME = version4.Theme.DEFAULT; // dark, light, system or off; "theme" in scatter.config
     private static String THRESHOLD="";
 
@@ -482,14 +482,16 @@ public class Scatter {
             }
         }
 
-        if (prop.getProperty("atsasDirectory") != null) {
-            ATSAS_DIRECTORY = prop.getProperty("atsasDirectory");
-            File theDir = new File(ATSAS_DIRECTORY);
+        // folder of the modelling programs run by MODEL ("atsasDirectory" in older settings files)
+        String programs = prop.getProperty("programsDirectory", prop.getProperty("atsasDirectory"));
+        if (programs != null) {
+            PROGRAMS_DIRECTORY = programs;
+            File theDir = new File(PROGRAMS_DIRECTORY);
             if (!theDir.exists()) {
-                ATSAS_DIRECTORY = System.getProperty("user.home");
+                PROGRAMS_DIRECTORY = System.getProperty("user.home");
             }
             Settings setIt = Settings.getInstance();
-            setIt.setATSASDir(ATSAS_DIRECTORY);
+            setIt.setProgramsDir(PROGRAMS_DIRECTORY);
         }
 
         if (prop.getProperty("theme") != null) {
@@ -527,11 +529,10 @@ public class Scatter {
     public static void updateProp(){
         Properties prop = new Properties();
         Settings setit = Settings.getInstance();
-        ATSAS_DIRECTORY = setit.getATSASDir();
-        System.out.println("Updating prop " + ATSAS_DIRECTORY);
+        PROGRAMS_DIRECTORY = setit.getProgramsDir();
 
         prop.setProperty("workingDirectory", WORKING_DIRECTORY.getWorkingDirectory());
-        if (ATSAS_DIRECTORY != null) prop.setProperty("atsasDirectory", ATSAS_DIRECTORY);
+        if (PROGRAMS_DIRECTORY != null) prop.setProperty("programsDirectory", PROGRAMS_DIRECTORY);
         if (OUTPUT_DIR_SUBTRACTION_NAME != null) prop.setProperty("subtractionDirectory", OUTPUT_DIR_SUBTRACTION_NAME);
         prop.setProperty("theme", THEME);
         try {

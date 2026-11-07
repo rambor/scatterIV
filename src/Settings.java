@@ -16,8 +16,8 @@ import java.nio.file.Paths;
 public class Settings extends JDialog implements ChangeListener, PropertyChangeListener {
 
     private JPanel contentPane;
-    private  JButton atsasDirButton;
-    private  JLabel atsasDirLabel;
+    private  JButton programsDirButton;
+    private  JLabel programsDirLabel;
     private  JButton workingDirButton;
     private  JLabel workingDirLabel;
     private  JTextField qmaxLimitField;
@@ -37,7 +37,7 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
     private static DoubleValue defaultDmax;
     private static Settings singleton = new Settings();
     private static JLabel status;
-    private static String atsasDirectory;
+    private static String programsDirectory;
 
     private Settings(){
         dmaxSearchMinValue = new DoubleValue(37);
@@ -234,25 +234,26 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
 
         workingDirLabel.setText(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
 
-        atsasDirButton.addActionListener(new ActionListener() {
+        programsDirButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                //Set working directory
-                File theCWD = new File(System.getProperty("user.dir"));
-                JFileChooser chooser = new JFileChooser(theCWD);
-                chooser.setDialogTitle("Select Directory");
+                // folder with the modelling programs run by MODEL
+                File start = (programsDirectory != null && new File(programsDirectory).isDirectory())
+                        ? new File(programsDirectory) : new File(System.getProperty("user.home"));
+                JFileChooser chooser = new JFileChooser(start);
+                chooser.setDialogTitle("Select the modelling programs directory");
 
                 chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
                 chooser.setAcceptAllFileFilterUsed(false);
 
                 if (chooser.showOpenDialog(contentPane) == JFileChooser.APPROVE_OPTION){
                     if (chooser.getSelectedFile().isDirectory()){
-                        atsasDirectory = chooser.getSelectedFile().toString();
+                        programsDirectory = chooser.getSelectedFile().toString();
                     } else {
-                        atsasDirectory = chooser.getCurrentDirectory().toString();
+                        programsDirectory = chooser.getCurrentDirectory().toString();
                     }
 
-                    atsasDirLabel.setText(atsasDirectory);
+                    programsDirLabel.setText(programsDirectory);
                     Scatter.updateProp();
                 }
             }
@@ -326,15 +327,15 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
         return defaultDmax;
     }
 
-    public String getATSASDir() { return atsasDirectory; }
-    public void setATSASDir(String value) {
+    public String getProgramsDir() { return programsDirectory; }
+    public void setProgramsDir(String value) {
 
         Path path = Paths.get(value);
         if (Files.isDirectory(path)){
-            atsasDirectory = value;
-            atsasDirLabel.setText(value);
+            programsDirectory = value;
+            programsDirLabel.setText(value);
         } else {
-            status.setText("ATSAS Directory does not exists");
+            status.setText("Programs directory does not exist :: " + value);
         }
     }
 
