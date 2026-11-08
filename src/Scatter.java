@@ -518,7 +518,9 @@ public class Scatter {
         SwingUtilities.invokeLater(() -> {
             version4.EdtChecker.installIfRequested(); // -Dscatter.checkEdt=true reports off-EDT Swing calls
             version4.Theme.apply(THEME);
+            version4.AppIcon.install();            // Dock icon + icon on every frame opened later
             frame = new JFrame("ScatterIV");
+            version4.AppIcon.apply(frame);
             frame.setContentPane(new Scatter().bg);
             frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
             frame.pack();
