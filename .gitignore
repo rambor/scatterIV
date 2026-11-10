@@ -1,3 +1,13 @@
 # Project exclude paths
 /out/
 /build/
+
+# macOS folder metadata
+.DS_Store
+
+# personal settings (now kept in the user settings folder; old copies may remain here)
+/scatter.config
+
+# IntelliJ per-user files (.idea/.gitignore covers the rest)
+.idea/workspace.xml
+.idea/shelf/

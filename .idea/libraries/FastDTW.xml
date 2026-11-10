@@ -1,0 +1,9 @@
+<component name="libraryTable">
+  <library name="FastDTW">
+    <CLASSES>
+      <root url="jar://$PROJECT_DIR$/lib/FastDTW_jar/FastDTW.jar!/" />
+    </CLASSES>
+    <JAVADOC />
+    <SOURCES />
+  </library>
+</component>
