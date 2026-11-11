@@ -666,59 +666,37 @@ public class RealSpacePr {
                 this.button.setForeground(Color.GREEN);
                 status.setText("");
                 prStatusLabel.setText("Starting refinement of " + prModel.getDataset(rowID).getFilename());
-                // launch a thread
 
-                Thread refineIt = new Thread(){
-                    public void run() {
+                // read the settings here, on the EDT; the SwingWorker does the work in the background
+                // and applies the result on the EDT, then runs the callback below (also on the EDT)
+                final RefinePrManager refinePrMe = new RefinePrManager(
+                        prModel.getDataset(rowID),
+                        cpuCores,
+                        Integer.parseInt(refinementRoundsBox.getSelectedItem().toString()),
+                        Double.parseDouble(rejectionCutOffBox.getSelectedItem().toString()),
+                        Double.parseDouble(lambdaBox.getSelectedItem().toString()),
+                        Integer.parseInt(cBox.getSelectedItem().toString()),
+                        mooreCheckBox.isSelected(),   //Moore
+                        l1NormCheckBox.isSelected(),   // L1-norm indirect SVD
+                        legendreCheckBox.isSelected(), // Legendre
+                        l2NormCheckBox.isSelected(),           // L2 norm
+                        SPICheckBox.isSelected(),                   // SVD
+                        excludeBackgroundInFitCheckBox.isSelected(),
+                        positiveOnlyCheckBox.isSelected());
 
-                        final RefinePrManager refinePrMe = new RefinePrManager(
-                                prModel.getDataset(rowID),
-                                cpuCores,
-                                Integer.parseInt(refinementRoundsBox.getSelectedItem().toString()),
-                                Double.parseDouble(rejectionCutOffBox.getSelectedItem().toString()),
-                                Double.parseDouble(lambdaBox.getSelectedItem().toString()),
-                                Integer.parseInt(cBox.getSelectedItem().toString()),
-                                mooreCheckBox.isSelected(),   //Moore
-                                l1NormCheckBox.isSelected(),   // L1-norm indirect SVD
-                                legendreCheckBox.isSelected(), // Legendre
-                                l2NormCheckBox.isSelected(),           // L2 norm
-                                SPICheckBox.isSelected(),                   // SVD
-                                excludeBackgroundInFitCheckBox.isSelected(),
-                                positiveOnlyCheckBox.isSelected());
-
-                        prStatusLabel.setText("");
-                        refinePrMe.setBar(progressBar, prStatusLabel);
-                        refinePrMe.execute();
-
-                        synchronized (refinePrMe) {
-                            if (!refinePrMe.getIsFinished()) {
-                                try {
-                                    refinePrMe.wait();
-                                } catch (InterruptedException ee) {
-                                    // handle it somehow
-                                    System.out.println("Catch " + ee.getMessage());
-                                }
-                            }
-                        }
-
-                        FileObject tempFile = new FileObject(new File(WORKING_DIRECTORY.getWorkingDirectory()));
-
-                        String newname = tempFile.writePRFile(collectionSelected.getDataset(prModel.getDataset(rowID).getId()),
-                                prStatusLabel,
-                                collectionSelected.getDataset(prModel.getDataset(rowID).getId()).getFileName(),
-                                WORKING_DIRECTORY.getWorkingDirectory(),
-                                true
-                        );
-
-//                        prStatusLabel.setText("Files written to " + WORKING_DIRECTORY.getWorkingDirectory() + ", ready to run DAMMIN/F");
-//                        runDatGnom(newname, collectionSelected.getDataset(prModel.getDataset(rowID).getId()).getRealRg());
-                        // run gnom
-                        prModel.fireTableDataChanged();
-                    }
-
-                };
-
-                refineIt.start();
+                final int refinedRow = rowID;
+                refinePrMe.setBar(progressBar, prStatusLabel);
+                refinePrMe.setOnFinished(() -> {
+                    FileObject tempFile = new FileObject(new File(WORKING_DIRECTORY.getWorkingDirectory()));
+                    tempFile.writePRFile(collectionSelected.getDataset(prModel.getDataset(refinedRow).getId()),
+                            prStatusLabel,
+                            collectionSelected.getDataset(prModel.getDataset(refinedRow).getId()).getFileName(),
+                            WORKING_DIRECTORY.getWorkingDirectory(),
+                            true
+                    );
+                    prModel.fireTableDataChanged();
+                });
+                refinePrMe.execute();
 
             } else if (this.colID == 15){
                 // write Pr and Iq distributions toFile

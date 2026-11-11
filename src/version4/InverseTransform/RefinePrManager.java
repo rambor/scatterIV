@@ -5,6 +5,7 @@ import org.jfree.data.xy.XYDataItem;
 import org.jfree.data.xy.XYSeries;
 import version4.RealSpace;
 import version4.RefinedPlot;
+import version4.Ui;
 
 import javax.swing.*;
 import java.util.*;
@@ -14,6 +15,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * Robust refinement of P(r): least median of squares over random subsets of each Shannon bin,
+ * then rejection of points with |(obs - model)/sigma| above the cutoff and a final fit.
+ *
+ * Threading: doInBackground only computes. Everything that touches Swing or the dataset's
+ * series (which charts listen to) - status text, progress bar, the refined sets, the final model
+ * and the RefinedPlot - happens in done(), on the Event Dispatch Thread. Callers either wait for
+ * getIsFinished() (wait/notify, as before) or, better, pass a callback with setOnFinished(),
+ * which also runs on the EDT after the dataset has been updated.
+ */
 public class RefinePrManager extends SwingWorker<Void, Void> {
 
     private int numberOfCPUs;
@@ -60,6 +71,10 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
     private AtomicInteger counter = new AtomicInteger(0);
     private AtomicBoolean isNewModel;
     private double median;
+
+    /** computed in the background, applied to the dataset in done() */
+    private volatile Outcome outcome;
+    private Runnable onFinished;
 
     public RefinePrManager(RealSpace dataset,
                            int numberOfCPUs,
@@ -111,7 +126,10 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
         this.standardizeData();
 
         //dataset.setStandardizationMean(this.standardizedMin, this.standardizedScale);
-        this.median = dataset.getIndirectFTModel().calculateMedianResidual(standardizedSeries);
+        // the current fit is the first candidate: if no random subset beats it, outliers are
+        // still rejected against it
+        this.keptIFTModel = dataset.getIndirectFTModel();
+        this.median = weightedMedianResidual(keptIFTModel, standardizedSeries, scaled_q_times_Iq_Errors);
         System.out.println("start med " + this.median);
 
         averagedPr = new XYSeries("Averaged PR");
@@ -127,9 +145,7 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
     @Override
     protected Void doInBackground() throws Exception {
 
-        if (useLabels){
-            statusLabel.setText(String.format("Starting median residual :: %.5E", median));
-        }
+        notifyUser(String.format("Starting median residual :: %.5E", median));
 
         //bar.setMaximum(100);
         /*
@@ -186,8 +202,7 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
 
         try {
             executor.awaitTermination(Long.MAX_VALUE, TimeUnit.SECONDS);
-            bar.setValue(0);
-            bar.setStringPainted(false);
+            Ui.resetProgress(bar);
         } catch (InterruptedException e) {
             System.out.println("InterruptedException " + e.getMessage());
             notifyUser("Failed settings limits, exceeded thread time");
@@ -198,33 +213,45 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
 
         notifyUser("Finished Refining");
 
-        if (isNewModel.get()){
-
-            createKeptSeries();
-
-        } else { // update refined sets with same datasets if no new model found;
-
-            int size = dataset.getfittedqIq().getItemCount();
-            keptErrorSeries = new XYSeries("same model");
-            XYDataItem item;
-
-            for (int i=0; i < size; i++){
-                item = dataset.getfittedqIq().getDataItem(i);
-                keptErrorSeries.add(item.getX(), dataset.getErrorAllData().getY(dataset.getErrorAllData().indexOf(item.getX())));
-            }
-
-            dataset.updatedRefinedSets(dataset.getfittedIq(), keptErrorSeries);
-            updateText(String.format("Refinement failed, no improvement try increase number of rounds"));
+        if (!isNewModel.get()) {
+            notifyUser("No random subset fitted better than the current model; rejecting against the current model");
         }
-
-
-        synchronized (this) {
-            isFinished = true;
-            notifyAll();
-        }
-        notifyUser("Final Kept Series Created");
-
+        outcome = computeKeptSeries();   // pure computation; applied in done()
         return null;
+    }
+
+    /**
+     * On the EDT: apply the result to the dataset (its series drive the charts), show the
+     * RefinedPlot, then release anyone waiting and run the callback.
+     */
+    @Override
+    protected void done() {
+        try {
+            get();                                   // rethrows anything that failed in the background
+            if (outcome != null) applyOutcome(outcome);
+            else notifyUser("Refinement finished: too few points kept for a final fit, model unchanged");
+        } catch (java.util.concurrent.CancellationException e) {
+            notifyUser("Refinement cancelled");
+        } catch (InterruptedException | java.util.concurrent.ExecutionException e) {
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            cause.printStackTrace();
+            notifyUser("Refinement failed: " + cause);
+        } catch (RuntimeException e) {               // while applying the result
+            e.printStackTrace();
+            notifyUser("Refinement failed: " + e);
+        } finally {
+            Ui.resetProgress(bar);
+            synchronized (this) {
+                isFinished = true;
+                notifyAll();
+            }
+            if (onFinished != null) onFinished.run();
+        }
+    }
+
+    /** Runs on the EDT when refinement has finished and the dataset is updated (also after a failure). */
+    public void setOnFinished(Runnable callback) {
+        this.onFinished = callback;
     }
 
     /**
@@ -247,9 +274,9 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
 
     public void setBar(JProgressBar bar, JLabel prStatusLabel){
         this.bar = bar;
-        this.bar.setValue(0);
-        this.bar.setStringPainted(true);
-        this.bar.setMaximum(100);
+        Ui.setValue(this.bar, 0);
+        Ui.setStringPainted(this.bar, true);
+        Ui.setMaximum(this.bar, 100);
         this.statusLabel = prStatusLabel;
         useLabels = true;
     }
@@ -259,17 +286,13 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
     }
 
     void updateText(final String text){
-        statusLabel.setText(text);
+        Ui.setText(statusLabel, text);
     };
 
-    private synchronized void notifyUser(final String text){
+    /** Status text from any thread (queued onto the EDT). */
+    private void notifyUser(final String text){
         if (useLabels){
-            SwingUtilities.invokeLater(new Runnable() {
-                @Override
-                public void run() {
-                    updateText(text);
-                }
-            });
+            Ui.setText(statusLabel, text);
         } else {
             System.out.println(text);
         }
@@ -358,12 +381,10 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
             XYSeries randomSeries = new XYSeries("Random-");
             XYSeries randomErrorSeries = new XYSeries("Random-");
 
-            double[] averages = new double[50];
-            double[] averagesSQ = new double[50];
-            for(int h=0; h < 50; h++){
-                averages[h] = 0;
-                averagesSQ[h] = 0;
-            }
+            // sized generously: the coefficient count depends on dmax*qmax (+ background)
+            int maxCoefficients = Math.max(bins + 2, priors.length) + 8;
+            double[] averages = new double[maxCoefficients];
+            double[] averagesSQ = new double[maxCoefficients];
 
             double invC = 1;
             int count = 1;
@@ -438,13 +459,14 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
                 }
 
                 // Calculate Residuals
-                tempMedian = tempIFT.calculateMedianResidual(activeSet); // squared residual using standardized data
+                // median of squared normalised residuals ((obs - model)/sigma)^2 over all points
+                tempMedian = weightedMedianResidual(tempIFT, activeSet, errorActiveSet);
 
-                for(int h=0; h < tempIFT.totalCoefficients; h++){
+                for(int h=0; h < Math.min(tempIFT.totalCoefficients, maxCoefficients); h++){
                     averages[h] += tempIFT.coefficients[h];
                     averagesSQ[h] += tempIFT.coefficients[h]*tempIFT.coefficients[h];
                 }
-                count = tempIFT.totalCoefficients;
+                count = Math.min(tempIFT.totalCoefficients, maxCoefficients);
 
                 if (tempMedian < getMedian()){ // minimize on medium residual in activeset
                     // keep current values
@@ -462,8 +484,8 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
             }
 
             System.out.println(" Variations " + numberOfCPUs + " " + totalRuns + " " + randomSeriesSize*invC );
-            for(int h=0; h < count; h++){
-                double stdev = Math.sqrt(averagesSQ[h] - averages[h] * averages[h]);
+            for(int h=0; h < Math.min(count, averagedPr.getItemCount()); h++){
+                double stdev = Math.sqrt(Math.max(0, averagesSQ[h] - averages[h] * averages[h]));
                 System.out.println(String.format("%d %.2f %.4f %.4f %.3f", h, averagedPr.getX(h).doubleValue(), averages[h], stdev, stdev/averages[h]));
 //                System.out.println(h + " " +  count + " " + averagedPr.getX(h).doubleValue() + " " + averages[h] + " " +  Math.sqrt(averagesSQ[h] - averages[h] * averages[h]));
             }
@@ -517,7 +539,7 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
             int currentCount = counter.incrementAndGet();
 
             if (currentCount%100==0){
-                bar.setValue((int)(currentCount*invRefineMentRounds*100));
+                Ui.setValue(bar, (int)(currentCount*invRefineMentRounds*100));
             }
         }
 
@@ -558,7 +580,19 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
     } // end of runnable class
 
 
-    public void createKeptSeries(){
+    /** What the refinement produced; built in the background, applied on the EDT. */
+    private static final class Outcome {
+        XYSeries keptSeries, keptErrorSeries;
+        IndirectFT model;
+        double[] calcQ, calcLogI;          // log10 I(q) of the final model at the kept q with I > 0
+        int totalRejected, total;
+    }
+
+    /**
+     * Rejects points against the best model and fits the kept points. No Swing and no changes to
+     * the dataset here (runs in the background). Returns null if too few points are kept.
+     */
+    private Outcome computeKeptSeries(){
         // go over selected values in active set
         keptSeries=new XYSeries("reduced refinedset");
         keptErrorSeries=new XYSeries("reduced refinedset");
@@ -574,101 +608,143 @@ public class RefinePrManager extends SwingWorker<Void, Void> {
         int size = standardizedSeries.getItemCount();
         s_o = 1.4826*(1.0 + 5.0/(size - keptIFTModel.getTotalFittedCoefficients() - 1))*Math.sqrt(getMedian());
 
+        /*
+         * Residuals are normalised by each point's error, r_i = (obs - model)/sigma_i, so the
+         * cutoff means the same number of sigma at every q. Unweighted residuals of q*I(q) are
+         * largest wherever q*sigma(q) is largest, so they rejected ordinary points there and
+         * missed outliers where the errors are small.
+         * Points without a usable error are kept and do not enter the scale estimates.
+         */
+        double[] normalised = new double[size];
         for (int i=0; i < size; i++){
             tempData = standardizedSeries.getDataItem(i);
             xObsValue = tempData.getXValue();
             yObsValue = tempData.getYValue(); // standardized in form of qIq
             // data has been standardized, so no adjustment necessary before residual calculation.
             residual = yObsValue - (keptIFTModel.calculateQIQ(xObsValue)-standardizedMin)*invStd;
+            double sigma = scaled_q_times_Iq_Errors.getY(i).doubleValue();
+            normalised[i] = (sigma > 0 && Double.isFinite(sigma)) ? residual/sigma : Double.NaN;
 
-            if (Math.abs(residual/this.getS_o()) < rejectionCutOff){
-                residualsList.add(residual*residual);
+            // first pass: robust (LMS) scale s_o
+            if (!Double.isNaN(normalised[i]) && Math.abs(normalised[i]/this.getS_o()) < rejectionCutOff){
+                residualsList.add(normalised[i]*normalised[i]);
             }
         }
 
+        // second pass: scale from the points within the first cutoff (reweighted least squares)
         int sizeResiduals = residualsList.size();
-        double sigmaM = 1.0/Math.sqrt(Statistics.calculateMean(residualsList)*sizeResiduals/(sizeResiduals - bins));
+        double sigmaM = (sizeResiduals > bins)
+                ? 1.0/Math.sqrt(Statistics.calculateMean(residualsList)*sizeResiduals/(double)(sizeResiduals - bins))
+                : 1.0/this.getS_o();
 
         XYSeries keptqIq = new XYSeries("keptqIq-"+dataset.getId());
-        XYSeries keptNonStandardizedqIq = new XYSeries("keptqIq-nonstd"+dataset.getId());
         // Select final values for fitting
         for (int i=0; i < size; i++){
             tempData = standardizedSeries.getDataItem(i);
             xObsValue = tempData.getXValue();
-            yObsValue = tempData.getYValue();
-            residual = yObsValue - (keptIFTModel.calculateQIQ(xObsValue)-standardizedMin)*invStd;
 
-            if ( Math.abs(residual*sigmaM) < rejectionCutOff){
+            if (Double.isNaN(normalised[i]) || Math.abs(normalised[i]*sigmaM) < rejectionCutOff){
                 keptSeries.add(dataset.getfittedIq().getDataItem(i)); // unscaled data
                 keptqIq.add(tempData);
-                keptNonStandardizedqIq.add(xObsValue, dataset.getfittedIq().getY(i).doubleValue()*xObsValue);
                 keptErrorSeries.add(xObsValue, scaled_q_times_Iq_Errors.getY(i).doubleValue());
             }
         }
 
-
         /*
          * if keptqIq > bin*2 , then calculate PofR
-         * otherwise use activeqIq
+         * otherwise leave the model as it is
          */
-        if (keptqIq.getItemCount() > 2*bins){ // do final fitting against kepSeries
+        if (keptqIq.getItemCount() <= 2*bins) return null;
 
-            dataset.updatedRefinedSets(keptSeries, keptErrorSeries);
-            dataset.getCalcIq().clear();
-            IndirectFT tempIFT;
-            /*
-             * these constructuros asseme already standardized datasets
-             */
-            if (useMoore){ // Moore method
-                //tempIFT = new MooreTransform(keptqIq, keptErrorSeries, keptIFTModel.getCoefficients(), dmax, upperq, lambda, false,useBackgroundInFit, standardizedMin, standardizedScale);
-                tempIFT = new MooreTransformApache(keptqIq, keptErrorSeries, keptIFTModel.getCoefficients(), dmax, upperq, lambda, standardizedMin, standardizedScale, useBackgroundInFit);
-            } else if (useL1 && !useLegendre && !useL2 && !useSVD){ // SVD with regularization
-                //tempIFT = new SineIntegralTransform(keptqIq, keptErrorSeries, dmax, upperq, lambda, useBackgroundInFit, positiveOnly, standardizedMin, standardizedScale);
-                tempIFT = new SineIntegralTransform(keptqIq, keptErrorSeries, keptIFTModel.getCoefficients(), dmax, upperq, lambda, useBackgroundInFit, positiveOnly, standardizedMin, standardizedScale);
-            } else if (useLegendre && !useL2 && !useSVD) {
-                tempIFT = new LegendreTransform(keptqIq, keptErrorSeries, keptIFTModel.getCoefficients(), dmax, upperq, lambda, standardizedMin, standardizedScale, useBackgroundInFit);
-            } else if (useL2 && !useSVD) {  // use Glatter like regularization
-                tempIFT = new DirectSineIntegralTransform(keptqIq, keptErrorSeries, dmax, upperq, lambda, standardizedMin, standardizedScale, useBackgroundInFit);
-            } else if (useSVD) {  // use Moore Method
-                tempIFT = new SVD(keptqIq, keptErrorSeries, dmax, upperq, lambda, standardizedMin, standardizedScale);
-            } else {
-                tempIFT = new SVD(keptqIq, keptErrorSeries, dmax, upperq, lambda, standardizedMin, standardizedScale);
-            }
-
-            // for chi_estimate calculations, nonStandardized datasets must be specified
-            this.dataset.setIndirectFTModel(tempIFT); // also calculate chi2 using data passed in on the instance
-            //this.dataset.updateIndirectFTModel(tempIFT);
-            this.dataset.setPrDistribution(tempIFT.getPrDistributionNormalizedToVolume());
-            this.dataset.calculateIntensityFromModel(true);
-            try {
-                // requires (q, Iq) not (q, q*Iq)
-                // need chi specific to keptSeries
-                int totalKept = keptSeries.getItemCount();
-
-                for(int i=0; i < totalKept;i++){
-
-                    tempData = keptSeries.getDataItem(i);
-                    //keptSeries.update(tempData.getX(), (tempData.getYValue()));
-                    if (tempData.getYValue() > 0) { // only positive values
-                        xObsValue = tempData.getXValue();
-                        dataset.getCalcIq().add(xObsValue, Math.log10( tempIFT.calculateIQ(xObsValue) ) ); //plotted data is unscaled, as is from Analysis
-                    }
-                }
-                //this.dataset.calculateIntensityFromModel(true);
-                //this.dataset.calculateQIQ();
-            } catch (Exception e) {
-                e.printStackTrace();  //To change body of catch statement use File | Settings | File Templates.
-            }
-
-            int totalrejected =  size - keptSeries.getItemCount();
-            double percentRejected = (double)totalrejected/(double)size*100;
-            notifyUser(String.format("Rejected %d points (%.1f %%) using cutoff: %.4f => files written to working directory", totalrejected, percentRejected, rejectionCutOff));
-
-            RefinedPlot refinedPlot = new RefinedPlot(dataset);
-            refinedPlot.makePlot(String.format("Rejected %d points (%.1f %%) using cutoff: %.4f => files written to working directory", totalrejected, percentRejected, rejectionCutOff));
+        IndirectFT tempIFT;
+        /*
+         * these constructors assume already standardized datasets
+         */
+        if (useMoore){ // Moore method
+            tempIFT = new MooreTransformApache(keptqIq, keptErrorSeries, keptIFTModel.getCoefficients(), dmax, upperq, lambda, standardizedMin, standardizedScale, useBackgroundInFit);
+        } else if (useL1 && !useLegendre && !useL2 && !useSVD){ // SVD with regularization
+            tempIFT = new SineIntegralTransform(keptqIq, keptErrorSeries, keptIFTModel.getCoefficients(), dmax, upperq, lambda, useBackgroundInFit, positiveOnly, standardizedMin, standardizedScale);
+        } else if (useLegendre && !useL2 && !useSVD) {
+            tempIFT = new LegendreTransform(keptqIq, keptErrorSeries, keptIFTModel.getCoefficients(), dmax, upperq, lambda, standardizedMin, standardizedScale, useBackgroundInFit);
+        } else if (useL2 && !useSVD) {  // use Glatter like regularization
+            tempIFT = new DirectSineIntegralTransform(keptqIq, keptErrorSeries, dmax, upperq, lambda, standardizedMin, standardizedScale, useBackgroundInFit);
+        } else {  // SVD
+            tempIFT = new SVD(keptqIq, keptErrorSeries, dmax, upperq, lambda, standardizedMin, standardizedScale);
         }
+
+        Outcome o = new Outcome();
+        o.keptSeries = keptSeries;
+        o.keptErrorSeries = keptErrorSeries;
+        o.model = tempIFT;
+        o.total = size;
+        o.totalRejected = size - keptSeries.getItemCount();
+
+        // model intensity at the kept points (requires (q, I(q)), not q*I(q)); only positive values
+        int totalKept = keptSeries.getItemCount();
+        double[] cq = new double[totalKept], ci = new double[totalKept];
+        int n = 0;
+        for (int i=0; i < totalKept; i++){
+            tempData = keptSeries.getDataItem(i);
+            if (tempData.getYValue() > 0) {
+                xObsValue = tempData.getXValue();
+                double iq = tempIFT.calculateIQ(xObsValue);
+                if (iq > 0) {
+                    cq[n] = xObsValue;
+                    ci[n] = Math.log10(iq); //plotted data is unscaled, as is from Analysis
+                    n++;
+                }
+            }
+        }
+        o.calcQ = Arrays.copyOf(cq, n);
+        o.calcLogI = Arrays.copyOf(ci, n);
+        return o;
     }
 
+    /** On the EDT: put the refined sets and the final model into the dataset and show the plot. */
+    private void applyOutcome(Outcome o){
+        dataset.updatedRefinedSets(o.keptSeries, o.keptErrorSeries);
+        // for chi_estimate calculations, nonStandardized datasets must be specified
+        dataset.setIndirectFTModel(o.model); // also calculates chi2 using data passed in on the instance
+        dataset.setPrDistribution(o.model.getPrDistributionNormalizedToVolume());
+        dataset.calculateIntensityFromModel(true);
+
+        XYSeries calc = dataset.getCalcIq();
+        calc.setNotify(false);                  // one chart update instead of one per point
+        calc.clear();
+        for (int i=0; i < o.calcQ.length; i++) calc.add(o.calcQ[i], o.calcLogI[i]);
+        calc.setNotify(true);
+
+        double percentRejected = (double)o.totalRejected/(double)o.total*100;
+        String msg = String.format("Rejected %d points (%.1f %%) using cutoff: %.4f => files written to working directory",
+                o.totalRejected, percentRejected, rejectionCutOff);
+        notifyUser(msg);
+
+        RefinedPlot refinedPlot = new RefinedPlot(dataset);
+        refinedPlot.makePlot(msg);
+    }
+
+
+    /**
+     * Median of the squared normalised residuals ((obs - model)/sigma)^2 of a model against
+     * standardized q*I(q) data and its errors (same order, same points). Points without a usable
+     * error are skipped. Thread safe: only reads the model.
+     */
+    private double weightedMedianResidual(IndirectFT model, XYSeries data, XYSeries errors){
+        double invStd = 1.0/standardizedScale;
+        int n = data.getItemCount();
+        double[] values = new double[n];
+        int count = 0;
+        for (int i=0; i < n; i++){
+            double x = data.getX(i).doubleValue();
+            double sigma = errors.getY(i).doubleValue();
+            if (!(sigma > 0) || !Double.isFinite(sigma)) continue;
+            double r = (data.getY(i).doubleValue() - (model.calculateQIQ(x) - standardizedMin)*invStd)/sigma;
+            if (Double.isFinite(r)) values[count++] = r*r;
+        }
+        if (count == 0) return Double.POSITIVE_INFINITY;
+        Arrays.sort(values, 0, count);
+        return (count % 2 == 1) ? values[count/2] : 0.5*(values[count/2 - 1] + values[count/2]);
+    }
 
     private synchronized double getS_o() {
         return this.s_o;
