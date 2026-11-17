@@ -186,6 +186,25 @@ public class LangevinSettings {
     /** POLYMER_MICELLE: restrict the corona chain Rg to brushRg (1 +- brushTolerance); NaN = use the bounds */
     public double brushRg = Double.NaN, brushTolerance = 0.2;
 
+    // ---- helices (ShapeFamily HELIX, HELIX_SUBUNITS); the fitted parameter is the filament length
+
+    /** radius of the strand axes (HELIX) or of the subunit centres (HELIX_SUBUNITS) from the filament axis (Angstrom) */
+    public double helixRadius = 10.0;
+    /** number of strands (helix starts), equally spaced in azimuth unless helixStrandAngle is set */
+    public int helixStrands = 1;
+    /** HELIX: pitch 2 pi p (Angstrom) */
+    public double helixPitch = 35.0;
+    /** HELIX: radius of a strand (Angstrom); cross-section factor exp(-q^2 a^2 / 4); 0 = thin strand */
+    public double helixStrandRadius = 0.0;
+    /** HELIX with 2 strands: enclosed azimuthal angle (degrees); 180 = symmetric, other values = unequal grooves */
+    public double helixStrandAngle = 180.0;
+    /** HELIX_SUBUNITS: axial rise (Angstrom) and twist (degrees) per subunit along a strand, subunit radius (Angstrom) */
+    public double helixRise = 27.5, helixTwist = -166.7, helixSubunitRadius = 20.0;
+    /** HELIX_INFINITE_ELLIPSOIDS: subunits per turn along one strand (rise = pitch / this), ellipsoid semi-axes (a, a, c) */
+    public double helixSubunitsPerTurn = 12.0, helixEllipsoidA = 25.0, helixEllipsoidC = 40.0;
+    /** optional repeating-unit volume prior for the estimator (Angstrom^3; NaN = none) and its relative tolerance */
+    public double helixUnitVolume = Double.NaN, helixUnitVolumeTolerance = 0.2;
+
     public int histogramBins = 60;
     /** lookup table spacing in x = qR */
     public double tableStep = 1e-3;

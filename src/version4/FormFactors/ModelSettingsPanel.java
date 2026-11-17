@@ -18,6 +18,7 @@ public class ModelSettingsPanel extends JPanel {
         SPHEROID("Spheroid (ellipsoid of revolution)"),
         TRIAXIAL("Triaxial ellipsoid"),
         CORESHELL("Core-shell spheroid"),
+        HELIX("Helical filament"),
         GAUSSIAN_CHAIN("Polymer: Gaussian chain (Debye)"),
         EV_CHAIN("Polymer: excluded-volume chain (ν)"),
         WORMLIKE("Polymer: wormlike chain (flexible cylinder)"),
@@ -93,6 +94,26 @@ public class ModelSettingsPanel extends JPanel {
     private final JRadioButton wKFixed = new JRadioButton("Fixed", true), wKScan = new JRadioButton("Estimate by scan");
     private final JTextField wKLo = Fields.num("20"), wKHi = Fields.num("400");
     private final JTextField wLMin = Fields.num(""), wLMax = Fields.num(""), wKuhn = Fields.num("100"), wRadius = Fields.num("0");
+    // helix
+    private final JTextField hLMin = Fields.num(""), hLMax = Fields.num(""), hRMin = Fields.num("20"), hRMax = Fields.num("300");
+    private final JRadioButton hFinite = new JRadioButton("Finite: fit the length distribution", true),
+            hInfinite = new JRadioButton("Infinitely long: fit the radius distribution");
+    private final JRadioButton hContinuous = new JRadioButton("Continuous strands (van der Maarel 2023)", true),
+            hSubunits = new JRadioButton("Spherical subunits (exact Debye sum)"),
+            hEllipsoids = new JRadioButton("Ellipsoidal subunits on a helical lattice (infinitely long only)");
+    private final JTextField hPerTurn = Fields.num("12"), hEllA = Fields.num("25"), hEllC = Fields.num("40"),
+            hUnitMw = Fields.num(""), hUnitVol = Fields.num(""), hVbar = Fields.num("0.73"), hUnitTol = Fields.num("20");
+    private final JTextField hRadius = Fields.num("10"), hPitch = Fields.num("35"), hStrandRadius = Fields.num("0"),
+            hStrandAngle = Fields.num("180"), hRise = Fields.num("27.5"), hTwist = Fields.num("-166.7"), hSubunitRadius = Fields.num("20");
+    private final JSpinner hStrands = new JSpinner(new SpinnerNumberModel(1, 1, 12, 1));
+    private final JComboBox<String> hScan = new JComboBox<>(new String[]{"None", "Helix radius", "Pitch", "Subunits per turn"});
+    private final JButton hEstimate = new JButton("Estimate from data");
+    private final JLabel hEstimateStatus = new JLabel(" ");
+    private Runnable helixEnable = () -> { };
+    /** current dataset limited to the q range ([q, I, sigma]), and a way to set q max; provided by the panel */
+    private java.util.function.Supplier<double[][]> helixData;
+    private java.util.function.DoubleConsumer helixQmax;
+    private final JTextField hScanLo = Fields.num("5"), hScanHi = Fields.num("30");
     // micelle
     private final JTextField mRMin = Fields.num(""), mRMax = Fields.num("");
     private final JRadioButton brushFixed = new JRadioButton("Rg", true), brushRange = new JRadioButton("Range");
@@ -110,6 +131,7 @@ public class ModelSettingsPanel extends JPanel {
         cardPanel.add(spheroidPanel(), Model.SPHEROID.name());
         cardPanel.add(triaxialPanel(), Model.TRIAXIAL.name());
         cardPanel.add(coreShellPanel(), Model.CORESHELL.name());
+        cardPanel.add(helixPanel(), Model.HELIX.name());
         cardPanel.add(gaussianPanel(), Model.GAUSSIAN_CHAIN.name());
         cardPanel.add(evPanel(), Model.EV_CHAIN.name());
         cardPanel.add(wormlikePanel(), Model.WORMLIKE.name());
@@ -140,6 +162,9 @@ public class ModelSettingsPanel extends JPanel {
         for (JTextField f : new JTextField[]{gRgMin, eRgMin}) f.setText(Fields.fmt(rgLo));
         for (JTextField f : new JTextField[]{gRgMax, eRgMax}) f.setText(Fields.fmt(Math.min(2000, rgHi)));
         suggestWormlike();
+        // helices: L from a few times the resolution up to where a rod's Rg (L/sqrt 12) reaches 1.5 / q min
+        hLMin.setText(Fields.fmt(Math.max(10, Math.round(2 * Math.PI / qmax))));
+        hLMax.setText(Fields.fmt(Math.min(20000, Math.round(1.5 * Math.sqrt(12) / Math.max(qmin, 1e-6)))));
         mRMin.setText(Fields.fmt(lo));
         mRMax.setText(Fields.fmt(Math.min(hi, 1000)));
         updateNAgg();
@@ -301,6 +326,264 @@ public class ModelSettingsPanel extends JPanel {
 
     public void selectModel(Model m) { modelBox.setSelectedItem(m); }
 
+    /** subunit volume prior from the MW (kDa) or volume (A^3) field; NaN if neither is given */
+    private double unitVolume() {
+        String mw = hUnitMw.getText().trim(), vol = hUnitVol.getText().trim();
+        if (!vol.isEmpty()) return Fields.pos(hUnitVol, "repeating unit volume");
+        if (!mw.isEmpty()) {
+            double vbar = Fields.pos(hVbar, "partial specific volume");
+            return Fields.pos(hUnitMw, "repeating unit MW") * 1000 * vbar / 0.6022;   // Da * cm3/g / N_A, in A^3
+        }
+        return Double.NaN;
+    }
+
+    private void estimateHelix() {
+        if (helixData == null) return;
+        if (hInfinite.isSelected() && hEllipsoids.isSelected()) {
+            estimateSubunits();
+            return;
+        }
+        final double[][] d;
+        try {
+            d = helixData.get();
+        } catch (RuntimeException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Estimate", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (d == null || d[0].length < 20) {
+            JOptionPane.showMessageDialog(this, "Select a dataset with at least 20 points in the q range", "Estimate",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        hEstimate.setEnabled(false);
+        hEstimateStatus.setText("Surveying…");
+        new SwingWorker<HelixEstimator.Estimate, Integer>() {
+            @Override
+            protected HelixEstimator.Estimate doInBackground() {
+                return HelixEstimator.estimate(d[0], d[1], d[2], f -> publish((int) Math.round(100 * f)));
+            }
+
+            @Override
+            protected void process(java.util.List<Integer> chunks) {
+                hEstimateStatus.setText("Surveying… " + chunks.get(chunks.size() - 1) + " %");
+            }
+
+            @Override
+            protected void done() {
+                hEstimate.setEnabled(true);
+                HelixEstimator.Estimate e;
+                try {
+                    e = get();
+                } catch (Exception ex) {
+                    Throwable c = ex.getCause() != null ? ex.getCause() : ex;
+                    hEstimateStatus.setText("Estimate failed");
+                    JOptionPane.showMessageDialog(ModelSettingsPanel.this, "Estimate failed: " + c.getMessage(), "Estimate",
+                            JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                hEstimateStatus.setText(" ");
+                boolean qChange = e.qmax < d[0][d[0].length - 1] * 0.999;
+                Object[] options = qChange
+                        ? new Object[]{String.format("Apply and set q max to %.3f", e.qmax), "Apply, keep q range", "Cancel"}
+                        : new Object[]{"Apply", "Cancel"};
+                JTextArea text = new JTextArea(e.summary());
+                text.setEditable(false);
+                text.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+                int choice = JOptionPane.showOptionDialog(ModelSettingsPanel.this, new JScrollPane(text),
+                        "Helix starting values", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null,
+                        options, options[0]);
+                if (choice < 0 || choice == options.length - 1) return;
+                applyHelixEstimate(e);
+                if (qChange && choice == 0 && helixQmax != null) helixQmax.accept(e.qmax);
+            }
+        }.execute();
+    }
+
+    private void estimateSubunits() {
+        final double[][] d;
+        final double pitch, perTurn, vol, tol;
+        final int strands = (Integer) hStrands.getValue();
+        try {
+            d = helixData.get();
+            pitch = Fields.pos(hPitch, "pitch");
+            perTurn = Fields.pos(hPerTurn, "subunits per turn");
+            vol = unitVolume();
+            tol = Fields.pos(hUnitTol, "volume tolerance") / 100.0;
+        } catch (RuntimeException ex) {
+            JOptionPane.showMessageDialog(this, ex.getMessage(), "Estimate", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        if (d == null || d[0].length < 20) {
+            JOptionPane.showMessageDialog(this, "Select a dataset with at least 20 points in the q range", "Estimate",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+        hEstimate.setEnabled(false);
+        hEstimateStatus.setText("Estimating…");
+        new SwingWorker<HelixEstimator.SubunitEstimate, Integer>() {
+            @Override
+            protected HelixEstimator.SubunitEstimate doInBackground() {
+                return HelixEstimator.estimateSubunits(d[0], d[1], d[2], pitch, perTurn, strands, vol, tol,
+                        f -> publish((int) Math.round(100 * f)));
+            }
+
+            @Override
+            protected void process(java.util.List<Integer> chunks) {
+                hEstimateStatus.setText("Estimating… " + chunks.get(chunks.size() - 1) + " %");
+            }
+
+            @Override
+            protected void done() {
+                hEstimate.setEnabled(true);
+                hEstimateStatus.setText(" ");
+                HelixEstimator.SubunitEstimate e;
+                try {
+                    e = get();
+                } catch (Exception ex) {
+                    Throwable c = ex.getCause() != null ? ex.getCause() : ex;
+                    JOptionPane.showMessageDialog(ModelSettingsPanel.this, "Estimate failed: " + c.getMessage(), "Estimate",
+                            JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                JTextArea text = new JTextArea(e.summary());
+                text.setEditable(false);
+                text.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+                Object[] options = {"Apply", "Cancel"};
+                int choice = JOptionPane.showOptionDialog(ModelSettingsPanel.this, new JScrollPane(text),
+                        "Helix of ellipsoidal subunits: starting values", JOptionPane.DEFAULT_OPTION,
+                        JOptionPane.INFORMATION_MESSAGE, null, options, options[0]);
+                if (choice != 0) return;
+                hRMin.setText(Fields.fmt(e.rMin));
+                hRMax.setText(Fields.fmt(e.rMax));
+                hEllA.setText(Fields.fmt(Math.round(e.a)));
+                hEllC.setText(Fields.fmt(Math.round(e.c)));
+                helixEnable.run();
+            }
+        }.execute();
+    }
+
+    private void applyHelixEstimate(HelixEstimator.Estimate e) {
+        hInfinite.setSelected(true);
+        hContinuous.setSelected(true);       // the uniform-strand estimate
+        hRMin.setText(Fields.fmt(e.rMin));
+        hRMax.setText(Fields.fmt(e.rMax));
+        hStrands.setValue(e.strands);
+        hStrandRadius.setText(Fields.fmt(e.strandRadius));
+        hStrandAngle.setText("180");
+        if (e.pitchVisible) {
+            hPitch.setText(Fields.fmt(Math.round(e.pitch)));
+            hScan.setSelectedIndex(2);
+            hScanLo.setText(Fields.fmt(Math.round(e.pitchScanLo)));
+            hScanHi.setText(Fields.fmt(Math.round(e.pitchScanHi)));
+        } else {
+            // no layer line inside q max: any pitch short enough to keep them out gives the same fit
+            hScan.setSelectedIndex(0);
+            hPitch.setText(Fields.fmt(Math.floor(0.9 * e.strands * 2 * Math.PI / e.qmax)));
+        }
+        helixEnable.run();
+    }
+
+    /** lets "Estimate from data" read the dataset (limited to the fitting q range) and change q max */
+    public void setHelixDataSource(java.util.function.Supplier<double[][]> data, java.util.function.DoubleConsumer setQmax) {
+        this.helixData = data;
+        this.helixQmax = setQmax;
+    }
+
+    private JPanel helixPanel() {
+        Fields.Form f = new Fields.Form();
+        hEstimate.addActionListener(e -> estimateHelix());
+        f.row("Starting values", Fields.flow(hEstimate, hEstimateStatus),
+                "Survey of radius distribution, strand radius, strands and pitch by least squares (a few seconds); "
+                        + "fills in the fields below and suggests q max");
+        ButtonGroup length = new ButtonGroup();
+        length.add(hFinite);
+        length.add(hInfinite);
+        f.row("Filaments", Fields.flow(hFinite), "Length distribution, helix radius fixed (or scanned)");
+        f.row("", Fields.flow(hInfinite),
+                "Filaments longer than the q range resolves (L > ~5 / q min): the length only scales the intensity, so the "
+                        + "radius distribution is fitted instead (continuous strands only)");
+        f.row("L min / max (Å)", Fields.pair(hLMin, hLMax),
+                "Bounds of the filament (axial) length. The suggested maximum is where a rod's Rg reaches 1.5 / q min: longer filaments are not resolved.");
+        f.row("r min / max (Å)", Fields.pair(hRMin, hRMax), "Infinitely long: bounds of the helix radius distribution");
+        ButtonGroup kind = new ButtonGroup();
+        kind.add(hContinuous);
+        kind.add(hSubunits);
+        kind.add(hEllipsoids);
+        f.row("Strands", Fields.flow(hContinuous), "Continuous helical strands: form factor of van der Maarel, J. Appl. Cryst. 56 (2023) 1714");
+        f.row("", Fields.flow(hSubunits), "Identical spherical subunits on a helical lattice (e.g. F-actin, amyloid protofilaments)");
+        f.row("", Fields.flow(hEllipsoids),
+                "Subunits as ellipsoids of revolution on an infinite helical lattice: the lattice gives the low and intermediate q, "
+                        + "the subunit shape the high q (decoupling approximation: subunit orientations treated as random)");
+        f.row("Helix radius (Å)", Fields.flow(hRadius), "Distance of the strand axes (or subunit centres) from the filament axis");
+        f.row("Number of strands", Fields.flow(hStrands), "Coaxial strands (helix starts), equally spaced in azimuth; 1 = single helix, 2 = double helix");
+        f.row("Pitch (Å)", Fields.flow(hPitch), "Continuous strands: axial distance for one full turn (2πp)");
+        f.row("Strand radius (Å)", Fields.flow(hStrandRadius), "Continuous strands: strand thickness, as a Gaussian profile with <r²> = a²/2; 0 = thin strand");
+        f.row("Strand angle φ (°)", Fields.flow(hStrandAngle),
+                "Double helix only: azimuthal angle between the two strands. 180 = symmetric; otherwise major and minor grooves, φ = 180 w_minor / (w_major + w_minor)");
+        f.row("Rise / twist", Fields.flow(hRise, new JLabel("Å"), hTwist, new JLabel("° per subunit")),
+                "Subunits: axial rise and rotation per subunit along a strand. F-actin (1-start): 27.5 Å, -166.7°. Handedness does not affect the scattering.");
+        f.row("Subunit radius (Å)", Fields.flow(hSubunitRadius), "Subunits: radius of the spherical subunit; 0 = point subunits");
+        f.row("Subunits per turn", Fields.flow(hPerTurn),
+                "Ellipsoidal subunits: subunits per turn along one strand (rise = pitch / this). Take pitch and subunits per turn "
+                        + "from cryo-EM or the literature if known: a SAXS curve alone pins them down poorly; test them with the scan");
+        f.row("Ellipsoid a / c (Å)", Fields.flow(hEllA, new JLabel("/"), hEllC), "Ellipsoidal subunits: semi-axes (a, a, c); c > a prolate, c < a oblate");
+        f.row("Repeating unit (optional)", Fields.flow(new JLabel("MW"), hUnitMw, new JLabel("kDa  or volume"), hUnitVol,
+                        new JLabel("Å³;  v̄"), hVbar, new JLabel("cm³/g;  ±"), hUnitTol, new JLabel("%")),
+                "Optional constraint on the subunit volume for 'Estimate from data': V = MW v̄ / N_A (≈ 1.21 Å³ per Da at v̄ = 0.73). "
+                        + "Give the helical repeating unit (e.g. a dimer if dimers repeat). SAXS sees the hydrated subunit, "
+                        + "typically 10-30 % larger, hence the tolerance");
+        f.row("Estimate by scan", Fields.flow(hScan, hScanLo, new JLabel("-"), hScanHi, new JLabel("Å")),
+                "Fit the length distribution at 7 values of the chosen geometry parameter (plus refinement) and take the χ² minimum");
+        Runnable en = () -> {
+            boolean inf = hInfinite.isSelected();
+            if (inf && hSubunits.isSelected()) hContinuous.setSelected(true);
+            if (!inf && hEllipsoids.isSelected()) hContinuous.setSelected(true);
+            hSubunits.setEnabled(!inf);
+            hEllipsoids.setEnabled(inf);
+            boolean ell = hEllipsoids.isSelected();
+            if (inf && hScan.getSelectedIndex() == 1) hScan.setSelectedIndex(0);
+            if (!ell && hScan.getSelectedIndex() == 3) hScan.setSelectedIndex(0);
+            hLMin.setEnabled(!inf);
+            hLMax.setEnabled(!inf);
+            hRMin.setEnabled(inf);
+            hRMax.setEnabled(inf);
+            boolean cont = hContinuous.isSelected();
+            int n = (Integer) hStrands.getValue();
+            hPitch.setEnabled((cont || ell) && hScan.getSelectedIndex() != 2);
+            hStrandRadius.setEnabled(cont);
+            hStrandAngle.setEnabled((cont || ell) && n == 2);
+            hPerTurn.setEnabled(ell && hScan.getSelectedIndex() != 3);
+            for (JTextField t : new JTextField[]{hEllA, hEllC, hUnitMw, hUnitVol, hVbar, hUnitTol}) t.setEnabled(ell);
+            hRise.setEnabled(hSubunits.isSelected());
+            hTwist.setEnabled(hSubunits.isSelected());
+            hSubunitRadius.setEnabled(hSubunits.isSelected());
+            hRadius.setEnabled(!inf && hScan.getSelectedIndex() != 1);
+            hScanLo.setEnabled(hScan.getSelectedIndex() > 0);
+            hScanHi.setEnabled(hScan.getSelectedIndex() > 0);
+        };
+        hContinuous.addActionListener(e -> en.run());
+        hSubunits.addActionListener(e -> en.run());
+        hEllipsoids.addActionListener(e -> en.run());
+        hFinite.addActionListener(e -> en.run());
+        hInfinite.addActionListener(e -> {
+            // infinitely long: the pitch is the geometry the data constrain next to the radius, so scan it by default
+            if (hScan.getSelectedIndex() == 0) {
+                hScan.setSelectedIndex(2);
+                hScanLo.setText("50");
+                hScanHi.setText("200");
+            }
+            en.run();
+        });
+        hStrands.addChangeListener(e -> en.run());
+        hScan.addActionListener(e -> en.run());
+        en.run();
+        helixEnable = en;
+        f.note("Finite: the fitted distribution is the filament-length distribution, the helix geometry is the same for every filament. "
+                + "Infinitely long: the radius distribution, with pitch, strands and strand radius (or subunit lattice and shape) shared. "
+                + "Volume weighting = mass weighting. The length is only resolved below about q L ~ 5.");
+        return f.panel();
+    }
+
     private JPanel coreShellPanel() {
         Fields.Form f = new Fields.Form();
         f.row("core a min / max (Å)", Fields.pair(cAMin, cAMax), "Core equatorial semi-axis bounds");
@@ -451,6 +734,91 @@ public class ModelSettingsPanel extends JPanel {
                     s.kuhnLength = Fields.pos(wKuhn, "Kuhn length");
                     spec.description = String.format("Wormlike chains (b %s Å, R %s Å), L %s-%s Å", Fields.fmt(s.kuhnLength),
                             Fields.fmt(s.chainRadius), Fields.fmt(lo), Fields.fmt(hi));
+                }
+                break;
+            }
+            case HELIX: {
+                boolean inf = hInfinite.isSelected();
+                double lo = inf ? Fields.pos(hRMin, "r min") : Fields.pos(hLMin, "L min");
+                double hi = inf ? Fields.pos(hRMax, "r max") : Fields.pos(hLMax, "L max");
+                Fields.order(lo, hi, inf ? "r" : "L");
+                spec.min = new double[]{lo};
+                spec.max = new double[]{hi};
+                boolean ell = inf && hEllipsoids.isSelected();
+                boolean cont = (hContinuous.isSelected() || inf) && !ell;
+                spec.family = ell ? ShapeFamily.HELIX_INFINITE_ELLIPSOIDS : inf ? ShapeFamily.HELIX_INFINITE
+                        : cont ? ShapeFamily.HELIX : ShapeFamily.HELIX_SUBUNITS;
+                s.helixStrands = (Integer) hStrands.getValue();
+                int scan = hScan.getSelectedIndex();
+                if (scan == 2 && !cont && !ell) throw new IllegalArgumentException("Pitch scan applies to continuous strands; for subunits the pitch follows from rise and twist");
+                if (scan == 3 && !ell) throw new IllegalArgumentException("The subunits-per-turn scan applies to ellipsoidal subunits");
+                if (inf && scan == 1) throw new IllegalArgumentException("The radius is the fitted distribution for infinitely long filaments; scan the pitch instead");
+                if (scan != 1 && !inf) s.helixRadius = Fields.nonNeg(hRadius, "helix radius");
+                String geom;
+                if (ell) {
+                    if (scan != 2) s.helixPitch = Fields.pos(hPitch, "pitch");
+                    if (scan != 3) s.helixSubunitsPerTurn = Fields.pos(hPerTurn, "subunits per turn");
+                    s.helixEllipsoidA = Fields.pos(hEllA, "ellipsoid a");
+                    s.helixEllipsoidC = Fields.pos(hEllC, "ellipsoid c");
+                    s.helixStrandAngle = 180;
+                    if (s.helixStrands == 2) {
+                        s.helixStrandAngle = Fields.pos(hStrandAngle, "strand angle");
+                        if (s.helixStrandAngle >= 360) throw new IllegalArgumentException("Strand angle must be between 0 and 360°");
+                    }
+                    s.helixUnitVolume = unitVolume();
+                    s.helixUnitVolumeTolerance = Fields.pos(hUnitTol, "volume tolerance") / 100.0;
+                    geom = String.format("%d strand%s of ellipsoids %s × %s Å, %s per turn", s.helixStrands, s.helixStrands > 1 ? "s" : "",
+                            Fields.fmt(s.helixEllipsoidA), Fields.fmt(s.helixEllipsoidC),
+                            scan == 3 ? "scanned" : Fields.fmt(s.helixSubunitsPerTurn));
+                } else if (cont) {
+                    if (scan != 2) s.helixPitch = Fields.pos(hPitch, "pitch");
+                    s.helixStrandRadius = Fields.nonNeg(hStrandRadius, "strand radius");
+                    s.helixStrandAngle = 180;
+                    if (s.helixStrands == 2) {
+                        s.helixStrandAngle = Fields.pos(hStrandAngle, "strand angle");
+                        if (s.helixStrandAngle >= 360) throw new IllegalArgumentException("Strand angle must be between 0 and 360°");
+                    }
+                    geom = String.format("%d strand%s%s, strand a %s Å", s.helixStrands, s.helixStrands > 1 ? "s" : "",
+                            s.helixStrands == 2 && s.helixStrandAngle != 180 ? String.format(" (φ %s°)", Fields.fmt(s.helixStrandAngle)) : "",
+                            Fields.fmt(s.helixStrandRadius));
+                } else {
+                    s.helixRise = Fields.pos(hRise, "rise");
+                    s.helixTwist = Fields.num(hTwist, "twist");
+                    s.helixSubunitRadius = Fields.nonNeg(hSubunitRadius, "subunit radius");
+                    if (hi / s.helixRise > 2_000_000) throw new IllegalArgumentException("L max / rise is too large");
+                    geom = String.format("%d strand%s of subunits a %s Å, rise %s Å, twist %s°", s.helixStrands, s.helixStrands > 1 ? "s" : "",
+                            Fields.fmt(s.helixSubunitRadius), Fields.fmt(s.helixRise), Fields.fmt(s.helixTwist));
+                }
+                if (scan > 0) {
+                    double a = scan == 1 ? Fields.nonNeg(hScanLo, "scan from") : Fields.pos(hScanLo, "scan from");
+                    double b = Fields.pos(hScanHi, "scan to");
+                    Fields.order(a, b, "scan");
+                    ParamScan ps = new ParamScan();
+                    ps.parameter = scan == 1 ? "r_helix" : scan == 2 ? "pitch" : "per_turn";
+                    ps.unit = scan == 3 ? "" : " A";
+                    ps.setter = scan == 1 ? (set, v) -> set.helixRadius = v : scan == 2 ? (set, v) -> set.helixPitch = v
+                            : (set, v) -> set.helixSubunitsPerTurn = v;
+                    // layer lines are sharp: the lattice scans need a finer grid than the 7 points of the others
+                    int pts = ell && scan >= 2 ? 13 : 7;
+                    ps.grid = new double[pts];
+                    for (int k = 0; k < pts; k++) ps.grid[k] = Math.round((a + k * (b - a) / (pts - 1.0)) * 10) / 10.0;
+                    spec.paramScan = ps;
+                    double mid = ps.grid[pts / 2];
+                    if (scan == 1) s.helixRadius = mid; else if (scan == 2) s.helixPitch = mid; else s.helixSubunitsPerTurn = mid;
+                    spec.description = String.format("Helical filaments (%s scanned %s-%s Å; %s%s), L %s-%s Å", ps.parameter,
+                            Fields.fmt(a), Fields.fmt(b), scan == 1 ? "" : "r " + Fields.fmt(s.helixRadius) + " Å, ", geom, Fields.fmt(lo), Fields.fmt(hi));
+                } else {
+                    spec.description = String.format("Helical filaments (r %s Å%s, %s), L %s-%s Å", Fields.fmt(s.helixRadius),
+                            cont ? ", pitch " + Fields.fmt(s.helixPitch) + " Å" : "", geom, Fields.fmt(lo), Fields.fmt(hi));
+                }
+                if (inf) {
+                    int last = spec.paramScan == null ? 0 : spec.paramScan.grid.length - 1;
+                    spec.description = spec.paramScan != null
+                            ? String.format("Infinitely long helices (%s scanned %s-%s; %s%s), r %s-%s Å",
+                            scan == 3 ? "subunits per turn" : "pitch", Fields.fmt(spec.paramScan.grid[0]), Fields.fmt(spec.paramScan.grid[last]),
+                            scan == 3 ? "pitch " + Fields.fmt(s.helixPitch) + " Å, " : "", geom, Fields.fmt(lo), Fields.fmt(hi))
+                            : String.format("Infinitely long helices (pitch %s Å, %s), r %s-%s Å", Fields.fmt(s.helixPitch), geom,
+                            Fields.fmt(lo), Fields.fmt(hi));
                 }
                 break;
             }

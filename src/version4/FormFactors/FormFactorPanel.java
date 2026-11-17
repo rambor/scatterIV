@@ -110,6 +110,10 @@ public class FormFactorPanel extends JPanel {
     private ParameterProfile.Profile paramProfile;
     private String resultTitle = "";
     private final java.util.Map<String, JFreeChart> charts = new java.util.LinkedHashMap<>();
+    /** helix cartoon (Helix tab), shown for helix results */
+    private final JPanel helixTab = new JPanel(new BorderLayout());
+    private final HelixCartoon helixCartoon = new HelixCartoon();
+    private ModelSettingsPanel.FitSpec resultSpec;
 
     public FormFactorPanel(DatasetProvider provider, int cpuCores, String version) {
         super(new BorderLayout());
@@ -148,6 +152,8 @@ public class FormFactorPanel extends JPanel {
         buildPolymerTab();
         tabs.addTab("Gel", gelTab);
         buildGelTab();
+        tabs.addTab("Helix", helixTab);
+        buildHelixTab();
         tabs.addChangeListener(e -> {
             if (tabs.getSelectedComponent() == polymerTab && worker == null && !currentPolymerKey().equals(polymerKey)) analysePolymer();
         });
@@ -162,6 +168,16 @@ public class FormFactorPanel extends JPanel {
         weighting.addActionListener(e -> showDistributions());
         pairBox.addActionListener(e -> showJoint());
         model.addModelChangeListener(() -> { if (!Double.isNaN(dataQmax)) suggestBounds(); });
+        model.setHelixDataSource(() -> {
+            int idx = datasetBox.getSelectedIndex();
+            if (idx < 0) throw new IllegalArgumentException("Select a dataset first");
+            double qmin = Fields.pos(qminField, "q min"), qmax = Fields.pos(qmaxField, "q max");
+            Fields.order(qmin, qmax, "q range");
+            return extract(provider.data(idx), qmin, qmax);
+        }, v -> {
+            qmaxField.setText(String.format("%.5f", v));
+            say(String.format("q max set to %.4f Å⁻¹ by the helix estimate", v));
+        });
 
         // re-read the collection whenever the panel becomes visible (files are loaded in the Analysis panel)
         addHierarchyListener(e -> {
@@ -533,6 +549,7 @@ public class FormFactorPanel extends JPanel {
                 barString(String.format("Finished in %s", time((System.nanoTime() - t0) * 1e-9)));
                 profile = null;
                 paramProfile = null;
+                resultSpec = spec;
                 if (out instanceof SpeciesProfile.Profile) {
                     profile = (SpeciesProfile.Profile) out;
                     result = profile.best.result;
@@ -585,6 +602,43 @@ public class FormFactorPanel extends JPanel {
         report.setText("");
         tabs.setEnabledAt(4, false);
         tabs.setEnabledAt(2, true);
+        helixCartoon.setSpec(null);
+        tabs.setEnabledAt(tabs.indexOfComponent(helixTab), false);
+    }
+
+    private void buildHelixTab() {
+        JButton png = new JButton("Save PNG…"), svg = new JButton("Save SVG…");
+        png.addActionListener(e -> saveCartoon("png"));
+        svg.addActionListener(e -> saveCartoon("svg"));
+        JPanel top = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        top.add(new JLabel("Cartoon of the fitted helix, to scale"));
+        top.add(png);
+        top.add(svg);
+        helixTab.add(top, BorderLayout.NORTH);
+        helixTab.add(helixCartoon, BorderLayout.CENTER);
+    }
+
+    private void saveCartoon(String ext) {
+        if (helixCartoon.getSpec() == null) return;
+        String wd = workingDirectory.get();
+        JFileChooser ch = wd == null ? new JFileChooser() : new JFileChooser(wd);
+        ch.setSelectedFile(new File(defaultPrefix() + "_helix." + ext));
+        if (ch.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) return;
+        File f = ch.getSelectedFile();
+        if (!f.getName().toLowerCase(java.util.Locale.ROOT).endsWith("." + ext)) f = new File(f.getPath() + "." + ext);
+        try {
+            HelixCartoon.write(helixCartoon.getSpec(), f, 1000, 600);
+            say("Saved " + f);
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "Could not save: " + ex.getMessage(), "FormFactors", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void showHelix() {
+        HelixCartoon.Spec hs = result == null || resultSpec == null ? null
+                : HelixCartoon.fromFit(resultSpec.family, resultSpec.settings, result, paramProfile);
+        helixCartoon.setSpec(hs);
+        tabs.setEnabledAt(tabs.indexOfComponent(helixTab), hs != null);
     }
 
     /** builds every chart for the current result (also used by tests and for saving) */
@@ -642,6 +696,7 @@ public class FormFactorPanel extends JPanel {
         report.setText(sb.toString());
         report.setCaretPosition(0);
         tabs.setSelectedIndex(profile != null || paramProfile != null ? 4 : 0);
+        showHelix();
         saveButton.setEnabled(true);
     }
 
@@ -1021,6 +1076,13 @@ public class FormFactorPanel extends JPanel {
             File f = dir.resolve(prefix + "_" + c.getKey() + ".png").toFile();
             ChartUtilities.saveChartAsPNG(f, c.getValue(), 1000, c.getKey().equals("fit") ? 800 : 600);
             out.add(f.toPath());
+        }
+        if (helixCartoon.getSpec() != null) {
+            for (String ext : new String[]{"png", "svg"}) {
+                File f = dir.resolve(prefix + "_helix." + ext).toFile();
+                HelixCartoon.write(helixCartoon.getSpec(), f, 1000, 600);
+                out.add(f.toPath());
+            }
         }
         return out;
     }

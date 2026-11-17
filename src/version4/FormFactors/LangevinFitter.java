@@ -82,6 +82,9 @@ public class LangevinFitter {
         // error calibration (band-limited fit) and Shannon rebinning, see DataPreparation
         double maxLen = 0;
         for (int k = 0; k < d; k++) maxLen = Math.max(maxLen, maxParams[k]);
+        // infinitely long particles have no maximum dimension: let the D scan of the error calibration reach
+        // the largest size the q range can see
+        if (family.isInfinite() && q.length > 0 && q[0] > 0) maxLen = Math.max(maxLen, 4 * Math.PI / q[0]);
         if (settings.calibrateErrors || settings.rebin) {
             DataPreparation prep = DataPreparation.prepare(q, intensity, sigma, settings.dmax, 2.4 * maxLen,
                     settings.calibrateErrors, settings.rebin, settings.pointsPerChannel, settings.fitBackground);
