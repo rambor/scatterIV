@@ -8,6 +8,34 @@ final class Fields {
 
     private Fields() {}
 
+    private static final String WRAP_BODY = "lnp.wrapBody", WRAP_FITTED = "lnp.wrapFitted";
+
+    static JLabel wrappingLabel(JComponent tracks, String body) {
+        JLabel label = new JLabel();
+        setWrappingText(label, tracks, body);
+        return label;
+    }
+
+    /** the same, for a label whose text changes: it re-wraps both on resize and on each new message */
+    static void setWrappingText(JLabel label, JComponent tracks, String body) {
+        label.putClientProperty(WRAP_BODY, body);
+        if (label.getClientProperty(WRAP_FITTED) == null) {
+            label.putClientProperty(WRAP_FITTED, Boolean.TRUE);
+            tracks.addComponentListener(new java.awt.event.ComponentAdapter() {
+                @Override public void componentResized(java.awt.event.ComponentEvent e) {
+                    Object b = label.getClientProperty(WRAP_BODY);
+                    if (b != null) label.setText(wrapped(b.toString(), tracks));
+                }
+            });
+        }
+        label.setText(wrapped(body, tracks));
+    }
+
+    static String wrapped(String body, JComponent tracks) {
+        int w = Math.max(240, tracks.getWidth() - 36);
+        return "<html><div style='width:" + w + "px'>" + body + "</div></html>";
+    }
+
     static JTextField num(String text) {
         JTextField f = new JTextField(text, 5);
         f.setHorizontalAlignment(JTextField.RIGHT);

@@ -393,7 +393,8 @@ public class ModelSettingsPanel extends JPanel {
                         "Helix starting values", JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE, null,
                         options, options[0]);
                 if (choice < 0 || choice == options.length - 1) return;
-                applyHelixEstimate(e);
+                // keeping the full q range: the best model over the full range (it may differ)
+                applyHelixEstimate(qChange && choice == 1 && e.fullRange != null ? e.fullRange : e);
                 if (qChange && choice == 0 && helixQmax != null) helixQmax.accept(e.qmax);
             }
         }.execute();
@@ -463,8 +464,14 @@ public class ModelSettingsPanel extends JPanel {
     }
 
     private void applyHelixEstimate(HelixEstimator.Estimate e) {
-        hInfinite.setSelected(true);
         hContinuous.setSelected(true);       // the uniform-strand estimate
+        if (e.finite) {
+            // one helix with a length distribution
+            hFinite.setSelected(true);
+            hRadius.setText(Fields.fmt(e.helixRadius));
+            hLMin.setText(Fields.fmt(e.lMin));
+            hLMax.setText(Fields.fmt(e.lMax));
+        } else hInfinite.setSelected(true);
         hRMin.setText(Fields.fmt(e.rMin));
         hRMax.setText(Fields.fmt(e.rMax));
         hStrands.setValue(e.strands);
@@ -493,8 +500,9 @@ public class ModelSettingsPanel extends JPanel {
         Fields.Form f = new Fields.Form();
         hEstimate.addActionListener(e -> estimateHelix());
         f.row("Starting values", Fields.flow(hEstimate, hEstimateStatus),
-                "Survey of radius distribution, strand radius, strands and pitch by least squares (a few seconds); "
-                        + "fills in the fields below and suggests q max");
+                "Least-squares survey of two models: infinitely long helices with a radius distribution, and one helix "
+                        + "(radius, strand radius, strands, pitch) with a length distribution. Takes the better, fills in the "
+                        + "fields below and suggests q max (10-60 s)");
         ButtonGroup length = new ButtonGroup();
         length.add(hFinite);
         length.add(hInfinite);

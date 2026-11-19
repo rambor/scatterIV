@@ -62,6 +62,9 @@ public class Scatter {
     private JPanel formsPanel;
     private JLabel formsIcon;
     private JLabel formsLabel;
+    private JPanel lnpButtonPanel;
+    private JLabel lnpIcon;
+    private JLabel lnpLabel;
     public static Collection collectionSelected;
     public static Color background;
     public static boolean useAutoRg = true;
@@ -79,6 +82,7 @@ public class Scatter {
     private Modeling modeling;
     private Subtract subtractTab;
     private FormFactors formFactorsTab;
+    private Lnp lnpTab;
     private static int cpuCores;
 
     public Scatter(){
@@ -94,6 +98,7 @@ public class Scatter {
         modeling.setFields(WORKING_DIRECTORY, status);
 
         formFactorsTab = new FormFactors(WORKING_DIRECTORY, mainProgressBar, status);
+        lnpTab = new Lnp(WORKING_DIRECTORY, mainProgressBar, status);
 
         cpuCores = Runtime.getRuntime().availableProcessors();
         Vector comboBoxItemsCPU = new Vector();
@@ -183,6 +188,7 @@ public class Scatter {
         sideButtons.add(new SideButtonIcon(SettingsPanel, settingsIcon, settingsLabel)); // 5
         sideButtons.add(new SideButtonIcon(mSSXButtonPanel, ssxIcon, MSSXLabel)); // 6
         sideButtons.add(new SideButtonIcon(formsPanel, formsIcon, formsLabel)); // 7
+        sideButtons.add(new SideButtonIcon(lnpButtonPanel, lnpIcon, lnpLabel)); // 8
 
         totalSideButtons = sideButtons.size();
         for(int i=0; i<totalSideButtons; i++){
@@ -317,6 +323,22 @@ public class Scatter {
             }
         });
 
+        lnpButtonPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseEntered(MouseEvent e) {
+                super.mouseEntered(e);
+                sideButtons.get(8).highlight(new Color(198,248,255));
+            }
+        });
+
+        lnpButtonPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseExited(MouseEvent e) {
+                super.mouseExited(e);
+                sideButtons.get(8).dehighlight();
+            }
+        });
+
 
         prButtonPanel.addMouseListener(new MouseAdapter() {
             @Override
@@ -423,6 +445,19 @@ public class Scatter {
                 dehighlightSideButtons();
                 sideButtons.get(7).highlight(new Color(198,248,255));
                 analysisPane.add(formFactorsTab.getPanel());
+                analysisPane.revalidate();
+                analysisPane.repaint();
+            }
+        });
+
+        lnpButtonPanel.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                super.mousePressed(e);
+                analysisPane.removeAll();
+                dehighlightSideButtons();
+                sideButtons.get(8).highlight(new Color(198,248,255));
+                analysisPane.add(lnpTab.getPanel());
                 analysisPane.revalidate();
                 analysisPane.repaint();
             }

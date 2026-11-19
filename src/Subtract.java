@@ -9,12 +9,15 @@ import org.jfree.chart.labels.XYToolTipGenerator;
 import org.jfree.chart.plot.IntervalMarker;
 import org.jfree.chart.plot.Marker;
 import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.chart.plot.ValueMarker;
 import org.jfree.chart.renderer.xy.XYLineAndShapeRenderer;
 import org.jfree.data.Range;
 import org.jfree.data.xy.XYDataset;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 import org.jfree.ui.Layer;
+import scatter.api.Curve;
+import scatter.api.FrameFilter;
 import version4.Collection;
 import version4.Constants;
 import version4.Subtraction;
@@ -30,6 +33,7 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.Rectangle2D;
 import java.io.File;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
@@ -171,17 +175,18 @@ public class Subtract {
             if (subtractFromMedianCheckBox.isSelected()) averageCheckBox.setSelected(false);
         });
 
-        // recompute the similarity plots when the q-range changes
+        // recompute the similarity plots and the selection when the q-range changes
+        // (only when the range really changed, so moving the focus does not undo manual ticks)
         FocusAdapter qRangeFocus = new FocusAdapter() {
             @Override
             public void focusLost(FocusEvent e) {
-                refreshSimilarityPlots();
+                onQRangeEdited();
             }
         };
         qminField.addFocusListener(qRangeFocus);
         qmaxField.addFocusListener(qRangeFocus);
-        qminField.addActionListener(e -> refreshSimilarityPlots());
-        qmaxField.addActionListener(e -> refreshSimilarityPlots());
+        qminField.addActionListener(e -> onQRangeEdited());
+        qmaxField.addActionListener(e -> onQRangeEdited());
 
         SUBTRACTButton.addActionListener(e -> startSubtraction());
         stopSubtractButton.addActionListener(e -> stopSubtraction());
@@ -489,7 +494,6 @@ public class Subtract {
 
         resize();
         plotFor(isSample).updateChart();
-        refreshSimilarityPlot(isSample);
 
         if (keepEarlier) {
             // extend the shown range to cover the new frames without retouching earlier ticks
@@ -499,6 +503,9 @@ public class Subtract {
         } else {
             applySelectionRange(isSample, 0, total - 1);
         }
+        // compare the frames and tick the ones that agree (the user can still change the selection)
+        FrameFilter.Result filtered = refreshSimilarityPlot(isSample);
+        if (filtered != null) applyFilterSelection(isSample, filtered);
         contentPane.validate();
 
         int added = total - (keepEarlier ? framesBefore : 0);
@@ -506,7 +513,7 @@ public class Subtract {
             warn("Warning: list shows " + model.getSize() + " files but " + total + " " + labelFor(isSample) + " frames were loaded");
         } else {
             info("Added " + added + " " + labelFor(isSample) + " frame" + (added == 1 ? "" : "s")
-                    + " (" + total + " total)");
+                    + " (" + total + " total)" + (filtered != null ? ". " + describeFilter(isSample, filtered) : ""));
         }
     }
 
@@ -672,6 +679,20 @@ public class Subtract {
             return;
         }
 
+        // scaling needs data inside the q range (e.g. WAXS frames with the SAXS default range cannot be scaled)
+        if (scaleThenMergeCheckBox.isSelected()) {
+            int inside = pointsInRange(samplesCollection, qminValue, qmaxValue);
+            if (inside < 10) {
+                String msg = String.format(Locale.ROOT, "Scaling needs data in the q range %.3g-%.3g (the samples have %d points there): "
+                        + "set qmin/qmax inside the data, e.g. %.3g-%.3g, or untick 'scale then merge'",
+                        qminValue, qmaxValue, inside, samplesCollection.getDataset(0).getAllData().getMinX(),
+                        samplesCollection.getDataset(0).getAllData().getMaxX());
+                showWarningDialog(msg);
+                warn(msg);
+                return;
+            }
+        }
+
         if (!subtracting.compareAndSet(false, true)) {
             warn("A subtraction is already running");
             return;
@@ -725,6 +746,17 @@ public class Subtract {
         }, "subtraction").start();
     }
 
+    private static int pointsInRange(Collection collection, double qmin, double qmax) {
+        if (collection.getTotalDatasets() == 0) return 0;
+        XYSeries data = collection.getDataset(0).getAllData();
+        int count = 0;
+        for (int j = 0; j < data.getItemCount(); j++) {
+            double q = data.getX(j).doubleValue();
+            if (q >= qmin && q <= qmax) count++;
+        }
+        return count;
+    }
+
     private void stopSubtraction() {
         Subtraction running = currentSubtraction;
         if (running != null) {
@@ -757,87 +789,150 @@ public class Subtract {
     }
 
     // ------------------------------------------------------------------------------------
-    // Similarity (Durbin-Watson vs first frame)
+    // Similarity: every frame against the earliest stable frames (CorMap), see scatter.api.FrameFilter
     // ------------------------------------------------------------------------------------
 
-    private void refreshSimilarityPlots() {
-        refreshSimilarityPlot(true);
-        refreshSimilarityPlot(false);
+    /** significance level for "frame differs from the reference" (after Holm correction over the frames) */
+    private static final double ALPHA = 0.01;
+    /** plot cap for -log10 p */
+    private static final double MAX_SCORE = 12;
+    private String lastQRange = "";
+
+    /** q range edited: compare the frames again and re-select (only when the range really changed) */
+    private void onQRangeEdited() {
+        String now = qminField.getText().trim() + "|" + qmaxField.getText().trim();
+        if (now.equals(lastQRange)) return;
+        StringBuilder msg = new StringBuilder();
+        for (boolean isSample : new boolean[]{true, false}) {
+            FrameFilter.Result r = refreshSimilarityPlot(isSample);
+            if (r == null) continue;
+            applyFilterSelection(isSample, r);
+            if (msg.length() > 0) msg.append("   ");
+            msg.append(describeFilter(isSample, r));
+        }
+        if (msg.length() > 0) info(msg.toString());
     }
 
-    private void refreshSimilarityPlot(boolean isSample) {
+    /** recomputes and redraws the similarity plot; returns the comparison (null if not possible) */
+    private FrameFilter.Result refreshSimilarityPlot(boolean isSample) {
         Collection collection = collectionFor(isSample);
         DataChart chart = simPlotFor(isSample);
         if (collection.getTotalDatasets() == 0) {
             chart.clear();
-            return;
+            return null;
         }
 
         Double qmin = parseDouble(qminField.getText());
         Double qmax = parseDouble(qmaxField.getText());
         if (qmin == null || qmax == null || qmin >= qmax) {
             warn("q-range (qmin, qmax) is invalid; similarity plot not updated");
-            return;
+            return null;
         }
+        lastQRange = qminField.getText().trim() + "|" + qmaxField.getText().trim();
 
         try {
-            chart.update(computeSimilarity(collection, qmin, qmax));
+            FrameFilter.Result r = computeSimilarity(collection, qmin, qmax);
+            chart.update(r);
+            return r;
         } catch (RuntimeException ex) {
             ex.printStackTrace();
             warn("Could not compute frame similarity: " + describe(ex));
+            return null;
         }
     }
 
     /**
-     * Using the first frame as reference, residuals (frame - reference) within [qmin, qmax]
-     * are scored with the Durbin-Watson statistic. Plotted as d - 2, so 0 means no
-     * correlated (systematic) difference from the reference.
+     * Every frame is compared with a reference made of the earliest run of frames that agree with each
+     * other (not frame 0, which may see the meniscus, and not the median, which is the damaged state
+     * once most frames are damaged). The comparison is CorMap: the longest run of residuals with the
+     * same sign and its probability (no error model needed), Holm-corrected over the frames. The
+     * accepted frames are the longest stretch that agrees with the reference, so a disturbed start
+     * (meniscus) and a drifting end (radiation damage, aggregation, capillary fouling) are cut as blocks.
      */
-    private XYSeries computeSimilarity(Collection collection, double qmin, double qmax) {
-        XYSeries sim = new XYSeries("sim");
-        XYSeries ref = collection.getDataset(0).getAllData();
-        int n = ref.getItemCount();
-
-        int startAt = 0;
-        while (startAt < n && ref.getX(startAt).doubleValue() < qmin) startAt++;
-        int stopAt = startAt; // exclusive
-        while (stopAt < n && ref.getX(stopAt).doubleValue() <= qmax) stopAt++;
-
-        double[] residuals = new double[Math.max(0, stopAt - startAt)];
-
-        sim.add(0, 0); // frame 0 is the reference
-        for (int i = 1; i < collection.getTotalDatasets(); i++) {
-            XYSeries target = collection.getDataset(i).getAllData();
-            int count = 0;
-            for (int r = startAt; r < stopAt; r++) {
-                int index = target.indexOf(ref.getX(r));
-                if (index > -1) {
-                    residuals[count++] = target.getY(index).doubleValue() - ref.getY(r).doubleValue();
-                }
+    private FrameFilter.Result computeSimilarity(Collection collection, double qmin, double qmax) {
+        List<Curve> frames = new ArrayList<>();
+        for (int i = 0; i < collection.getTotalDatasets(); i++) {
+            version4.Dataset d = collection.getDataset(i);
+            XYSeries data = d.getAllData(), err = d.getAllDataError();
+            int n = data.getItemCount();
+            double[] q = new double[n], intensity = new double[n], sigma = new double[n];
+            for (int j = 0; j < n; j++) {
+                q[j] = data.getX(j).doubleValue();
+                intensity[j] = data.getY(j).doubleValue();
+                sigma[j] = (err != null && j < err.getItemCount()) ? err.getY(j).doubleValue() : Double.NaN;
             }
-            if (count < 2) {
-                continue; // not enough overlapping q-values to say anything
-            }
-            sim.add(i, durbinWatson(residuals, count) - 2.0);
+            frames.add(new Curve(d.getFileName(), q, intensity, sigma));
         }
-        return sim;
+        // the q range may not cover these frames at all (e.g. the SAXS default range with WAXS frames):
+        // then compare over the frames' own q range rather than not at all
+        double lo = qmin, hi = qmax;
+        Curve first = frames.get(0);
+        for (Curve c : frames) if (c.size() > first.size()) first = c;     // not an empty or truncated frame
+        int inside = 0;
+        for (int j = 0; j < first.size(); j++) if (first.q(j) >= qmin && first.q(j) <= qmax) inside++;
+        String note = null;
+        if (inside < 10 && first.size() >= 10) {
+            lo = first.q(0);
+            hi = first.q(first.size() - 1);
+            note = String.format(Locale.ROOT, "compared over q %.3g-%.3g (no data in the q range %.3g-%.3g)", lo, hi, qmin, qmax);
+        }
+        FrameFilter.Options o = new FrameFilter.Options().qRange(lo, hi).alpha(ALPHA);
+        FrameFilter.Result r = FrameFilter.filter(frames, o);
+        rangeNote.put(collection, note);
+        return r;
     }
 
-    /**
-     * d = 2 means no autocorrelation; d lies between 0 and 4.
-     */
-    private static double durbinWatson(double[] residuals, int count) {
-        double numerator = 0;
-        double denominator = residuals[0] * residuals[0];
-        for (int i = 1; i < count; i++) {
-            double diff = residuals[i] - residuals[i - 1];
-            numerator += diff * diff;
-            denominator += residuals[i] * residuals[i];
+    /** per collection: why the comparison used a different q range (null if it did not) */
+    private final java.util.Map<Collection, String> rangeNote = new java.util.IdentityHashMap<>();
+
+    /** Ticks exactly the accepted frames (not necessarily contiguous: single outliers stay unticked). */
+    private void applyFilterSelection(boolean isSample, FrameFilter.Result r) {
+        int[] accepted = r.getAccepted();
+        ArrayList<Boolean> selection = selectionFor(isSample);
+        if (accepted.length == 0 || selection.size() != r.getFrames().size()) return;
+
+        boolean[] keep = new boolean[selection.size()];
+        for (int k : accepted) keep[k] = true;
+        DefaultListModel<SampleBufferElement> model = modelFor(isSample);
+        for (int i = 0; i < selection.size(); i++) {
+            selection.set(i, keep[i]);
+            if (i < model.getSize()) model.get(i).setSelected(keep[i]);
         }
-        if (denominator == 0) {
-            return 2.0; // identical to the reference: no structure in the residuals
-        }
-        return numerator / denominator;
+        int start = accepted[0], end = accepted[accepted.length - 1];
+        if (isSample) { selectedStart = start; selectedEnd = end; }
+        else { selectedBufferStart = start; selectedBufferEnd = end; }
+        startFieldFor(isSample).setText(Integer.toString(start));
+        endFieldFor(isSample).setText(Integer.toString(end));
+        markerFor(isSample).setRange(start, end);
+        listFor(isSample).repaint();
+        plotFor(isSample).updateVisibility(selection);
+    }
+
+    /** status line, frames numbered from 0 as in the list and the start/end fields */
+    private String describeFilter(boolean isSample, FrameFilter.Result r) {
+        int[] acc = r.getAccepted();
+        StringBuilder sb = new StringBuilder(isSample ? "Samples: " : "Buffers: ");
+        sb.append(acc.length).append(" of ").append(r.getFrames().size()).append(" frames agree");
+        if (acc.length > 0) sb.append(" (").append(acc[0]).append("-").append(acc[acc.length - 1]).append(")");
+        int lead = r.count(FrameFilter.Reason.LEADING), trail = r.count(FrameFilter.Reason.TRAILING),
+                out = r.count(FrameFilter.Reason.OUTLIER), incomplete = r.count(FrameFilter.Reason.INCOMPLETE);
+        if (incomplete > 0) sb.append(", ").append(incomplete).append(" incomplete (too few points)");
+        if (lead > 0) sb.append(", ").append(lead).append(" leading");
+        if (trail > 0) sb.append(", ").append(trail).append(" trailing");
+        if (out > 0) sb.append(", ").append(out).append(" outlier").append(out > 1 ? "s" : "");
+        if (r.getAnchorStart() >= 0)
+            sb.append("; reference ").append(r.getAnchorStart()).append("-").append(r.getAnchorStart() + r.getAnchorSize() - 1);
+        if (r.getMessage() != null) sb.append("; ").append(r.getMessage());
+        String note = rangeNote.get(collectionFor(isSample));
+        if (note != null) sb.append("; ").append(note);
+        return sb.toString();
+    }
+
+    /** -log10 of the Holm-adjusted CorMap p-value, capped for plotting; 0 when no comparison was made */
+    private static double score(FrameFilter.Frame f) {
+        double p = f.adjustedP;
+        if (Double.isNaN(p)) return 0;
+        return Math.min(MAX_SCORE, -Math.log10(Math.max(p, 1e-300)));
     }
 
     // ------------------------------------------------------------------------------------
@@ -974,23 +1069,29 @@ public class Subtract {
             chart = ChartFactory.createXYLineChart(
                     name,
                     "frame",
-                    "similarity",
+                    "-log10 p",
                     plotCollection,
                     PlotOrientation.VERTICAL,
-                    false,
+                    true,
                     true,
                     false
             );
-
+            chart.getLegend().setItemFont(new Font("SansSerif", Font.PLAIN, 10));
             chart.getXYPlot().setBackgroundAlpha(0.0f);
             NumberAxis domainAxis = new NumberAxis("frame");
             domainAxis.setTickLabelFont(Constants.FONT_12);
             chart.getXYPlot().setDomainAxis(domainAxis);
             chart.getTitle().setVisible(false);
 
-            NumberAxis rangeAxis = new NumberAxis("similarity");
+            NumberAxis rangeAxis = new NumberAxis("difference from reference, -log10 p");
             rangeAxis.setAutoRange(true);
+            rangeAxis.setLabelFont(new Font("SansSerif", Font.PLAIN, 11));
             chart.getXYPlot().setRangeAxis(rangeAxis);
+            // frames above this line differ from the reference (p < ALPHA after correction)
+            ValueMarker threshold = new ValueMarker(-Math.log10(ALPHA));
+            threshold.setPaint(new Color(200, 40, 40));
+            threshold.setStroke(new BasicStroke(1.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10f, new float[]{4f, 4f}, 0f));
+            chart.getXYPlot().addRangeMarker(threshold);
 
             XYLineAndShapeRenderer baseRenderer = (XYLineAndShapeRenderer) chart.getXYPlot().getRenderer();
             double basePt = 2;
@@ -1006,18 +1107,20 @@ public class Subtract {
                 public void restoreAutoBounds() {
                     org.jfree.chart.plot.XYPlot plot = getChart().getXYPlot();
                     XYDataset ds = plot.getDataset(0);
-                    if (ds == null || ds.getSeriesCount() == 0 || ds.getItemCount(0) == 0) {
+                    if (ds == null || ds.getSeriesCount() == 0) {
                         super.restoreAutoBounds();
                         return;
                     }
 
                     double minX = Double.POSITIVE_INFINITY, maxX = Double.NEGATIVE_INFINITY;
-                    double minY = Double.POSITIVE_INFINITY, maxY = Double.NEGATIVE_INFINITY;
-                    for (int i = 0; i < ds.getItemCount(0); i++) {
-                        double x = ds.getXValue(0, i);
-                        double y = ds.getYValue(0, i);
-                        if (!Double.isNaN(x)) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
-                        if (!Double.isNaN(y)) { minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+                    double minY = 0, maxY = 2 * -Math.log10(ALPHA);
+                    for (int sIdx = 0; sIdx < ds.getSeriesCount(); sIdx++) {
+                        for (int i = 0; i < ds.getItemCount(sIdx); i++) {
+                            double x = ds.getXValue(sIdx, i);
+                            double y = ds.getYValue(sIdx, i);
+                            if (!Double.isNaN(x)) { minX = Math.min(minX, x); maxX = Math.max(maxX, x); }
+                            if (!Double.isNaN(y)) { minY = Math.min(minY, y); maxY = Math.max(maxY, y); }
+                        }
                     }
 
                     plot.getRangeAxis().setAutoRange(false);
@@ -1029,7 +1132,12 @@ public class Subtract {
             chartPanel.getChart().getXYPlot().getRenderer(0).setBaseToolTipGenerator(new XYToolTipGenerator() {
                 @Override
                 public String generateToolTip(XYDataset xyDataset, int series, int item) {
-                    return "frame_" + (int) xyDataset.getXValue(series, item);
+                    int frame = (int) xyDataset.getXValue(series, item);
+                    FrameFilter.Result r = lastResult;
+                    if (r == null || frame >= r.getFrames().size()) return "frame_" + frame;
+                    FrameFilter.Frame f = r.getFrames().get(frame);
+                    return String.format(Locale.ROOT, "frame_%d %s: p = %.2g, longest run %d of %d points",
+                            frame, f.reason.toString().toLowerCase(Locale.ROOT), f.adjustedP, f.longestRun, f.points);
                 }
             });
 
@@ -1051,18 +1159,34 @@ public class Subtract {
             return chartPanel;
         }
 
-        public void update(XYSeries data) {
+        private FrameFilter.Result lastResult;
+
+        /** one series per verdict: agrees (black), leading (blue), trailing (red), single outlier (orange),
+         *  incomplete frame (grey, plotted at 0: it was not compared) */
+        public void update(FrameFilter.Result r) {
+            lastResult = r;
             plotCollection.removeAllSeries();
-            plotCollection.addSeries(data);
-
-            XYLineAndShapeRenderer baseRenderer = (XYLineAndShapeRenderer) chart.getXYPlot().getRenderer();
+            FrameFilter.Reason[] reasons = {FrameFilter.Reason.ACCEPTED, FrameFilter.Reason.LEADING,
+                    FrameFilter.Reason.TRAILING, FrameFilter.Reason.OUTLIER, FrameFilter.Reason.DAMAGED,
+                    FrameFilter.Reason.INCOMPLETE};
+            String[] labels = {"agrees", "leading", "trailing", "outlier", "damaged", "incomplete"};
+            Color[] colors = {Color.BLACK, new Color(0, 90, 200), new Color(200, 40, 40), new Color(230, 140, 0),
+                    new Color(150, 0, 150), Color.GRAY};
+            XYLineAndShapeRenderer renderer = (XYLineAndShapeRenderer) chart.getXYPlot().getRenderer();
             double offset = -0.5 * pt;
-            baseRenderer.setSeriesPaint(0, new Color(0, 0, 0));
-            baseRenderer.setSeriesShapesFilled(0, false);
-            baseRenderer.setSeriesLinesVisible(0, false);
-            baseRenderer.setSeriesShape(0, new Ellipse2D.Double(offset, offset, pt, pt));
-            baseRenderer.setSeriesOutlineStroke(0, new BasicStroke(strokeit));
-
+            int s = 0;
+            for (int k = 0; k < reasons.length; k++) {
+                XYSeries series = new XYSeries(labels[k]);
+                for (FrameFilter.Frame f : r.getFrames()) if (f.reason == reasons[k]) series.add(f.index, score(f));
+                if (series.getItemCount() == 0) continue;
+                plotCollection.addSeries(series);
+                renderer.setSeriesPaint(s, colors[k]);
+                renderer.setSeriesShapesFilled(s, k != 0);
+                renderer.setSeriesLinesVisible(s, false);
+                renderer.setSeriesShape(s, new Ellipse2D.Double(offset, offset, pt, pt));
+                renderer.setSeriesOutlineStroke(s, new BasicStroke(strokeit));
+                s++;
+            }
             chartPanel.restoreAutoBounds();
         }
 
@@ -1071,6 +1195,7 @@ public class Subtract {
         }
 
         public void clear() {
+            lastResult = null;
             plotCollection.removeAllSeries();
         }
     }

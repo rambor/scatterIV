@@ -51,6 +51,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
     private Collection returnSubtractedMergedCollection;
     private Collection collectionToUpdate;
     private String version="";
+    private int buffersInUse;
 
     public Subtraction(Collection buffers,
                        Collection samples,
@@ -66,7 +67,12 @@ public class Subtraction extends SwingWorker<String, Integer> {
         this.samples = samples;
         this.buffers = buffers;
 
-        if (buffers.getTotalDatasets() > 1){
+        int buffersInUse = 0, lastInUse = 0;
+        for (int i = 0; i < buffers.getTotalDatasets(); i++) {
+            if (buffers.getDataset(i).getInUse()) { buffersInUse++; lastInUse = i; }
+        }
+        this.buffersInUse = buffersInUse;
+        if (buffersInUse > 1){
             ArrayList<XYSeries> stuff = createMedianAverageXYSeries(buffers);
             try {
                 medianBuffer = (XYSeries)stuff.get(0).clone();
@@ -77,11 +83,11 @@ public class Subtraction extends SwingWorker<String, Integer> {
             } catch (CloneNotSupportedException e) {
                 e.printStackTrace();
             }
-        } else { // reference to buffers data
-            medianBuffer = buffers.getDataset(0).getAllData();
-            medianBufferError = buffers.getDataset(0).getAllDataError();
-            averageBuffer = buffers.getDataset(0).getAllData();
-            averageBufferError = buffers.getDataset(0).getAllDataError();
+        } else { // the one buffer in use (not necessarily the first loaded)
+            medianBuffer = buffers.getDataset(lastInUse).getAllData();
+            medianBufferError = buffers.getDataset(lastInUse).getAllDataError();
+            averageBuffer = buffers.getDataset(lastInUse).getAllData();
+            averageBufferError = buffers.getDataset(lastInUse).getAllDataError();
         }
 
         this.status = status;
@@ -97,7 +103,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
         }
 
 
-        status.setText("Merging => average " + mergebyAverage + " median: " + mergebyMedian);
+        setStatus("Merging => average " + mergebyAverage + " median: " + mergebyMedian);
 
         this.scaleBeforeMerging = scaleBefore;
         this.cpus = cpus;
@@ -114,16 +120,16 @@ public class Subtraction extends SwingWorker<String, Integer> {
         returnCollection = new Collection("return");
         returnSubtractedMergedCollection = new Collection("return merged");
 
-        bar.setStringPainted(true);
-        bar.setIndeterminate(true);
-        bar.setValue(0);
+        onBar(() -> bar.setStringPainted(true));
+        onBar(() -> bar.setIndeterminate(true));
+        onBar(() -> bar.setValue(0));
 
         // create subtracted set of files from average buffer
         subtractedCollection = new Collection("Subtracted");
         int total = samples.getTotalDatasets();
-        bar.setMaximum(total);
+        onBar(() -> bar.setMaximum(total));
 
-        status.setText("Subtracting " + total + " files");
+        setStatus("Subtracting " + total + " files");
 
         /*
          * subtract each sample from the averaged buffer
@@ -132,7 +138,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
             if (samples.getDataset(i).getInUse()) {
 
-                ArrayList<XYSeries> subtraction = subtract(samples.getDataset(i).getAllData(), samples.getDataset(i).getAllDataError(), averageBuffer, averageBufferError);
+                ArrayList<XYSeries> subtraction = subtract(samples.getDataset(i).getAllData(), samples.getDataset(i).getAllDataError(), averageBuffer, averageBufferError, singlesOnly());
                 //int newIndex = subtractedCollection.getDatasetCount();
 
                 subtractedCollection.addDataset( new Dataset(
@@ -152,9 +158,9 @@ public class Subtraction extends SwingWorker<String, Integer> {
          * after doing the subtraction, need to do the actual averaging
          */
         if (mergebyMedian){
-            status.setText("MERGING BY MEDIAN");
+            setStatus("MERGING BY MEDIAN");
             // merge subtracted set by taking median of the subtracted sets (subtracted set was made using median buffer)
-            Dataset medianSetFromAveragedbuffer = medianSubtractedSets(subtractedCollection, "medianSample_averageBuffer");
+            Dataset medianSetFromAveragedbuffer = medianSubtractedSets(subtractedCollection, "medianSample_averageBuffer", averageBufferError);
 
             medianSetFromAveragedbuffer.initializeSasObject();
             medianSetFromAveragedbuffer.getSasObject().getSasSample().setDetails("Subtracted : med(Sample) - ave(buffer)");
@@ -163,16 +169,16 @@ public class Subtraction extends SwingWorker<String, Integer> {
             returnSubtractedMergedCollection.addDataset(medianSetFromAveragedbuffer);
 
             // subtract from average and (median buffer if count > 2)
-            if (buffers.getTotalDatasets() > 2){ // do subtraction against median buffer
+            if (buffersInUse > 2){ // do subtraction against median buffer
 
-                status.setText("Creating median buffer set");
+                setStatus("Creating median buffer set");
                 subtractedCollection.removeAllDatasets();
 
                 for (int i = 0; i < total; i++) {
 
                     if (samples.getDataset(i).getInUse() ) {
 
-                        ArrayList<XYSeries> subtraction = subtract(samples.getDataset(i).getAllData(), samples.getDataset(i).getAllDataError(), medianBuffer, medianBufferError);
+                        ArrayList<XYSeries> subtraction = subtract(samples.getDataset(i).getAllData(), samples.getDataset(i).getAllDataError(), medianBuffer, medianBufferError, false);
                         int newIndex = subtractedCollection.getTotalDatasets();
 
                         subtractedCollection.addDataset( new Dataset(
@@ -187,8 +193,8 @@ public class Subtraction extends SwingWorker<String, Integer> {
                     publish(i);
                 }
 
-                // create median subtracted median
-                Dataset medianSetFromMedianbuffer = averagedSubtractedSets(subtractedCollection, "medianSample_medianBuffer");
+                // median of the samples, subtracted from the median buffer
+                Dataset medianSetFromMedianbuffer = medianSubtractedSets(subtractedCollection, "medianSample_medianBuffer", medianBufferError);
 
                 medianSetFromMedianbuffer.initializeSasObject();
                 medianSetFromMedianbuffer.getSasObject().getSasSample().setDetails("Subtracted : med(Sample) - med(buffer)");
@@ -200,14 +206,14 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
         } else if (mergebyAverage) { // average the subtractedCollection (which was made from averaged buffer)
 
-            Dataset averagedSetFromAveragedbuffer = averagedSubtractedSets(subtractedCollection, "average_average");
+            Dataset averagedSetFromAveragedbuffer = averagedSubtractedSets(subtractedCollection, "average_average", averageBufferError);
             averagedSetFromAveragedbuffer.initializeSasObject();
             averagedSetFromAveragedbuffer.getSasObject().getSasSample().setDetails("Subtracted : ave(Sample) - ave(buffer)");
 
             returnCollection.addDataset(averagedSetFromAveragedbuffer);
             returnSubtractedMergedCollection.addDataset(averagedSetFromAveragedbuffer);
             // subtract from average and (median buffer if count > 2)
-            if (buffers.getTotalDatasets() > 2){ // do median buffer
+            if (buffersInUse > 2){ // do median buffer
 
                 subtractedCollection.removeAllDatasets();
 
@@ -216,7 +222,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
                     if (samples.getDataset(i).getInUse()) {
 
 
-                        ArrayList<XYSeries> subtraction = subtract(samples.getDataset(i).getAllData(), samples.getDataset(i).getAllDataError(), medianBuffer, medianBufferError);
+                        ArrayList<XYSeries> subtraction = subtract(samples.getDataset(i).getAllData(), samples.getDataset(i).getAllDataError(), medianBuffer, medianBufferError, false);
                         int newIndex = subtractedCollection.getTotalDatasets();
 
                         subtractedCollection.addDataset( new Dataset(
@@ -234,7 +240,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
                 }
 
                 // do average - mean set
-                Dataset averagedSetFromMedianbuffer = averagedSubtractedSets(subtractedCollection, "average_median");
+                Dataset averagedSetFromMedianbuffer = averagedSubtractedSets(subtractedCollection, "average_median", medianBufferError);
 
                 // calculate the merge parameters
                 // min and max and average
@@ -255,7 +261,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
             for (int i=0; i<totalSubtracted; i++){
                 Dataset datatemp = subtractedCollection.getDataset(i);
                 datatemp.initializeSasObject();
-                datatemp.getSasObject().getSasSample().setDetails("Subtracted : ave(Sample) - med(buffer)");
+                datatemp.getSasObject().getSasSample().setDetails("Subtracted : Sample - ave(buffer)");
             }
 
             writeSinglesToFile(subtractedCollection);
@@ -268,6 +274,15 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
         this.updateCollection();
         return null;
+    }
+
+    /** Swing components may only be changed on the Event Dispatch Thread; this worker runs elsewhere */
+    private void setStatus(String text) {
+        SwingUtilities.invokeLater(() -> status.setText(text));
+    }
+
+    private void onBar(Runnable change) {
+        SwingUtilities.invokeLater(change);
     }
 
     public void setCollectionToUpdate(Collection collection){
@@ -419,7 +434,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
         Collection subtractedCollection = new Collection("subtracted collection");
         // do average buffer first
-        ArrayList<XYSeries> subtraction = subtract(sampleXY, sampleError, averageBuffer, averageBufferError);
+        ArrayList<XYSeries> subtraction = subtract(sampleXY, sampleError, averageBuffer, averageBufferError, true);
 
         //double[] izeroRg = Functions.calculateIzeroRg(subtraction.get(0), subtraction.get(1));
         subtractedCollection.addDataset( new Dataset(
@@ -435,7 +450,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
         dataToWrite.writeSAXSFile("med_"+name+"_from_averaged_buffer", subtractedCollection.getDataset(0));
 
         // subtract from averaged samples
-        subtraction = subtract(sampleXY, sampleError, medianBuffer, medianBufferError);
+        subtraction = subtract(sampleXY, sampleError, medianBuffer, medianBufferError, true);
         subtractedCollection.addDataset( new Dataset(
                 subtraction.get(0),       //data
                 subtraction.get(1),       //error
@@ -458,7 +473,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
         Collection subtractedCollection = new Collection("Subtracted Collection");
         // do average buffer first
-        ArrayList<XYSeries> subtraction = subtract(sampleXY, sampleError, averageBuffer, averageBufferError);
+        ArrayList<XYSeries> subtraction = subtract(sampleXY, sampleError, averageBuffer, averageBufferError, true);
 
         //double[] izeroRg = Functions.calculateIzeroRg(subtraction.get(0), subtraction.get(1));
         subtractedCollection.addDataset( new Dataset(
@@ -474,7 +489,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
         dataToWrite.writeSAXSFile("ave_" + name+"_from_averaged_buffer", subtractedCollection.getDataset(0));
 
         // subtract from averaged samples
-        subtraction = subtract(sampleXY, sampleError, medianBuffer, medianBufferError);
+        subtraction = subtract(sampleXY, sampleError, medianBuffer, medianBufferError, true);
         subtractedCollection.addDataset( new Dataset(
                 subtraction.get(0),       //data
                 subtraction.get(1),       //error
@@ -501,10 +516,37 @@ public class Subtraction extends SwingWorker<String, Integer> {
     }
 
 
-    public Dataset medianSubtractedSets(Collection subtractedCollection, String type){
+    /** true when each frame is written on its own (no merging): its buffer error goes in at subtraction */
+    private boolean singlesOnly() { return !mergebyAverage && !mergebyMedian; }
+
+    /**
+     * The frames to be merged are subtracted WITHOUT the buffer error: all of them share the same
+     * buffer, so its error is not reduced by merging and is added once to the merged curve here.
+     * (Adding it to every frame and then averaging would shrink it by the number of frames.)
+     */
+    private void addBufferError(XYSeries mergedError, Collection merged, XYSeries bufferError) {
+        double scale = 0;
+        int n = 0;
+        for (int i = 0; i < merged.getTotalDatasets(); i++) {
+            if (merged.getDataset(i).getInUse()) { scale += merged.getDataset(i).getScaleFactor(); n++; }
+        }
+        scale = n > 0 ? scale / n : 1.0;
+        for (int i = 0; i < mergedError.getItemCount(); i++) {
+            double q = mergedError.getX(i).doubleValue();
+            int k = bufferError.indexOf(q);
+            double eb = k >= 0 ? bufferError.getY(k).doubleValue()
+                    : (q > bufferError.getMinX() && q < bufferError.getMaxX() ? Functions.interpolateSigma(bufferError, q)[1] : Double.NaN);
+            if (!Double.isFinite(eb)) continue;
+            eb *= scale;
+            double es = mergedError.getY(i).doubleValue();
+            mergedError.updateByIndex(i, Math.sqrt(es * es + eb * eb));
+        }
+    }
+
+    public Dataset medianSubtractedSets(Collection subtractedCollection, String type, XYSeries bufferError){
 
         if (scaleBeforeMerging) {
-            status.setText("scaling sets");
+            setStatus("scaling sets");
 
             ScaleManager scalings = new ScaleManager(
                     cpus,
@@ -524,7 +566,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
             }
         }
 
-        status.setText("Merging sets");
+        setStatus("Merging sets");
         String output_name;
 
         // createMedian
@@ -532,6 +574,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
         //createMedianAverageXYSeries(samples);
         XYSeries sampleXY = sampleSeries.get(0);    //median
         XYSeries sampleError = sampleSeries.get(1); //median error
+        addBufferError(sampleError, subtractedCollection, bufferError);
 
         sampleXY.setKey(type);
         sampleError.setKey(type);
@@ -557,10 +600,10 @@ public class Subtraction extends SwingWorker<String, Integer> {
      * @param type
      * @return
      */
-    public Dataset averagedSubtractedSets(Collection subtractedCollection, String type){
+    public Dataset averagedSubtractedSets(Collection subtractedCollection, String type, XYSeries bufferError){
 
         if (scaleBeforeMerging) {
-            status.setText("scaling sets");
+            setStatus("scaling sets");
 
             ScaleManager scalings = new ScaleManager(
                     cpus,
@@ -580,13 +623,14 @@ public class Subtraction extends SwingWorker<String, Integer> {
             }
         }
 
-        status.setText("Merging by Averaging");
+        setStatus("Merging by Averaging");
 
         String temp_name = Functions.sanitizeForFilename(name);
 
         ArrayList<XYSeries> finalSets;
         String output_name;
         finalSets = createRejectionDataSets(subtractedCollection);
+        addBufferError(finalSets.get(1), subtractedCollection, bufferError);
         output_name = temp_name + "_" + type;
 
         // merge curves using rejection criteria
@@ -614,7 +658,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
     private void writeSinglesToFile(Collection subtractedCollection){
         int total = subtractedCollection.getTotalDatasets();
 
-        status.setText("writing each dataset to file");
+        setStatus("writing each dataset to file");
         FileObject dataToWrite = new FileObject(new File(cwd), version);
 
         for (int i = 0; i < total; i++) {
@@ -623,7 +667,13 @@ public class Subtraction extends SwingWorker<String, Integer> {
     }
 
 
-    private ArrayList<XYSeries> subtract(XYSeries sample, XYSeries sampleError, XYSeries buffer, XYSeries bufferError){
+    /**
+     * sample - buffer, the buffer interpolated where its q grid differs.
+     * @param withBufferError add the buffer error in quadrature (single frames); for frames that are merged
+     *                        afterwards it is added once to the merged curve instead (see addBufferError)
+     */
+    private ArrayList<XYSeries> subtract(XYSeries sample, XYSeries sampleError, XYSeries buffer, XYSeries bufferError,
+                                         boolean withBufferError){
         ArrayList<XYSeries> returnMe = new ArrayList<XYSeries>();
         // for each element in sample collection, do subtraction
 
@@ -657,7 +707,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
             if (indexOf > -1){
                 subData.add(qValue, tempDataItem.getYValue() - buffer.getY(indexOf).doubleValue() );
 
-                eValue = bufferError.getY(indexOf).doubleValue();
+                eValue = withBufferError ? bufferError.getY(indexOf).doubleValue() : 0.0;
                 subError.add(qValue, Math.sqrt(yValue*yValue + eValue*eValue));
 
             } else { // interpolate
@@ -675,14 +725,14 @@ public class Subtraction extends SwingWorker<String, Integer> {
 //                       break QLOOP;
 //                    }
 
-                if (qValue < maxQValueInBuffer){
-                    System.out.println("Interpolating Background Value at " + qValue + " >= " + maxQValueInBuffer);
+                if (qValue > buffer.getMinX() && qValue < maxQValueInBuffer){
                     Double[] results = Functions.interpolate(buffer, qValue);
                     Double[] sigmaResults = Functions.interpolateSigma(bufferError, qValue);
                     //returns unlogged data
-                    eValue = sigmaResults[1];
+                    eValue = withBufferError ? sigmaResults[1] : 0.0;
 
-                    subData.add(qValue, results[1]);
+                    // sample minus the interpolated buffer (previously the buffer value itself was stored)
+                    subData.add(qValue, tempDataItem.getYValue() - results[1]);
                     subError.add(qValue, Math.sqrt(yValue*yValue + eValue*eValue));
                 }
             }
@@ -745,157 +795,83 @@ public class Subtraction extends SwingWorker<String, Integer> {
     }
 
 
+    /**
+     * Merge the in-use curves by a weighted average with outlier rejection.
+     *
+     * At every q the frames are compared with their median at that q, in units of each frame's own
+     * error: z = (I_f(q) - median_q) / sigma_f(q). The z values of all q in a bin are pooled to get a
+     * robust centre (median) and spread (1.1926 Sn), and points with |z - centre| > cutoff * spread are
+     * rejected (both directions). Working with deviations from the per-q median keeps the slope of
+     * I(q) inside a bin out of the test; the bins only pool enough points for a stable spread.
+     * The kept points are averaged with 1/sigma^2 weights.
+     */
     private ArrayList<XYSeries> createRejectionDataSets(Collection thisCollection){
 
-        ArrayList<XYSeries> returnMe = new ArrayList<XYSeries>();
-        //int total = model.getSize();
+        // q -> {I, sigma} of every in-use frame (scale factors applied)
+        TreeMap<Double, ArrayList<double[]>> byQ = new TreeMap<>();
         int total = thisCollection.getDatasets().size();
-        int sizeOf = 0;
-
-        double binPercent = bins/100.00;
-
-        int totalObs;
-        Dataset tempData;
-        double xValue, yValue, median, s_n, value;
-        XYDataItem tempDataItem;
-
-        ArrayList<StandardObservations> standardObs = new ArrayList<>();
-        StandardObservations tempSobs;
-
-        ArrayList<Double> vector = new ArrayList<Double>();
-
-        int totalObservations = 0;
-        for(int i=0;i<total; i++){
-            tempData =thisCollection.getDataset(i);
-
-            if (tempData.getInUse()){
-                sizeOf = tempData.getAllData().getItemCount();
-                if (totalObservations < sizeOf){
-                    totalObservations = sizeOf;
-                }
+        for (int i = 0; i < total; i++) {
+            Dataset d = thisCollection.getDataset(i);
+            if (!d.getInUse()) continue;
+            double scale = d.getScaleFactor();
+            XYSeries data = d.getAllData(), err = d.getAllDataError();
+            for (int j = 0; j < data.getItemCount(); j++) {
+                double sigma = err.getY(j).doubleValue() * scale;
+                double y = data.getY(j).doubleValue() * scale;
+                if (!(sigma > 0) || Double.isNaN(y)) continue;
+                byQ.computeIfAbsent(data.getX(j).doubleValue(), k -> new ArrayList<>()).add(new double[]{y, sigma});
             }
         }
 
-        int bbins = (int)(binPercent*sizeOf);
-
-        double qmin = thisCollection.getMinq();
-        double qmax = thisCollection.getMaxq();
-
-        double lower, upper, sigma;
-        double incr = (qmax-qmin)/(double)bbins;
-
-        HashMap<Double, Double> finalData = new HashMap<Double, Double>();
-        HashMap<Double, Double> finalError = new HashMap<Double, Double>();
-
-        // iterate over each bin
-        lower = qmin;
-
-        for (int b = 1; b <= bbins; b++){
-
-            upper = qmin + b*incr;
-
-            standardObs.clear();
-            vector.clear();
-
-            dataSetLoop:
-            for(int i=0;i<total; i++){
-                tempData =thisCollection.getDataset(i);
-
-                if (tempData.getInUse()){
-                    sizeOf = tempData.getAllData().getItemCount();
-                    double tempScaleFactor = tempData.getScaleFactor();
-
-                    for(int j=0; j<sizeOf; j++){
-                        tempDataItem = tempData.getAllData().getDataItem(j);
-                        xValue = tempDataItem.getXValue();
-                        if ((xValue >= lower) && (xValue < upper)){
-                            sigma = tempData.getAllDataError().getY(j).doubleValue()*tempScaleFactor;
-                            yValue = tempDataItem.getYValue()*tempScaleFactor;
-                            standardObs.add(new StandardObservations(xValue, yValue, sigma));
-                            vector.add(yValue);
-                        } else if (xValue > qmax){
-                            break dataSetLoop;
-                        }
-                    }
-
-                }
-
-            } // end of datasetloop
-            // calculate median for standardObs
-            totalObs = standardObs.size();
-            median = Statistics.calculateMedian(vector, true);
-
-            s_n = 1.0/(1.1926*Functions.s_n(vector));
-
-            for (int i=0; i<totalObs; i++){
-                standardObs.get(i).setStandardizedObs(s_n, median);
-            }
-
-            // reject all data with standardizedObs > 2.5
-            Iterator iter = standardObs.iterator();
-//            int count=0;
-            while (iter.hasNext()){
-                tempSobs = (StandardObservations) iter.next();
-                if (tempSobs.getStandardizedObs() > cutoff) {
-                    iter.remove();
-//                    count++;
-                }
-            }
-            //System.out.println(totalObs + " Count " + count);
-            // collect and average all common q values
-            iter = standardObs.iterator();
-            double var, sig;
-
-            while (iter.hasNext()){
-                tempSobs = (StandardObservations) iter.next();
-                xValue = tempSobs.getQ();
-                sig = 1.0/tempSobs.getSigma();
-                var = sig*sig;
-
-                if (finalData.containsKey(xValue)){
-                    value = (finalData.get(xValue) + tempSobs.getObs()*var );
-
-                    finalData.put(xValue, value);
-                    finalError.put(xValue, (finalError.get(xValue) + var));
-                } else {
-
-                    finalData.put(xValue, tempSobs.getObs()*var);
-                    finalError.put(xValue, var);
-                }
-            }
-
-            lower = upper;
-        }
-
+        ArrayList<XYSeries> returnMe = new ArrayList<>();
         returnMe.add(new XYSeries("Pruned"));
         returnMe.add(new XYSeries("PrunedError"));
+        XYSeries finalSeries = returnMe.get(0);
+        XYSeries errorSeries = returnMe.get(1);
+        if (byQ.isEmpty()) return returnMe;
 
-        XYSeries finalSeries = returnMe.get(0);//new XYSeries("Pruned");
-        XYSeries errorSeries = returnMe.get(1);//new XYSeries("PrunedError");
-
-        Iterator it = finalData.entrySet().iterator();
-        double weighted;
-        while (it.hasNext()) {
-            Map.Entry pairs = (Map.Entry)it.next();
-            weighted = (Double)pairs.getValue()/finalError.get(pairs.getKey());
-
-            finalSeries.add((Double)pairs.getKey(), (Double)weighted );
-            it.remove(); // avoids a ConcurrentModificationException
+        Double[] qs = byQ.keySet().toArray(new Double[0]);
+        int nq = qs.length;
+        // per-q deviations from the median, in error units
+        double[][] z = new double[nq][];
+        for (int k = 0; k < nq; k++) {
+            ArrayList<double[]> obs = byQ.get(qs[k]);
+            ArrayList<Double> ys = new ArrayList<>();
+            for (double[] o : obs) ys.add(o[0]);
+            double median = Statistics.calculateMedian(ys, true);
+            z[k] = new double[obs.size()];
+            for (int f = 0; f < obs.size(); f++) z[k][f] = (obs.get(f)[0] - median) / obs.get(f)[1];
         }
 
-        it = finalError.entrySet().iterator();
-        while (it.hasNext()) {
-            Map.Entry pairs = (Map.Entry)it.next();
-            weighted = 1.0 / Math.sqrt((Double)pairs.getValue());
+        // bins: bins % of the q points, at least 1, each pooling a few q values
+        int bbins = Math.max(1, Math.min(nq, (int) Math.round(bins / 100.0 * nq)));
+        for (int b = 0; b < bbins; b++) {
+            int from = (int) ((long) b * nq / bbins), to = (int) ((long) (b + 1) * nq / bbins);
+            ArrayList<Double> pooled = new ArrayList<>();
+            for (int k = from; k < to; k++) for (double v : z[k]) pooled.add(v);
 
-            errorSeries.add((Double)pairs.getKey(), (Double)weighted);
-            it.remove(); // avoids a ConcurrentModificationException
+            double centre = 0, spread = 0;
+            if (pooled.size() >= 3) {
+                centre = Statistics.calculateMedian(pooled, true);
+                spread = 1.1926 * Functions.s_n(pooled);
+            }
+            boolean reject = spread > 0 && Double.isFinite(spread);
+
+            for (int k = from; k < to; k++) {
+                ArrayList<double[]> obs = byQ.get(qs[k]);
+                double sum = 0, weights = 0;
+                for (int f = 0; f < obs.size(); f++) {
+                    if (reject && Math.abs(z[k][f] - centre) > cutoff * spread) continue;
+                    double w = 1.0 / (obs.get(f)[1] * obs.get(f)[1]);
+                    sum += obs.get(f)[0] * w;
+                    weights += w;
+                }
+                if (weights > 0) {
+                    finalSeries.add((double) qs[k], sum / weights);
+                    errorSeries.add((double) qs[k], 1.0 / Math.sqrt(weights));
+                }
+            }
         }
-
-        // return finalSeries and errorSeries
-//        returnMe.add(finalSeries);
-//        returnMe.add(errorSeries);
-
         return returnMe;
     }
 
@@ -929,380 +905,67 @@ public class Subtraction extends SwingWorker<String, Integer> {
     }
 
 
+    /**
+     * Median of the in-use frames at every q (all points, including negative intensities, which are
+     * common for subtracted WAXS frames); returns {median, median error}.
+     */
     private ArrayList<XYSeries> medianDatasets(Collection thisCollection){
-        // Median Set
-        // Determine all open files
-        // Need the master list of all unique q values
-        // create set of unique q values from the collection using TreeSet
-        TreeSet<Double> qList;
-        qList = new TreeSet<Double>();
-
-        HashMap<Double, ArrayList<Double>> intValuesHash = new HashMap<Double, ArrayList<Double>>();
-        HashMap<Double, ArrayList<Double>> errValuesHash = new HashMap<Double, ArrayList<Double>>();
-
-        int lowerQI;
-        int upperQI;
-
-        double qValue;
-        double scaleF;
-
-        Dataset tempDataSet;
-
-        int limit = thisCollection.getDatasets().size();
-        for (int i=0; i < limit; i++){
-            // only checked boxes
-            if (thisCollection.getDataset(i).getInUse()){
-//                tempDataSet = new Dataset(thisCollection.getDataset(i));
-                tempDataSet = thisCollection.getDataset(i);
-
-                try {
-                    // XYSeries series7 = (XYSeries) tempDataSet.getData().clone(); // plotted datset
-                    XYSeries series8 = (XYSeries) tempDataSet.getAllData().clone();
-                    XYSeries series9 = (XYSeries) tempDataSet.getAllDataError().clone();
-                    //add q-values to qList
-                    lowerQI = series8.indexOf(tempDataSet.getMinq());
-                    upperQI = series8.indexOf(tempDataSet.getMaxq());
-                    scaleF = tempDataSet.getScaleFactor();
-
-                    for (int j = lowerQI; j <= upperQI; j++){
-                        // make entry in qList if not present
-                        // if present
-                        qValue = series8.getX(j).doubleValue();
-                        if (qList.add(qValue)) {
-                            //if true, add entry to ArrayList of Intensity Values that will be used for median
-                            intValuesHash.put(qValue, new ArrayList<Double>( Arrays.asList(series8.getY(j).doubleValue() * scaleF) ));
-                            errValuesHash.put(qValue, new ArrayList<Double>( Arrays.asList(series9.getY(j).doubleValue() * scaleF) ));
-                        } else {
-                            // if already present, find the index
-                            intValuesHash.get(qValue).add(series8.getY(j).doubleValue()*scaleF);
-                            errValuesHash.get(qValue).add(series9.getY(j).doubleValue()*scaleF);
-                        }
-                    }
-
-                } catch (CloneNotSupportedException ex) {
-                    LogIt.log(Level.SEVERE, "From StatMethods: MedianDatasets");
-                }
-            }
-        }
-
-        int qListSize;
-
-        double median_value;
-        double err_value;
-        double err_valueU;
-        double err_valueL;
-        double lowerq;
-        double upperq;
-        int middlePoint;
-
-        ArrayList<Double> tempArrayList;
-        ArrayList<Double> sortList;
-
-        ArrayList<XYSeries> returnMe = new ArrayList<XYSeries>();
+        TreeMap<Double, ArrayList<double[]>> byQ = pointsByQ(thisCollection);
+        ArrayList<XYSeries> returnMe = new ArrayList<>();
         returnMe.add(new XYSeries("median_set_from_collection"));
         returnMe.add(new XYSeries("median_error_set_from_collection"));
-        XYSeries medianSet = returnMe.get(0);//new XYSeries("median_set_from_collection");
-        XYSeries medianErrorSet = returnMe.get(1);//new XYSeries("median_error_set_from_collection");
-
-        for (Double qvalue_key: intValuesHash.keySet()){
-
-            tempArrayList = intValuesHash.get(qvalue_key);
-            qListSize = tempArrayList.size();
-
-            if (qListSize == 1 ){  //
-                median_value = tempArrayList.get(0);
-                err_value = errValuesHash.get(qvalue_key).get(0);
-
-                //   qieSeries.add(new DataLine(tempQ, median_value, err_value, true));
-            } else if (qListSize % 2 != 0) {  // odd
-                middlePoint = (qListSize -1)/2;
-
-                sortList = new ArrayList(tempArrayList); //makes a copy
-                Collections.sort(sortList);
-                median_value = sortList.get(middlePoint);
-                err_value = errValuesHash.get(qvalue_key).get(tempArrayList.indexOf(median_value));
-
-            } else { // even
-                median_value = Statistics.calculateMedian(tempArrayList);
-                sortList = new ArrayList(tempArrayList); //makes a copy
-                Collections.sort(sortList);
-
-                upperQI = tempArrayList.size()/2;
-                lowerQI = upperQI-1;
-                upperq = sortList.get(upperQI);
-                lowerq = sortList.get(lowerQI);
-                // look up values and reset to un-sorted array
-                upperQI = tempArrayList.indexOf(upperq);
-                lowerQI = tempArrayList.indexOf(lowerq);
-                // get corresponding error values from datasets
-                err_valueU = errValuesHash.get(qvalue_key).get(upperQI);
-                err_valueL = errValuesHash.get(qvalue_key).get(lowerQI);
-                err_value = 0.5*(err_valueL + err_valueU); // propagated error is an average
-            }
-
-            medianSet.add((double)qvalue_key, median_value);
-            medianErrorSet.add((double)qvalue_key, err_value);
-
-            tempArrayList = null;
+        for (Map.Entry<Double, ArrayList<double[]>> e : byQ.entrySet()) {
+            ArrayList<Double> ys = new ArrayList<>(), es = new ArrayList<>();
+            for (double[] p : e.getValue()) { ys.add(p[0]); es.add(p[1]); }
+            int n = ys.size();
+            double med = Statistics.calculateMedian(ys, true);
+            double err = n == 1 ? es.get(0) : Math.sqrt(Math.PI / 2) * Statistics.calculateMedian(es, true) / Math.sqrt(n);
+            returnMe.get(0).add((double) e.getKey(), med);
+            returnMe.get(1).add((double) e.getKey(), err);
         }
-        // write out new Median DataSet
         return returnMe;
     }
 
-
+    /** Inverse-variance weighted mean of the in-use frames at every q; returns {mean, error}. */
     private ArrayList<XYSeries> weightedAverageDatasets(Collection selected){
-
-        int ref = 0;
-        int limit = selected.getDatasets().size();
-
-        // use last as reference
-        for(int i=0; i< limit; i++){
-            if (selected.getDataset(i).getInUse()){
-                ref = i;
-            }
-        }
-
-        //System.out.println("REFERENCE SET TO : " + selected.getDataset(ref).getFileName());
-
-        ArrayList<XYSeries> returnMe = new ArrayList<XYSeries>();
-
-        Dataset reference = selected.getDataset(ref); // reference is the last frame
-        //XYSeries tempRefData;
-        //tempRefData = reference.getData(); // log10 data used for plotting
-        //double referenceQmin = tempRefData.getMinX();
-        //double referenceQmax = tempRefData.getMaxX();
-
-        Number referenceQmin = findLeastCommonQvalue(selected);
-        Number referenceQmax = findMaximumCommonQvalue(selected);
-
-        double scale, lower, upper, referenceQ;
-        int refIndex, count;
-
+        TreeMap<Double, ArrayList<double[]>> byQ = pointsByQ(selected);
+        ArrayList<XYSeries> returnMe = new ArrayList<>();
         returnMe.add(new XYSeries("Summed"));
         returnMe.add(new XYSeries("SummedError"));
-
-        XYSeries summedSet = returnMe.get(0);//new XYSeries("Summed");
-        XYSeries summedSetError = returnMe.get(1);//new XYSeries("SummedError");
-
-        double sigma, var, targetMax;
-        Number targetMin;
-        scale = reference.getScaleFactor();
-
-        // based on the plotted data, find index of qmin and qmax in allData
-        int lowerQI = reference.getAllData().indexOf(referenceQmin);
-        int upperQI = reference.getAllData().indexOf(referenceQmax);
-        int lowerT, upperT;
-        /*
-         * within limits of plotted data
-         */
-        for (int i=lowerQI; i < upperQI; i++){
-            XYDataItem tempRefItem = reference.getAllData().getDataItem(i);
-            sigma = 1.0/(scale*reference.getAllDataError().getY(i).doubleValue());
-            var = sigma*sigma;
-
-            summedSet.add(tempRefItem.getXValue(), scale * tempRefItem.getYValue()*var);
-            summedSetError.add(tempRefItem.getXValue(), var);
-        }
-
-        XYDataItem tempDataItem, tempSummedItem;
-
-        for (int i=0; i < limit; i++) {
-            if (selected.getDataset(i).getInUse() && i != ref){
-
-                Dataset tempDataset = selected.getDataset(i);
-
-                XYSeries targetData  = tempDataset.getAllData();
-                XYSeries targetError = tempDataset.getAllDataError();
-
-                // get plotted domain of the target dataset
-                // if averaging from SEC - plotted data will not be set - returns null
-                try{
-                    targetMin = tempDataset.getData().getX(0);
-                    targetMax = tempDataset.getData().getMaxX();
-                } catch (java.lang.NullPointerException exception){
-                    targetMin = tempDataset.getAllData().getX(0);
-                    targetMax = tempDataset.getAllData().getMaxX();
-                }
-
-                lowerT = targetData.indexOf(targetMin);
-                upperT = targetData.indexOf(targetMax);
-
-                lower = Math.max(referenceQmin.doubleValue(), targetMin.doubleValue());
-                upper = Math.min(referenceQmax.doubleValue(), targetMax);
-
-                scale = tempDataset.getScaleFactor();
-                // iterate of the plotted range but within AllData (includes negative intensities)
-                for(int j = lowerT; j <= upperT; j++){
-                    tempDataItem = targetData.getDataItem(j);
-                    double target_q = tempDataItem.getXValue();
-
-                    if (((target_q < lower) || (target_q > upper)) && (summedSet.indexOf(target_q) < 0)) {
-                        /*
-                         *  if q value is outside range of reference
-                         *  .indexOf() < 0 means value is not found in XYSeries
-                         */
-                        sigma = 1.0/(scale*targetError.getY(j).doubleValue());
-                        var = sigma*sigma;
-
-                        summedSet.add(target_q, scale * tempDataItem.getYValue()*var);
-                        summedSetError.add(target_q, var );
-
-                    } else {
-                        refIndex = summedSet.indexOf(tempDataItem.getX());
-                        if (refIndex >= 0) {
-                            /*
-                             * average the signal - first sum
-                             */
-                            tempSummedItem = summedSet.getDataItem(refIndex);
-
-                            sigma = 1.0/(scale*targetError.getY(j).doubleValue());
-                            var = sigma*sigma;
-
-                            summedSet.updateByIndex(refIndex, (tempSummedItem.getYValue() + scale * targetData.getY(j).doubleValue() * var));
-                            summedSetError.updateByIndex(refIndex, (summedSetError.getY(refIndex).doubleValue() + var));
-
-                        } else if (lower < target_q && (target_q < upper)) { // no more interpolating
-                            /*
-                             * interpolate
-                             */
-                            System.out.println("StatMethods: Interpolating Dataset " + i + " target_q => " + target_q);
-                            count = 0;
-                            referenceQ = 0.0;
-                            // find first value in reference greater than targetData.getX
-                            while (summedSet.getX(count).doubleValue() < target_q && (count < 3000)) {
-                                referenceQ = summedSet.getX(count).doubleValue();
-                                count++;
-                            }
-                            System.out.println("StatMethods: Interpolating count " + count + " ref_q => " + referenceQ);
-
-                            Double[] results = Functions.interpolate(targetData, referenceQ);
-                            Double[] sigmaResults = Functions.interpolateSigma(targetError, referenceQ);
-                            sigma = 1.0/(sigmaResults[1]*scale);
-                            var = sigma*sigma;
-
-                            //returns unlogged data
-                            refIndex = summedSet.indexOf(referenceQ);
-
-                            tempSummedItem = summedSet.getDataItem(refIndex);
-
-                            summedSet.updateByIndex(refIndex, (tempSummedItem.getYValue() + scale * results[1] * var));
-                            summedSetError.updateByIndex(refIndex, (summedSetError.getY(refIndex).doubleValue() + var ));
-                        }
-                    }
-                }
+        for (Map.Entry<Double, ArrayList<double[]>> e : byQ.entrySet()) {
+            double sum = 0, weights = 0;
+            for (double[] p : e.getValue()) {
+                double w = 1.0 / (p[1] * p[1]);
+                sum += p[0] * w;
+                weights += w;
+            }
+            if (weights > 0) {
+                returnMe.get(0).add((double) e.getKey(), sum / weights);
+                returnMe.get(1).add((double) e.getKey(), 1.0 / Math.sqrt(weights));
             }
         }
-
-        //double inv_total_n; // = 1.0/(double)total_n;
-        for(int i=0; i<summedSet.getItemCount(); i++){
-
-            var = summedSetError.getY(i).doubleValue();
-
-            if ((Double.isNaN(var)) || (var == Double.POSITIVE_INFINITY)) {
-                summedSet.updateByIndex(i, 0.0);
-                summedSetError.updateByIndex(i, 1);
-            } else {
-                summedSet.updateByIndex(i, summedSet.getY(i).doubleValue() / var);
-                summedSetError.updateByIndex(i, 1.0 / Math.sqrt(var));
-            }
-
-        }
-
         return returnMe;
     }
 
     /**
-     *  Find least common q-value based on q-min of plotted data?
-     *
+     * q -> {I, sigma} of every in-use frame, scale factors applied. Built from all the data, not from the
+     * positive-only range: a subtracted frame can be negative almost everywhere (WAXS), and looking
+     * its q limits up from the positive points is what failed before (Index -1063 out of bounds).
      */
-    private Number findLeastCommonQvalue(Collection dataCollection){
-
-        boolean isCommon;
-
-        Dataset firstSet = dataCollection.getDataset(0);
-        Dataset tempDataset;
-        int totalInSampleSet = dataCollection.getTotalSelected();
-        XYSeries referenceData = firstSet.getAllData(), tempData;
-        XYDataItem refItem;
-        int startAt;
-        Number minQvalueInCommon = 10;
-
-        outerloop:
-        for(int j=0; j < referenceData.getItemCount(); j++){
-
-            if (referenceData.getY(j).doubleValue() > 0){
-                refItem = referenceData.getDataItem(j); // is refItem found in all sets
-                minQvalueInCommon = refItem.getX();
-                isCommon = true;
-
-                startAt = 1;
-                innerloop:
-                for(; startAt < totalInSampleSet; startAt++) {
-
-                    tempDataset = dataCollection.getDataset(startAt);
-                    tempData = tempDataset.getAllData();
-                    // check if refItem q-value is in tempData
-                    // if true, check next value
-                    if (tempData.indexOf(refItem.getX()) < 0 && (tempData.getY(startAt).doubleValue() > 0)) {
-                        isCommon = false;
-                        break innerloop;
-                    }
-                }
-
-                if (startAt == totalInSampleSet && isCommon){
-                    break outerloop;
-                }
+    private static TreeMap<Double, ArrayList<double[]>> pointsByQ(Collection c) {
+        TreeMap<Double, ArrayList<double[]>> byQ = new TreeMap<>();
+        for (int i = 0; i < c.getTotalDatasets(); i++) {
+            Dataset d = c.getDataset(i);
+            if (!d.getInUse()) continue;
+            double scale = d.getScaleFactor();
+            XYSeries data = d.getAllData(), err = d.getAllDataError();
+            for (int j = 0; j < data.getItemCount(); j++) {
+                double y = data.getY(j).doubleValue() * scale;
+                double s = (j < err.getItemCount() ? err.getY(j).doubleValue() : Double.NaN) * scale;
+                if (Double.isNaN(y) || !(s > 0)) continue;
+                byQ.computeIfAbsent(data.getX(j).doubleValue(), k -> new ArrayList<>()).add(new double[]{y, s});
             }
         }
-
-        return minQvalueInCommon;
-    }
-
-    /**
-     *
-     */
-    private Number findMaximumCommonQvalue(Collection dataCollection){
-
-        boolean isCommon;
-
-        Dataset firstSet = dataCollection.getDataset(0);
-        Dataset tempDataset;
-        int totalInSampleSet = dataCollection.getTotalSelected();
-        XYSeries referenceData = firstSet.getAllData(), tempData;
-        XYDataItem refItem;
-        int startAt;
-        Number maxQvalueInCommon = 0;
-
-        outerloop:
-        for(int j=(referenceData.getItemCount()-1); j > -1; j--){
-
-            refItem = referenceData.getDataItem(j); // is refItem found in all sets
-            if (refItem.getYValue() > 0){
-                maxQvalueInCommon = refItem.getX();
-                isCommon = true;
-
-                startAt = 1;
-                innerloop:
-                for(; startAt < totalInSampleSet; startAt++) {
-
-                    tempDataset = dataCollection.getDataset(startAt);
-                    tempData = tempDataset.getAllData();
-                    // check if refItem q-value is in tempData
-                    // if true, check next value
-                    // not found returns -1 for indexOf
-                    // startAt in tempData should return non-negative value
-                    if (tempData.indexOf(refItem.getX()) < 0 && tempData.getY(startAt).doubleValue() > 0) {
-                        isCommon = false;
-                        break innerloop;
-                    }
-                }
-
-                if (startAt == totalInSampleSet && isCommon){
-                    break outerloop;
-                }
-            }
-        }
-
-        return maxQvalueInCommon;
+        return byQ;
     }
 }
