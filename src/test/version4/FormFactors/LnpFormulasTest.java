@@ -140,4 +140,28 @@ public class LnpFormulasTest {
         while ((i = s.indexOf(sub, i)) >= 0) { n++; i += sub.length(); }
         return n;
     }
+
+    /**
+     * The mesophase peak gets its own account, including the two things a user most needs told: that it is
+     * added rather than multiplied, so its area is not a degree of order, and that it will sit happily on a
+     * bilayer form-factor lobe and report a spacing that is not there.
+     */
+    @Test
+    public void theMesophasePeakIsExplained() {
+        String page = PAGE;
+        assertTrue("it should be named as it appears in the fit", page.contains("mesophase peak"));
+        assertTrue("the heading should carry both the descriptive name and the term used in the panel",
+                page.contains("Internal nucleic-acid peak (mesophase peak modelling)"));
+        assertTrue("the whole equation should be shown, not just the peak term in isolation",
+                page.contains("scale") && page.contains("background")
+                        && page.indexOf("scale") < page.indexOf("exp[\u2212(q \u2212 q\u2080)"));
+        assertTrue("the formula should be there", page.contains("exp[\u2212(q \u2212 q\u2080)\u00b2/2w\u00b2]"));
+        assertTrue("and the conversion to a distance", page.contains("d = 2\u03c0/q\u2080"));
+        assertTrue("it should say why the word mesophase is used",
+                page.contains("liquid-crystalline"));
+        assertTrue("it should warn that the term is added, not multiplied",
+                page.contains("structure factor") && page.contains("added"));
+        assertTrue("and that a form-factor lobe will fit it",
+                page.contains("form-factor lobe") || page.contains("broad maxima of its"));
+    }
 }

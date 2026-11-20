@@ -89,8 +89,8 @@ final class LnpCharts {
         XYErrorRenderer err = new XYErrorRenderer();
         err.setBaseLinesVisible(false);
         err.setSeriesShape(0, new Ellipse2D.Double(-1.5, -1.5, 3, 3));
-        err.setSeriesPaint(0, DATA);
-        err.setErrorPaint(new Color(0xd5d9de));
+        err.setSeriesPaint(0, PALE_DATA);
+        err.setErrorPaint(PALE_ERROR);
         err.setDrawXError(false);
         err.setCapLength(0);
         ValueAxis y;
@@ -106,7 +106,10 @@ final class LnpCharts {
         XYPlot plot = new XYPlot(null, null, y, null);
         plot.setDataset(1, dc);
         plot.setRenderer(1, err);
-        plot.setDatasetRenderingOrder(DatasetRenderingOrder.FORWARD);
+        // The measured points go in at index 1 and the model curves at index 0, so REVERSE is what puts the
+        // curves on top of the cloud. Drawn the other way round the points bury the model exactly where the
+        // data is densest, which is the part of the plot the user is reading.
+        plot.setDatasetRenderingOrder(DatasetRenderingOrder.REVERSE);
         style(plot);
         yminOut[0] = ymin;
         return plot;
@@ -121,8 +124,8 @@ final class LnpCharts {
         XYSeries tot = new XYSeries(String.format("model (red. χ² %.2f)", r.chi2Reduced), false, true);
         for (int j = 0; j < r.q.length; j++) if (r.fit[j] > 0) tot.add(r.q[j], r.fit[j]);
         lines.addSeries(tot);
-        lr.setSeriesPaint(0, FIT);
-        lr.setSeriesStroke(0, new BasicStroke(1.8f));
+        lr.setSeriesPaint(0, MODEL);
+        lr.setSeriesStroke(0, MODEL_STROKE);
 
         double[][] comp = r.model.components(r.params, r.q);
         String[] names = {r.model.shells == 0 ? "sphere" : "core + " + r.model.shells + " shell" + (r.model.shells > 1 ? "s" : ""),
@@ -137,7 +140,7 @@ final class LnpCharts {
                 lines.addSeries(sr);
                 int idx = lines.getSeriesCount() - 1;
                 lr.setSeriesPaint(idx, cols[c]);
-                lr.setSeriesStroke(idx, c == 2 ? DOT : DASH);
+                lr.setSeriesStroke(idx, c == 2 ? COMPONENT_DOT : COMPONENT_DASH);
             }
         }
         top.setDataset(0, lines);
@@ -273,6 +276,91 @@ final class LnpCharts {
         JFreeChart chart = new JFreeChart("Radial density profile (mean particle)", TITLE, plot, false);
         finish(chart);
         return chart;
+    }
+
+    /**
+     * The fitted particle simulated at a ladder of radii, every curve scaled to agree where the bilayer
+     * decides the shape, so that only differences the radius causes are visible.
+     *
+     * <p>A dashed marker shows 2*pi/q_min, the longest distance the measurement encodes. Curves for radii
+     * beyond it lie on top of one another, which is the point: the fit can report any of them.
+     */
+    static JFreeChart sizeLimitChart(LnpSizeLimit.Result r, String title) {
+        XYSeriesCollection ds = new XYSeriesCollection();
+        XYLineAndShapeRenderer rend = new XYLineAndShapeRenderer(true, false);
+        int ref = 0;
+        for (int i = 1; i < r.q.length; i++)
+            if (Math.abs(r.q[i] - 0.10) < Math.abs(r.q[ref] - 0.10)) ref = i;
+
+        double fitAtRef = 1;
+        for (LnpSizeLimit.Rung k : r.rungs) if (k.isFit && k.intensity[ref] > 0) fitAtRef = k.intensity[ref];
+
+        int idx = 0;
+        for (LnpSizeLimit.Rung k : r.rungs) {
+            double scale = k.intensity[ref] > 0 ? fitAtRef / k.intensity[ref] : 1;
+            String name = k.isFit ? String.format("%.0f \u00c5 (fitted)", k.r0)
+                    : String.format("%.0f \u00c5", k.r0);
+            XYSeries ser = new XYSeries(name, false, true);
+            for (int i = 0; i < r.q.length; i++)
+                if (k.intensity[i] > 0) ser.add(r.q[i], k.intensity[i] * scale);
+            ds.addSeries(ser);
+            // the fitted radius is drawn heavy; the alternatives fade as they get further from it
+            rend.setSeriesPaint(idx, k.isFit ? FITTED_SIZE : shade(idx, r.rungs.size()));
+            rend.setSeriesStroke(idx, new BasicStroke(k.isFit ? 3.0f : 1.4f));
+            idx++;
+        }
+        XYPlot plot = new XYPlot(ds, logAxis("q (\u00c5\u207b\u00b9)"), logAxis("I(q), scaled to match at q = 0.1"), rend);
+        style(plot);
+
+        // the q below which a particle of the fitted size would have shown a Guinier roll-over
+        double qGuinier = 1.3 / Math.max(1e-9, r.fitted);
+        if (qGuinier > r.q[0] && qGuinier < r.q[r.q.length - 1]) {
+            ValueMarker m = new ValueMarker(qGuinier, ACCENT, DASH);
+            m.setLabel("Guinier needs q < " + String.format("%.4f", qGuinier));
+            m.setLabelFont(SMALL);
+            m.setLabelPaint(ACCENT);
+            m.setLabelAnchor(RectangleAnchor.TOP_LEFT);
+            m.setLabelTextAnchor(TextAnchor.TOP_LEFT);
+            plot.addDomainMarker(m, Layer.BACKGROUND);
+        }
+        JFreeChart chart = new JFreeChart(title, TITLE, plot, true);
+        finish(chart);
+        return chart;
+    }
+
+    /**
+     * The radius the fit actually settled on, drawn in red against the grey of the simulated alternatives.
+     * This is the one curve on the plot that corresponds to the sample in front of the user; everything else
+     * is a what-if, and the eye should not have to hunt for the difference.
+     */
+    /**
+     * The LNP panel's own emphasis, overriding the shared palette for this panel only.
+     *
+     * <p>The measured points are the one thing on the plot the user already trusts; what they are reading
+     * the chart for is whether the model goes through them, and which component is doing the work. So the
+     * data recedes to a pale grey and the model comes forward in red, heavy enough to follow where it runs
+     * along the middle of a dense band of points. The components stay dashed and keep their own hues, but
+     * thickened to the point where a dashed line is still legible over the data.
+     */
+    private static final Color MODEL = new Color(0xd12b2b), PALE_DATA = new Color(0xbcc3cb),
+            PALE_ERROR = new Color(0xe3e7eb);
+    /** the fitted radius on the size-limit plot, in the same red as the model curve */
+    private static final Color FITTED_SIZE = MODEL;
+    private static final BasicStroke MODEL_STROKE = new BasicStroke(2.6f),
+            COMPONENT_DASH = new BasicStroke(2.0f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND, 10f,
+                    new float[]{9f, 5f}, 0f),
+            COMPONENT_DOT = new BasicStroke(1.8f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND, 10f,
+                    new float[]{1f, 4f}, 0f);
+
+    /**
+     * Grey ramp for the simulated alternatives, lightest at the smallest radius and darkening towards the
+     * fitted one. The ladder is ordered, so the shading should be too: a ramp that is dark at both ends and
+     * pale in the middle gives the eye no way to tell which curve is the small vesicle and which the large.
+     */
+    private static Color shade(int i, int n) {
+        float t = n <= 1 ? 0 : (float) i / (n - 1);
+        int g = Math.round(198 - 112 * t);
+        return new Color(g, g, Math.min(255, g + 22));
     }
 
     /** number-weighted outer-diameter histogram per morphology class, stacked (2 nm bins), as for cryo-EM classes */

@@ -99,10 +99,37 @@ final class LnpFormulas {
         b.append(ref("Core–multishell treatment as applied to mRNA-LNPs: Li et al., Membranes 15, 153 (2025); "
                 + "Yanez Arteta et al., PNAS 115, E3351 (2018)."));
 
-        b.append(h("4. Internal nucleic-acid peak"));
-        b.append(eq("I<sub>peak</sub>(q) = A exp[−(q − q₀)²/2w²]&nbsp;&nbsp;&nbsp;d = 2π/q₀"));
-        b.append(note("mRNA and siRNA packed with ionizable lipid give one broad maximum near d ≈ 5 nm, absent when "
-                + "the cargo is absent. It is added to the form factor rather than fitted separately."));
+        b.append(h("4. Internal nucleic-acid peak (mesophase peak modelling)"));
+        b.append(note("Listed in the fit and on the chart as the <b>mesophase peak</b>. It is the one term in the "
+                + "model that describes the <i>inside</i> of the particle rather than its shape: everything else "
+                + "builds a core with shells around it, and this says that within that core something repeats."));
+        b.append(eq("I(q) = scale · ⟨A²⟩/S₀²&nbsp;&nbsp;+&nbsp;&nbsp;A exp[−(q − q₀)²/2w²]&nbsp;&nbsp;+&nbsp;&nbsp;background"));
+        b.append(note("Three fitted parameters: the height A, the position q₀ and the width w. The position is what "
+                + "matters, through section 1:"));
+        b.append(eq("d = 2π/q₀"));
+        b.append(note("<b>Why 'mesophase'.</b> Lipid and water together form liquid-crystalline phases — lamellar, "
+                + "hexagonal, cubic — which are mesophases: ordered like a crystal in some directions, fluid like a "
+                + "liquid in others. The core of a loaded particle is one of these, built from nucleic acid and "
+                + "ionizable lipid, and the peak is its first reflection. Cargo and lipid are held apart at a fixed "
+                + "distance, and that distance is d."));
+        b.append(note("<b>Why it is broad.</b> A crystal gives sharp reflections because the repeat holds over many "
+                + "thousands of unit cells. Here it holds over a few neighbours, so the reflection is broad and "
+                + "symmetric, and its width measures how far the order persists — section 8 turns w into a domain "
+                + "size. A peak this broad is better described by a Gaussian than by a lattice."));
+        b.append(note("<b>It is added, not multiplied.</b> Strictly, internal order enters as a structure factor "
+                + "S(q) multiplying the form factor. Here the peak is added to it. For a single broad reflection on "
+                + "a steeply falling background the two are close, and adding keeps the peak's parameters "
+                + "independent of the particle's. But it means the fitted area is not a rigorous measure of how much "
+                + "of the sample is ordered, and should not be quoted as one."));
+        b.append(note("<b>It will fit something that is not there.</b> A bilayer shell produces broad maxima of its "
+                + "own, from its thickness rather than from any internal repeat. A Gaussian placed on one of those "
+                + "fits well and reports a spacing the sample does not have. Two things separate the cases: the peak "
+                + "should disappear from a cargo-free preparation of the same formulation, and a vesicle model should "
+                + "reproduce the maxima with no peak term at all. The Cargo tab tests this directly, and the fit "
+                + "report says so whenever the assessment has found form-factor lobes."));
+        b.append(note("<b>What is seen in practice.</b> mRNA and siRNA packed with ionizable lipid give one broad "
+                + "maximum near d ≈ 5 nm, absent when the cargo is absent. It is the principal evidence that the "
+                + "cargo is inside the particle and not merely alongside it."));
         b.append(ref("Li et al. (2025) report d ≈ 4.9 nm; SANS contrast variation assigns it to a disordered inverse "
                 + "hexagonal core with water/mRNA cylinders ≈ 6.2 nm apart: Yanez Arteta et al., PNAS (2018)."));
 

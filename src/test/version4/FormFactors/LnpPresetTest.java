@@ -143,8 +143,8 @@ public class LnpPresetTest {
                 .fit(mrna.templateDefaults(), mrna.templateFixed(), true, () -> false);
         String report = panel.fitReport(r);
 
-        assertTrue("the report must say the peak is not a real spacing:\n" + report,
-                report.contains("NOT A REAL SPACING"));
+        assertTrue("the report must ask the user to check the peak:\n" + report,
+                report.contains("CHECK THIS PEAK"));
         assertTrue("and it must name the model that explains those lobes honestly:\n" + report,
                 report.contains("Vesicle"));
     }
@@ -160,8 +160,27 @@ public class LnpPresetTest {
         LnpModel mrna = new LnpModel(3, true);
         LnpFitter.Result r = new LnpFitter(mrna, d[0], d[1], d[2]).physicalConstraints(true)
                 .fit(mrna.templateDefaults(), mrna.templateFixed(), false, () -> false);
-        assertFalse("real reflections must not be dismissed as form-factor lobes",
-                panel.fitReport(r).contains("NOT A REAL SPACING"));
+        assertFalse("a clean reflection needs no such caveat",
+                panel.fitReport(r).contains("CHECK THIS PEAK"));
+    }
+
+    /** the Cargo tab exists and can be shown without a fit having been run */
+    @Test
+    public void theCargoTabIsReachable() {
+        LnpPanel p = panel();
+        javax.swing.JTabbedPane tabs = null;
+        java.util.ArrayDeque<java.awt.Component> todo = new java.util.ArrayDeque<>();
+        todo.add(p);
+        while (!todo.isEmpty()) {
+            java.awt.Component c = todo.poll();
+            if (c instanceof javax.swing.JTabbedPane && tabs == null) tabs = (javax.swing.JTabbedPane) c;
+            if (c instanceof java.awt.Container)
+                for (java.awt.Component k : ((java.awt.Container) c).getComponents()) todo.add(k);
+        }
+        assertNotNull("the panel should have tabs", tabs);
+        boolean found = false;
+        for (int i = 0; i < tabs.getTabCount(); i++) if ("Cargo".equals(tabs.getTitleAt(i))) found = true;
+        assertTrue("a Cargo tab should be present", found);
     }
 
     /** the filled-core models are untouched by this: their templates stay as they were */

@@ -123,12 +123,26 @@ public final class LnpLipidLibrary {
         return m;
     }
 
+    /**
+     * Reads the library.
+     *
+     * <p>A failure is recorded in {@link #loadError} here rather than left to the caller, because that
+     * field is what stops {@link #save()} writing over a file it could not read. Relying on whoever calls
+     * this to catch the exception and set the field meant the guard was only armed on the one path that
+     * remembered to do it; any other caller would have overwritten the user's own library on the next save.
+     */
     void load() throws IOException {
         lipids.clear();
         formulations.clear();
-        if (!file.exists()) return;
-        Map<?, ?> root = mapper().readValue(file, Map.class);
-        readInto(root, true);
+        if (!file.exists()) { loadError = null; return; }
+        try {
+            Map<?, ?> root = mapper().readValue(file, Map.class);
+            readInto(root, true);
+            loadError = null;
+        } catch (IOException | RuntimeException e) {
+            loadError = e.getMessage() == null ? e.toString() : e.getMessage();
+            throw e instanceof IOException ? (IOException) e : new IOException(loadError, e);
+        }
     }
 
     /** @param replace true: entries with the same name are replaced; returns {lipids added, formulations added, skipped} */

@@ -196,7 +196,8 @@ public class LnpPanel extends JPanel {
     // results
     private final JTabbedPane tabs = new JTabbedPane();
     private final JPanel assessTab = new JPanel(new BorderLayout()), fitTab = new JPanel(new BorderLayout()),
-            profileTab = new JPanel(new BorderLayout()), sizeTab = new JPanel(new BorderLayout());
+            profileTab = new JPanel(new BorderLayout()), sizeTab = new JPanel(new BorderLayout()),
+            limitTab = new JPanel(new BorderLayout());
     private final JTextArea report = new JTextArea();
     private LnpAssessment.Report assessment;
     private LnpFitter.Result result;
@@ -274,6 +275,7 @@ public class LnpPanel extends JPanel {
         fitTabs.addTab("Curve + residuals", fitTab);
         fitTabs.addTab("Density profile", profileTab);
         fitTabs.addTab("Size distribution", sizeTab);
+        fitTabs.addTab("Size limit", limitTab);
         JPanel assessWrap = new JPanel(new BorderLayout());
         unitWarning.setOpaque(true);
         unitWarning.setBackground(new Color(0xfff4e5));
@@ -313,6 +315,9 @@ public class LnpPanel extends JPanel {
         tabs.addTab("Chain packing (WAXS)", buildWaxsTab());
         tabs.setToolTipTextAt(tabs.getTabCount() - 1,
                 "Optional: a wide-angle dataset of the same sample, which says whether the chains are ordered");
+        tabs.addTab("Cargo", buildCargoTab());
+        tabs.setToolTipTextAt(tabs.getTabCount() - 1,
+                "Which arrangement of the cargo the data supports, as a probability over the alternatives");
         tabs.addTab("Methods", LnpFormulas.panel());
         tabs.setToolTipTextAt(tabs.getTabCount() - 1,
                 "Every formula this panel applies, with the paper it comes from");
@@ -768,7 +773,7 @@ public class LnpPanel extends JPanel {
                 + "condition you vary: temperature, time, concentration, N/P, pH. This is how a phase transition or a kinetic run is read "
                 + "(Caselli et al., Adv. Colloid Interface Sci. 2024, sec. 4.1). The settings of the other tabs are used, so set up one "
                 + "dataset there first."));
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
+        JPanel row = new JPanel(new Fields.WrapLayout(FlowLayout.LEFT, 8, 2));
         row.add(left);
         row.add(ps);
         JPanel side = new JPanel();
@@ -1243,7 +1248,7 @@ public class LnpPanel extends JPanel {
         top.add(Fields.wrappingLabel(top, "Splits the primary internal peak into disordered, HII and Lα contributions "
                 + "(three Lorentz functions with bounded centres; Hammel et al., ACS Nano 2023). The disordered/HII area ratio ranked "
                 + "ASO-LNP efficacy in their screen: lower = more ordered core. Adjust the bounds for other lipid systems."));
-        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 2));
+        JPanel row = new JPanel(new Fields.WrapLayout(FlowLayout.LEFT, 8, 2));
         row.add(ts);
         JPanel side = new JPanel();
         side.setLayout(new BoxLayout(side, BoxLayout.Y_AXIS));
@@ -1789,6 +1794,141 @@ public class LnpPanel extends JPanel {
         updateCartoon();
     }
 
+    private final JTextField cargoNtField = new JTextField("3800", 7);
+    private final JSpinner cargoCopies = new JSpinner(new SpinnerNumberModel(2, 1, 50, 1));
+    private final JTextField cargoDmaxField = new JTextField("", 7);
+    private final JTextArea cargoReport = new JTextArea();
+    private final JButton cargoRun = new JButton("Rank the arrangements");
+    private final java.util.Map<LnpArrangement.Cargo, LnpCargoCartoon> cargoCartoons =
+            new java.util.EnumMap<>(LnpArrangement.Cargo.class);
+
+    /**
+     * Which arrangement of the cargo the data supports.
+     *
+     * <p>Deliberately separate from the particle fit. The fit answers how big the particle is; this answers
+     * a different question — of the ways the cargo could be arranged inside it, which ones the curve rules
+     * out — and it answers it by fitting every candidate with its own free envelope, so that nothing here
+     * depends on a loaded and an unloaded preparation having the same particle.
+     */
+    private JComponent buildCargoTab() {
+        JPanel p = new JPanel(new BorderLayout());
+        JPanel top = new JPanel();
+        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
+        top.setBorder(new EmptyBorder(8, 10, 6, 10));
+        top.add(Fields.wrappingLabel(p, "Fits each way the cargo could be arranged &mdash; condensed, on a "
+                + "surface, held at a repeating spacing, or not encapsulated at all &mdash; and reports how "
+                + "much of the probability each one keeps. Every candidate gets its own freely fitted "
+                + "envelope, so none of this assumes the loaded and empty particles are the same size. "
+                + "<b>Declaring the cargo length matters</b>: it fixes the size a condensed body would have "
+                + "and the length a surface or an array would need to hold, and several arrangements are "
+                + "excluded on that alone. Leave it at zero to ask only whether there is cargo at all."));
+        JPanel row = new JPanel(new Fields.WrapLayout(FlowLayout.LEFT, 8, 4));
+        row.add(new JLabel("Cargo length"));
+        row.add(cargoNtField);
+        row.add(new JLabel("nt, copies"));
+        row.add(cargoCopies);
+        row.add(new JLabel("Dₘₐₓ"));
+        row.add(cargoDmaxField);
+        row.add(new JLabel("Å (from P(r); blank to estimate)"));
+        top.add(row);
+        // The button goes on a line of its own. On the end of the row above, a flow layout pushes it past
+        // the right edge as soon as the window is anything but wide, and the one control that starts the
+        // analysis is the last one that should need the frame dragged out before it can be found.
+        JPanel go = new JPanel(new Fields.WrapLayout(FlowLayout.LEFT, 8, 2));
+        go.add(cargoRun);
+        top.add(go);
+        p.add(top, BorderLayout.NORTH);
+
+        // the candidates, drawn. Which of these the data can tell apart is the whole question, and the
+        // difference between a condensed ball and strands at a fixed spacing is far easier to see than read
+        JPanel gallery = new JPanel(new GridLayout(1, 0, 6, 0));
+        gallery.setBorder(new EmptyBorder(2, 10, 6, 10));
+        for (LnpArrangement.Cargo c : LnpArrangement.Cargo.values()) {
+            LnpCargoCartoon art = new LnpCargoCartoon(c);
+            cargoCartoons.put(c, art);
+            gallery.add(art);
+        }
+        top.add(gallery);
+
+        cargoReport.setEditable(false);
+        cargoReport.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        cargoReport.setText("  Load a dataset, then press 'Rank the arrangements'.\n");
+        p.add(new JScrollPane(cargoReport), BorderLayout.CENTER);
+        cargoRun.addActionListener(e -> runCargo());
+        return p;
+    }
+
+    private void runCargo() {
+        double[][] d;
+        try { d = currentData(); } catch (RuntimeException e) { say("No data to rank."); return; }
+        double nt = parse(cargoNtField, 0);
+        int copies = (Integer) cargoCopies.getValue();
+        double dmax = parse(cargoDmaxField, 0);
+        if (!(dmax > 0)) dmax = 2.6 * guinierRg(d[0], d[1]);   // a stand-in until P(r) has been run
+        final double fnt = nt, fdmax = dmax;
+        final int fcopies = nt > 0 ? copies : 0;
+        cargoRun.setEnabled(false);
+        cargoReport.setText("  Fitting five arrangements, each with its own envelope. This takes a moment.\n");
+        new SwingWorker<LnpArrangement.Result, Void>() {
+            @Override protected LnpArrangement.Result doInBackground() {
+                return LnpArrangement.analyse(d[0], d[1], d[2], fdmax, fnt, fcopies);
+            }
+            @Override protected void done() {
+                cargoRun.setEnabled(true);
+                try {
+                    LnpArrangement.Result r = get();
+                    StringBuilder sb = new StringBuilder();
+                    sb.append("CARGO ARRANGEMENT\n\n  ").append(r.verdict()).append('\n');
+                    sb.append(String.format("  %-24s %10s %8s %9s %9s%n",
+                            "arrangement", "red chi2", "fitted", "dBIC", "P"));
+                    for (LnpArrangement.Candidate c : r.candidates)
+                        sb.append(String.format("  %-24s %10.2f %8d %9.1f %9s%s%n",
+                                c.cargo.label, c.chi2Reduced, c.parameters, c.deltaBic,
+                                c.posterior > 0.999 ? "> 0.999" : String.format("%.3f", c.posterior),
+                                c.impossible ? "   excluded: " + c.reason : ""));
+                    sb.append(String.format("%n  Errors were scaled by %.2f so the best candidate sits at a "
+                            + "reduced chi-squared of one;%n  none of these models is the truth, and the "
+                            + "comparison is between them, not against it.%n", r.errorScale));
+                    sb.append("\n  'fitted' is how many parameters that candidate had to adjust: the envelope\n"
+                            + "  it shares with the others, plus whatever its own cargo term needs. A candidate\n"
+                            + "  that fits better by spending more parameters is penalised for them in dBIC.\n");
+                    sb.append("\n  dBIC is how far behind the leader a candidate is: below about 2 is a tie,\n"
+                            + "  above 10 is decisive. P converts that to a probability.\n");
+                    sb.append("\n  These probabilities are over the arrangements listed and nothing else.\n");
+                    cargoReport.setText(sb.toString());
+                    cargoReport.setCaretPosition(0);
+                    LnpArrangement.Candidate top = r.best();
+                    for (LnpArrangement.Candidate c : r.candidates) {
+                        LnpCargoCartoon art = cargoCartoons.get(c.cargo);
+                        if (art == null) continue;
+                        art.setEnvelope(c.envelope[LnpModel.R0], c.envelope[LnpModel.T1],
+                                c.envelope[LnpModel.T2], c.envelope[LnpModel.T3]);
+                        double rad = c.cargo == LnpArrangement.Cargo.COMPACT && c.extra.length > 1
+                                ? c.extra[1] : 65;
+                        double sp = c.cargo == LnpArrangement.Cargo.QUASI_PERIODIC && c.extra.length > 1
+                                && c.extra[1] > 1e-6 ? 2 * Math.PI / c.extra[1] : 49.8;
+                        art.setCargo(rad, sp);
+                        art.setVerdict(c.posterior, c == top, c.impossible);
+                    }
+                    say("Cargo: " + r.best().cargo.label);
+                } catch (Exception ex) {
+                    cargoReport.setText("  Could not rank the arrangements: " + ex.getMessage() + "\n");
+                }
+            }
+        }.execute();
+    }
+
+    private static double guinierRg(double[] q, double[] I) {
+        double sx = 0, sy = 0, sxx = 0, sxy = 0; int n = 0;
+        for (int i = 0; i < q.length && q[i] < 0.025; i++) {
+            double x = q[i] * q[i], y = Math.log(Math.max(I[i], 1e-30));
+            sx += x; sy += y; sxx += x * x; sxy += x * y; n++;
+        }
+        if (n < 5) return 200;
+        double b = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+        return Math.sqrt(Math.max(-3 * b, 1e-9));
+    }
+
     /** which layer a thickness parameter belongs to, or -1 */
     private static int layerOf(int k) {
         for (int layer = 1; layer <= LnpModel.MAX_SHELLS; layer++) if (LnpModel.tIndex(layer) == k) return layer;
@@ -2033,6 +2173,7 @@ public class LnpPanel extends JPanel {
         setChart(fitTab, LnpCharts.fitChart(r, (calculateOnly ? "Model – " : "Fit – ") + resultName));
         setChart(profileTab, LnpCharts.densityChart(r.model, r.params));
         setChart(sizeTab, LnpCharts.sizeChart(r.model, r.params));
+        showSizeLimit(r.model, r.params);
         if (lastData == null || assessment == null) {   // checks need the model-free assessment too
             try {
                 lastData = currentData();
@@ -2092,12 +2233,15 @@ public class LnpPanel extends JPanel {
         // data through both minima, and the fit reports an internal spacing that nothing in the sample has.
         if (assessment != null && assessment.formFactorLobe && r.model.peak && !r.fixed[LnpModel.PEAK_Q]
                 && p[LnpModel.PEAK_Q] > 0) {
-            sb.append(String.format("%n  ! THE FITTED PEAK IS NOT A REAL SPACING. The assessment found the broad maxima%n"
-                    + "    in this data to be lobes of the particle's own form factor, not reflections. The peak%n"
-                    + "    component has settled on one of them at q* = %.4f Å⁻¹, which would read as d = %.1f Å,%n"
-                    + "    and in doing so it reproduces a lobe the core-and-shells part cannot make. The curve%n"
-                    + "    therefore follows the data while describing a structure that is not there. Do not quote%n"
-                    + "    this spacing: fit 'Vesicle / bilayer shell', which makes those lobes from the bilayer.%n",
+            sb.append(String.format("%n  ! CHECK THIS PEAK BEFORE QUOTING IT. The peak component has settled at%n"
+                    + "    q* = %.4f Å⁻¹, which reads as d = %.1f Å. The assessment cannot tell from one curve%n"
+                    + "    whether that is an internal spacing or a lobe of the particle's own form factor: a%n"
+                    + "    bilayer shell makes broad maxima of its own, and a peak placed on one of them fits%n"
+                    + "    well while describing a structure that is not there.%n"
+                    + "      Two things separate them. A cargo-free sample of the same formulation should lose%n"
+                    + "    an internal spacing and keep a form-factor lobe — load one as the Empty reference.%n"
+                    + "    And 'Vesicle / bilayer shell' makes these maxima from the bilayer with no peak at%n"
+                    + "    all; if it fits as well, the peak was not needed.%n",
                     p[LnpModel.PEAK_Q], 2 * Math.PI / p[LnpModel.PEAK_Q]));
         }
         if (!Double.isNaN(qmin) && qmin * rgRange > 1.3) {
@@ -2225,6 +2369,7 @@ public class LnpPanel extends JPanel {
         setChart(fitTab, FormFactorCharts.placeholder("Press  2. Fit model  to fit the core–shell model"));
         setChart(profileTab, LnpCharts.densityChart(model, params));
         setChart(sizeTab, LnpCharts.sizeChart(model, params));
+        showSizeLimit(model, params);
         report.setText("Lipid nanoparticle analysis\n\n"
                 + "1. Assess sample: model-free size, polydispersity and internal-structure check. Bragg peaks are\n"
                 + "   indexed for lamellar, hexagonal and cubic phases (Caselli et al., Adv. Colloid Interface Sci. 2024).\n"
@@ -2360,6 +2505,87 @@ public class LnpPanel extends JPanel {
             phaseChart.revalidate();
             phaseChart.repaint();
         }
+    }
+
+    /** redraws the ladder for the model it was made with, so the spinners act on the fit that is on screen */
+    private final class Redraw implements javax.swing.event.ChangeListener {
+        private final LnpModel m; private final double[] p;
+        Redraw(LnpModel m, double[] p) { this.m = m; this.p = p.clone(); }
+        @Override public void stateChanged(javax.swing.event.ChangeEvent e) { showSizeLimit(m, p); }
+    }
+
+    /** how many rungs the simulated ladder has, and how far below the fitted radius it reaches */
+    private final JSpinner ladderSteps = new JSpinner(new SpinnerNumberModel(6, 3, 12, 1));
+    private final JSpinner ladderDecades = new JSpinner(new SpinnerNumberModel(1.2, 0.3, 2.5, 0.1));
+    private final JLabel limitVerdict = new JLabel();
+
+    /**
+     * Draws the fitted particle as it would have looked at a range of smaller radii.
+     *
+     * <p>A fit always returns a radius with an error bar on it, whether or not the measurement could see the
+     * particle. The error bar comes from the curvature of the likelihood where the fit stopped, and a flat
+     * plain has a curvature too. The only way to tell is to change the radius and look at what happens to the
+     * curve, which is what this does: everything the fit found about the bilayer is held, the size spread is
+     * kept in proportion so that the ladder is one of sizes rather than of polydispersities, and the curves
+     * are scaled to agree where the bilayer decides the shape so that a difference in brightness — which the
+     * fitted scale would absorb anyway — cannot be mistaken for a difference in size.
+     */
+    private void showSizeLimit(LnpModel m, double[] p) {
+        double[][] d = lastData;
+        if (d == null) { try { d = currentData(); } catch (RuntimeException e) { d = null; } }
+        if (d == null || p[LnpModel.R0] <= 0) { limitTab.removeAll(); limitTab.repaint(); return; }
+
+        double[] rungs = LnpSizeLimit.ladder(p[LnpModel.R0],
+                (Integer) ladderSteps.getValue(), (Double) ladderDecades.getValue());
+        LnpSizeLimit.Result res = LnpSizeLimit.analyse(m, p, d[0], d[2], rungs);
+
+        JPanel wrap = new JPanel(new BorderLayout());
+        wrap.add(LnpCharts.panelFor(LnpCharts.sizeLimitChart(res, "Variation in particle size")),
+                BorderLayout.CENTER);
+
+        // redrawing is forward model evaluation only, so the controls can act immediately
+        for (javax.swing.event.ChangeListener l : ladderSteps.getChangeListeners())
+            if (l instanceof Redraw) ladderSteps.removeChangeListener(l);
+        for (javax.swing.event.ChangeListener l : ladderDecades.getChangeListeners())
+            if (l instanceof Redraw) ladderDecades.removeChangeListener(l);
+        Redraw again = new Redraw(m, p);
+        ladderSteps.addChangeListener(again);
+        ladderDecades.addChangeListener(again);
+
+        JPanel bar = new JPanel(new Fields.WrapLayout(FlowLayout.LEFT, 8, 4));
+        bar.add(new JLabel("Rungs"));
+        bar.add(ladderSteps);
+        bar.add(new JLabel("reaching"));
+        bar.add(ladderDecades);
+        bar.add(new JLabel("decades below the fitted radius"));
+        wrap.add(bar, BorderLayout.NORTH);
+
+        StringBuilder sb = new StringBuilder("<html><div style='width:760px'>").append(res.verdict());
+        sb.append("<br><br><b>How far each simulated radius sits from the fitted one</b>, in units of this "
+                + "data's own error bars, after scaling the curves together:<br>");
+        for (LnpSizeLimit.Rung k : res.rungs) {
+            if (k.isFit) continue;
+            sb.append(String.format("&nbsp;&nbsp;%.0f Å &mdash; %s<br>", k.r0, k.sigmaPerPoint < 1
+                    ? "<b>indistinguishable</b> (" + String.format("%.2f", k.sigmaPerPoint) + "σ per point)"
+                    : String.format("%.1fσ per point", k.sigmaPerPoint)));
+        }
+        sb.append("<br><i>These are an upper bound on what could be told apart. Nothing is refitted here, so "
+                + "no other parameter is allowed to absorb the difference; in a real fit the thicknesses, the "
+                + "spread and the scale all move to follow a changed radius, and two sizes that look separable "
+                + "above can still give the same χ².</i>");
+        sb.append("</div></html>");
+        limitVerdict.setText(sb.toString());
+        limitVerdict.setVerticalAlignment(SwingConstants.TOP);
+        limitVerdict.setBorder(new EmptyBorder(8, 10, 10, 10));
+        JScrollPane sc = new JScrollPane(limitVerdict);
+        sc.setPreferredSize(new Dimension(100, 190));
+        sc.setBorder(BorderFactory.createMatteBorder(1, 0, 0, 0, new Color(0xdddddd)));
+        wrap.add(sc, BorderLayout.SOUTH);
+
+        limitTab.removeAll();
+        limitTab.add(wrap, BorderLayout.CENTER);
+        limitTab.revalidate();
+        limitTab.repaint();
     }
 
     private static void setChart(JPanel tab, JFreeChart chart) {
