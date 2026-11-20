@@ -516,6 +516,27 @@ public class Subtraction extends SwingWorker<String, Integer> {
     }
 
 
+    /**
+     * Scaling fits the frames over [sqmin, sqmax]; with (almost) no data there (e.g. WAXS frames and the
+     * SAXS default range) the fit cannot be done, so the frames are merged unscaled instead.
+     */
+    private boolean scalingRangeHasData(Collection collection) {
+        for (int i = 0; i < collection.getTotalDatasets(); i++) {
+            if (!collection.getDataset(i).getInUse()) continue;
+            XYSeries d = collection.getDataset(i).getAllData();
+            int inside = 0;
+            for (int j = 0; j < d.getItemCount(); j++) {
+                double q = d.getX(j).doubleValue();
+                if (q >= sqmin && q <= sqmax) inside++;
+            }
+            if (inside < 10) {
+                setStatus("Not scaled: fewer than 10 points in the scaling q range");
+                return false;
+            }
+        }
+        return true;
+    }
+
     /** true when each frame is written on its own (no merging): its buffer error goes in at subtraction */
     private boolean singlesOnly() { return !mergebyAverage && !mergebyMedian; }
 
@@ -545,7 +566,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
     public Dataset medianSubtractedSets(Collection subtractedCollection, String type, XYSeries bufferError){
 
-        if (scaleBeforeMerging) {
+        if (scaleBeforeMerging && scalingRangeHasData(subtractedCollection)) {
             setStatus("scaling sets");
 
             ScaleManager scalings = new ScaleManager(
@@ -578,8 +599,8 @@ public class Subtraction extends SwingWorker<String, Integer> {
 
         sampleXY.setKey(type);
         sampleError.setKey(type);
-        // merge curves using rejection criteria
-        output_name = name + "_" + type;
+        // same file naming as the averaged sets (no spaces or slashes)
+        output_name = Functions.sanitizeForFilename(name) + "_" + type;
 
         Dataset tempSingle = new Dataset(
                 sampleXY,       //data
@@ -602,7 +623,7 @@ public class Subtraction extends SwingWorker<String, Integer> {
      */
     public Dataset averagedSubtractedSets(Collection subtractedCollection, String type, XYSeries bufferError){
 
-        if (scaleBeforeMerging) {
+        if (scaleBeforeMerging && scalingRangeHasData(subtractedCollection)) {
             setStatus("scaling sets");
 
             ScaleManager scalings = new ScaleManager(

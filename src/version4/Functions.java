@@ -976,7 +976,7 @@ public class Functions {
         }
 
         // select indices to use for 6 point interpolation
-        if (index == 1){ // if first point to interpolate has only one neighbor
+        if (index < 2){ // if first point to interpolate has only one neighbor
             for (int k=0; k<6; k++){
                 z[k]=k;
             }
@@ -1042,7 +1042,9 @@ public class Functions {
     public static Double[] interpolate(XYSeries data, double point){
         //Kriging interpolation
         int [] z = new int[6];
-        int index=0;
+        // first point above 'point'; the last point if 'point' lies in the last interval
+        // (was 0, which selected indices -2..3 and failed for points near the end of the data)
+        int index=data.getItemCount()-1;
         //loop over data to find the smalllest q rather than than point
 
         for (int i=0; i< data.getItemCount()-1; i++) {
@@ -1053,7 +1055,7 @@ public class Functions {
         }
 
         // select indices to use for 6 point interpolation
-        if (index == 1){ // if first point to interpolate has only one neighbor
+        if (index < 2){ // if first point to interpolate has only one neighbor
             for (int k=0; k<6; k++){
                 z[k]=k;
             }
@@ -1478,7 +1480,9 @@ public class Functions {
         //Kriging interpolation,
 
         int [] z = new int[6];
-        int index=0;
+        // first point above 'point'; the last point if 'point' lies in the last interval
+        // (was 0, which interpolated from the first six points instead of the last six)
+        int index=data.getItemCount()-1;
         //loop over data to find the smallles q grather than than point
 
         for (int i=0; i< data.getItemCount()-1; i++) {

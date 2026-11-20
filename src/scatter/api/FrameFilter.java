@@ -23,7 +23,11 @@ import java.util.List;
  *  2. Each frame is compared with the reference by CorMap: the longest run of residuals
  *     (frame - reference) with the same sign, and the probability of a run at least that
  *     long by chance (Schilling 1990; Franke, Jeffries & Svergun 2015, Nat. Methods 12, 419).
- *     It needs no error model. Reduced chi^2 is reported as well but does not decide.
+ *     It needs no error model. Aggregation and the meniscus first change the lowest q, often
+ *     over too few points to stand out in the full range, so the low-q quarter is also tested on
+ *     its own, by CorMap and by chi^2 with the errors calibrated on the reference frames
+ *     themselves (so wrongly scaled errors do not matter); the smallest p is kept, times the
+ *     number of tests.
  *  3. p-values are Holm-Bonferroni adjusted over the frames; a frame is "similar" when the
  *     adjusted p >= alpha.
  *  4. The accepted frames are the longest stretch of similar frames, allowing gaps of at most
@@ -266,6 +270,12 @@ public final class FrameFilter {
     private static Result filterAnchored(List<Curve> frames, Grid g, Options o) {
         int m = frames.size(), k = Math.max(2, o.anchorFrames);
         int pairs = k * (k - 1) / 2;
+        // error calibration for the chi^2 test: neighbouring frames nearly always agree (a meniscus or
+        // damage changes only a few of the m - 1 pairs), so the median of their reduced chi^2 is the
+        // factor by which the given errors are off
+        double[] neighbours = new double[m - 1];
+        for (int f = 0; f + 1 < m; f++) neighbours[f] = stats(frames, g, f, g.frame(f + 1))[3];
+        double errorScale2 = median(neighbours);
         Result fallback = null;
         int fallbackLength = 0;
         for (int s = 0; s + k <= m; s++) {
@@ -273,8 +283,7 @@ public final class FrameFilter {
             boolean ok = true;
             for (int a = s; a < s + k && ok; a++) {
                 for (int b = a + 1; b < s + k && ok; b++) {
-                    double[][] ref = g.frame(b);
-                    double p = stats(frames, g, a, ref)[2];
+                    double p = stats(frames, g, a, g.frame(b), errorScale2)[2];
                     if (Math.min(1.0, p * pairs) < o.alpha) ok = false;
                 }
             }
@@ -286,7 +295,7 @@ public final class FrameFilter {
             int[] runs = new int[m], pts = new int[m];
             double[] p = new double[m], chi2 = new double[m];
             for (int f = 0; f < m; f++) {
-                double[] st = stats(frames, g, f, ref);
+                double[] st = stats(frames, g, f, ref, errorScale2);
                 runs[f] = (int) st[0]; pts[f] = (int) st[1]; p[f] = st[2]; chi2[f] = st[3];
             }
             double[] adj = holm(p);
@@ -322,24 +331,84 @@ public final class FrameFilter {
                 fallback.getAnchorStart(), fallback.getAnchorSize());
     }
 
-    /** {longest run, points, p, reduced chi2} of frame f against ref ([0] I, [1] sigma on the grid). */
+    /** {longest run, points, p, reduced chi^2} of frame f against ref, CorMap only (no error calibration). */
     private static double[] stats(List<Curve> frames, Grid g, int f, double[][] ref) {
+        return stats(frames, g, f, ref, Double.NaN);
+    }
+
+    /**
+     * {longest run, points, p, reduced chi^2} of frame f against ref ([0] I, [1] sigma on the grid).
+     *
+     * p combines up to three tests (smallest p, times the number of tests):
+     *  - CorMap over the whole range;
+     *  - CorMap over the low-q quarter, where aggregation, damage and the meniscus show first,
+     *    often over too few points to stand out in the full range;
+     *  - chi^2 over the low-q eighth, with the errors calibrated by errorScale2 (the reduced chi^2
+     *    of frames that agree, so badly scaled errors do not matter). CorMap only counts signs, so it
+     *    misses a large excess over a handful of points; this test does not. Skipped when
+     *    errorScale2 is NaN.
+     */
+    private static double[] stats(List<Curve> frames, Grid g, int f, double[][] ref, double errorScale2) {
         Curve c = frames.get(f);
-        int n = g.size();
+        // CorMap on the lowest quarter; chi^2 on the lowest eighth (at least LOW_Q_MIN_POINTS), where
+        // an aggregate's excess is concentrated - a wider block would dilute it
+        int n = g.size(), lowEnd = n / 4, chiEnd = Math.min(n, Math.max(LOW_Q_MIN_POINTS, n / 8));
         boolean[] signs = new boolean[n];
-        int count = 0, chiCount = 0;
-        double sum = 0;
+        int count = 0, chiCount = 0, lowSigns = 0, lowChiCount = 0;
+        double sum = 0, lowSum = 0;
         for (int k = 0; k < n; k++) {
             int idx = g.index[f][k];
             double d = c.i(idx) - ref[0][k];
+            double s2 = c.sigma(idx) * c.sigma(idx) + ref[1][k] * ref[1][k];
+            if (s2 > 0 && Double.isFinite(s2)) {
+                sum += d * d / s2; chiCount++;
+                if (k < chiEnd) { lowSum += d * d / s2; lowChiCount++; }
+            }
             if (d == 0) continue;
             signs[count++] = d > 0;
-            double s2 = c.sigma(idx) * c.sigma(idx) + ref[1][k] * ref[1][k];
-            if (s2 > 0 && Double.isFinite(s2)) { sum += d * d / s2; chiCount++; }
+            if (k < lowEnd) lowSigns = count;
         }
         int run = longestRun(signs, count);
-        return new double[]{run, count, probabilityOfRunAtLeast(count, run), chiCount > 0 ? sum / chiCount : Double.NaN};
+        double best = probabilityOfRunAtLeast(count, run);
+        int tests = 1;
+        if (lowSigns >= LOW_Q_MIN_POINTS) {
+            best = Math.min(best, probabilityOfRunAtLeast(lowSigns, longestRun(signs, lowSigns)));
+            tests++;
+        }
+        if (Double.isFinite(errorScale2) && errorScale2 > 0 && lowChiCount >= LOW_Q_MIN_POINTS) {
+            best = Math.min(best, chiSquareUpperTail(lowSum / errorScale2, lowChiCount));
+            tests++;
+        }
+        double p = Math.min(1.0, tests * best);
+        return new double[]{run, count, p, chiCount > 0 ? sum / chiCount : Double.NaN};
     }
+
+    /** P(chi^2 with k degrees of freedom >= x), Wilson-Hilferty (good to a few % in p for k >= 20) */
+    static double chiSquareUpperTail(double x, int k) {
+        if (!(x > 0)) return 1.0;
+        double h = 2.0 / (9.0 * k);
+        double z = (Math.cbrt(x / k) - (1 - h)) / Math.sqrt(h);
+        return 0.5 * erfc(z / Math.sqrt(2));
+    }
+
+    /** complementary error function (Numerical Recipes erfcc, relative error < 1.2e-7) */
+    static double erfc(double x) {
+        double z = Math.abs(x), t = 1 / (1 + 0.5 * z);
+        double r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418
+                + t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587
+                + t * (-0.82215223 + t * 0.17087277)))))))));
+        return x >= 0 ? r : 2 - r;
+    }
+
+    /** median of the finite values (NaN if none) */
+    private static double median(double[] v) {
+        double[] f = Arrays.stream(v).filter(Double::isFinite).sorted().toArray();
+        if (f.length == 0) return Double.NaN;
+        return f.length % 2 == 1 ? f[f.length / 2] : 0.5 * (f[f.length / 2 - 1] + f[f.length / 2]);
+    }
+
+    /** the low-q quarter is tested separately when it has at least this many points */
+    static final int LOW_Q_MIN_POINTS = 20;
 
     /** Every frame accepted, no comparison made (filtering switched off or impossible). */
     public static Result acceptAll(List<Curve> frames, String message) {
@@ -358,8 +427,10 @@ public final class FrameFilter {
         int m = frames.size();
         int[] runs = new int[m], pts = new int[m];
         double[] p = new double[m], chi2 = new double[m];
+        for (int f = 0; f < m; f++) chi2[f] = stats(frames, g, f, ref)[3];
+        double errorScale2 = median(chi2);       // most frames agree with the median of all frames
         for (int f = 0; f < m; f++) {
-            double[] st = stats(frames, g, f, ref);
+            double[] st = stats(frames, g, f, ref, errorScale2);
             runs[f] = (int) st[0]; pts[f] = (int) st[1]; p[f] = st[2]; chi2[f] = st[3];
         }
         double[] adj = holm(p);
