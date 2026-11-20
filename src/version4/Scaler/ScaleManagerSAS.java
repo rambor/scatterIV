@@ -95,6 +95,9 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
             }
         }
 
+        // an upper limit beyond the data means "to the end" (it used to leave qMaxIndex at 0, so the
+        // scaling range had no or a negative number of points)
+        qMaxIndex = qvalues.size() - 1;
         for(int i=qLowIndex; i<qvalues.size(); i++){
             if (qvalues.get(i) >= upper){
                 qMaxIndex = i;
@@ -153,6 +156,14 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
 
         ArrayList<Double> weightedISum = new ArrayList<>(qvalues.size());
         ArrayList<Double> weightedESum = new ArrayList<>(qvalues.size());
+
+        // Every frame had the same averaged buffer subtracted, so the buffer's error is common to all
+        // of them and does not average down: var = sum w^2 s^2 sigma_frame^2 / W^2 + (sum w s / W)^2 sigma_B^2
+        // (w = 1/(s sigma_subtracted)^2, s = scale). Treating the subtracted errors as independent
+        // underestimated the merged error, by ~1.7x with 9 buffer frames and 21 merged frames.
+        double[] bufferErrors = secFile.getAveragedBufferErrors();
+        boolean shared = bufferErrors != null && bufferErrors.length == qvalues.size();
+        double[] frameVarSum = new double[qvalues.size()], weightScaleSum = new double[qvalues.size()];
         ArrayList<ArrayList<SigmaWeighted>> forMedianCalc = new ArrayList<>();
 
         double std, var, scale = scaleFactors.get(0);
@@ -164,6 +175,7 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
             var = std*std;
             weightedISum.add((target.get(i)*scale*var));
             weightedESum.add(var);
+            if (shared) accumulateShared(frameVarSum, weightScaleSum, i, var, scale, tarErrors.get(i), bufferErrors[i]);
 
             forMedianCalc.get(i).add(new SigmaWeighted(weightedISum.get(i), var));
         }
@@ -182,6 +194,7 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
                 tarval = (target.get(i)*scale*var);
                 weightedISum.set(i, weightedISum.get(i) + tarval);
                 weightedESum.set(i, weightedESum.get(i) + var);
+                if (shared) accumulateShared(frameVarSum, weightScaleSum, i, var, scale, tarErrors.get(i), bufferErrors[i]);
 
                 forMedianCalc.get(i).add(new SigmaWeighted(tarval, var));
             }
@@ -199,12 +212,13 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
                 qval = qvalues.get(i);
                 var = weightedESum.get(i);
                 merged.add(qval, weightedISum.get(i)/var);
-                mergedErrors.add(qval, 1.0/Math.sqrt(var));
+                mergedErrors.add(qval, shared ? sharedError(frameVarSum, weightScaleSum, i, var, bufferErrors[i]) : 1.0/Math.sqrt(var));
 
                 ArrayList<SigmaWeighted> toSort = forMedianCalc.get(i);
                 Collections.sort(toSort, new Comparator<SigmaWeighted>() {
                     public int compare(SigmaWeighted s1, SigmaWeighted s2) {
-                        return Double.compare(s1.getIntensity(),s2.getIntensity());
+                        // order by the (scaled) intensity itself, not by intensity x weight
+                        return Double.compare(s1.getIntensity() / s1.getWeight(), s2.getIntensity() / s2.getWeight());
                     }
                 });
 
@@ -216,18 +230,32 @@ public class ScaleManagerSAS extends SwingWorker<Void, Integer> {
                 qval = qvalues.get(i);
                 var = weightedESum.get(i);
                 merged.add(qval, weightedISum.get(i)/var);
-                mergedErrors.add(qval, 1.0/Math.sqrt(var));
+                mergedErrors.add(qval, shared ? sharedError(frameVarSum, weightScaleSum, i, var, bufferErrors[i]) : 1.0/Math.sqrt(var));
 
                 ArrayList<SigmaWeighted> toSort = forMedianCalc.get(i);
                 Collections.sort(toSort, new Comparator<SigmaWeighted>() {
                     public int compare(SigmaWeighted s1, SigmaWeighted s2) {
-                        return Double.compare(s1.getIntensity(),s2.getIntensity());
+                        // order by the (scaled) intensity itself, not by intensity x weight
+                        return Double.compare(s1.getIntensity() / s1.getWeight(), s2.getIntensity() / s2.getWeight());
                     }
                 });
                 median.add(qval, toSort.get(midpoint).getIntensity()/toSort.get(midpoint).getWeight());
             }
         }
 
+    }
+
+    /** sums for the merged error: the frame's own variance (subtracted minus buffer) and w * s */
+    private static void accumulateShared(double[] frameVarSum, double[] weightScaleSum, int i, double w, double s,
+                                         double subtractedError, double bufferError) {
+        double own = Math.max(0, subtractedError * subtractedError - bufferError * bufferError);
+        frameVarSum[i] += w * w * s * s * own;
+        weightScaleSum[i] += w * s;
+    }
+
+    private static double sharedError(double[] frameVarSum, double[] weightScaleSum, int i, double W, double bufferError) {
+        double c = weightScaleSum[i] / W;
+        return Math.sqrt(frameVarSum[i] / (W * W) + c * c * bufferError * bufferError);
     }
 
     private int[] randomArray(int limit, int max){

@@ -367,7 +367,8 @@ public class SECTool extends JDialog {
                         int totalIn = qvalues.size();
                         for (int i = first; i <= last; i++) {
                             ArrayList<Double> iofq = source.getSubtractedFrameAt(i);
-                            ArrayList<Double> eofq = source.getUnSubtractedErrorFrameAt(i);
+                            // errors of the subtracted frame (they include the buffer's), not of the raw frame
+                            ArrayList<Double> eofq = source.getSubtractedErrorAtFrame(i);
                             XYSeries one = new XYSeries("iofq");
                             XYSeries two = new XYSeries("eofq");
                             for (int q = 0; q < totalIn; q++) {

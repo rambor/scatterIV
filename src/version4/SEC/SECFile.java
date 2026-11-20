@@ -220,6 +220,17 @@ public class SECFile {
         }
     }
 
+    /** Errors of the averaged buffer at {@link #getQvalues()}, or null if the file has none. */
+    public double[] getAveragedBufferErrors() {
+        Integer line = secFormat.getAveraged_buffer_error_index();
+        if (line == null || line <= 0) return null;
+        try {
+            return reader.readVector(line, Double.NaN);
+        } catch (IOException e) {
+            throw new java.io.UncheckedIOException(e);
+        }
+    }
+
     private BaselineCheck.Result baselineCheck;
 
     /**
