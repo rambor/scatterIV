@@ -2163,7 +2163,10 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
         }
 
         sb.append(String.format("REMARK 265 %n"));
-        sb.append(String.format("REMARK 265            TOTAL SHANNON BINS : %d %n", total));
+        sb.append(String.format("REMARK 265              SHANNON NUMBER : %.2f %n", qmax*dmax/Math.PI));
+        sb.append(String.format("REMARK 265                   BIN WIDTH : %.4f %n", Math.PI/qmax));
+        sb.append(String.format("REMARK 265                  TOTAL BINS : %d %n", total));
+        sb.append(String.format("REMARK 265            TOTAL SHANNON BINS : %d %n", total));   // kept for older readers
         return sb.toString();
     }
 

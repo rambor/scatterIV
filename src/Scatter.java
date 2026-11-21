@@ -20,6 +20,8 @@ import java.util.concurrent.ExecutionException;
 public class Scatter {
     private static String OUTPUT_DIR_SUBTRACTION_NAME="";
     private static String PROGRAMS_DIRECTORY="";
+    /** the settings file as read at start-up; entries this version does not use are written back unchanged */
+    private static Properties SAVED_SETTINGS = new Properties();
     private static String THEME = version4.Theme.DEFAULT; // dark, light, system or off; "theme" in scatter.config
     private static String THRESHOLD="";
 
@@ -94,6 +96,8 @@ public class Scatter {
         //settingsTab = new Settings(WORKING_DIRECTORY, status);
         settingsTab = Settings.getInstance();
         settingsTab.setFields(WORKING_DIRECTORY, status);
+        settingsTab.applySaved(SAVED_SETTINGS);     // q range, d-max, PDB options... as left last time
+        if (PROGRAMS_DIRECTORY != null && !PROGRAMS_DIRECTORY.isEmpty()) settingsTab.setProgramsDir(PROGRAMS_DIRECTORY);
         modeling = Modeling.getInstance();
         modeling.setFields(WORKING_DIRECTORY, status);
 
@@ -161,7 +165,7 @@ public class Scatter {
                         try {
                             ReceivedDroppedFiles rec1 = new ReceivedDroppedFiles(files, collectionSelected, analysisTable.getModel(), status, convertNmToAngstromCheckBox.isSelected(), autoRgCheckBox.isSelected(), false, mainProgressBar, WORKING_DIRECTORY.getWorkingDirectory());
                         // add other attributes and then run
-                            rec1.setPDBParams(true, Settings.getInstance().getQmaxForPDB());
+                            rec1.setPDBParams(Settings.getInstance().isExcludeWaters(), Settings.getInstance().getQmaxForPDB());
 
                             rec1.run();
                             rec1.get();
@@ -508,6 +512,7 @@ public class Scatter {
         System.out.println("User  Dir :: " + System.getProperty("user.dir"));
         System.out.println("Settings  :: " + version4.AppConfig.configFile());
         Properties prop = version4.AppConfig.load();
+        SAVED_SETTINGS = prop;
 
         if (prop.getProperty("workingDirectory") != null) {
             WORKING_DIRECTORY.setWorkingDirectory(prop.getProperty("workingDirectory"));
@@ -525,8 +530,7 @@ public class Scatter {
             if (!theDir.exists()) {
                 PROGRAMS_DIRECTORY = System.getProperty("user.home");
             }
-            Settings setIt = Settings.getInstance();
-            setIt.setProgramsDir(PROGRAMS_DIRECTORY);
+            // given to the Settings tab when the window is built (Swing objects belong on the EDT)
         }
 
         if (prop.getProperty("theme") != null) {
@@ -565,8 +569,10 @@ public class Scatter {
 
     public static void updateProp(){
         Properties prop = new Properties();
+        prop.putAll(SAVED_SETTINGS);            // keep entries this version does not know about
         Settings setit = Settings.getInstance();
         PROGRAMS_DIRECTORY = setit.getProgramsDir();
+        setit.store(prop);                      // q range, d-max, PDB options, refinement choices
 
         prop.setProperty("workingDirectory", WORKING_DIRECTORY.getWorkingDirectory());
         if (PROGRAMS_DIRECTORY != null) prop.setProperty("programsDirectory", PROGRAMS_DIRECTORY);

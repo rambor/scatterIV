@@ -306,7 +306,8 @@ public class SineIntegralTransform extends IndirectFT {
         sb.append(String.format("REMARK 265  CHI^2 %s %n", WEIGHT_BY_ERRORS ? "WEIGHTED BY 1/SIGMA^2" : "UNWEIGHTED"));
         sb.append(String.format("REMARK 265 %n"));
         sb.append(String.format("REMARK 265                LAMBDA (WEIGHT) : %.2E %n", lambda));
-        sb.append(String.format("REMARK 265            BIN WIDTH (delta r) : %.4f %n", del_r));
+        sb.append(String.format("REMARK 265           BIN WIDTH (delta r) : %.4f %n", Math.PI/qmax));   // width of the written Shannon bins
+        sb.append(String.format("REMARK 265           MODEL GRID SPACING : %.4f %n", del_r));
         sb.append(String.format("REMARK 265             DISTRIBUTION SCORE : %.4f %n", prScore));
         sb.append(String.format("REMARK 265 %n"));
         if (!includeBackground) {

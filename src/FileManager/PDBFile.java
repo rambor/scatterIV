@@ -340,7 +340,7 @@ public class PDBFile {
             ArrayList<String> output = new ArrayList();
             output.add(String.format("REMARK 265                          DMAX : %d (Angstroms)%n", dmax));
             output.add(String.format("REMARK 265   RESOLUTION LIMIT       QMAX : %.6f (Angstroms^-1)%n", qmax));
-            output.add(String.format("REMARK 265   RESOLUTION LIMIT  BIN WIDTH : %.2f (Angstroms)%n", delta_r));
+            output.add(String.format("REMARK 265   RESOLUTION LIMIT  BIN WIDTH : %.4f (Angstroms)%n", delta_r));
             output.add(String.format("REMARK 265 %n"));
             output.add(String.format("REMARK 265           BIN WIDTH (delta r) : %.4f %n", delta_r));
             output.add(String.format("REMARK 265 %n"));

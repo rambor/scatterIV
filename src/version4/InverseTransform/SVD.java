@@ -27,13 +27,13 @@ public class SVD extends IndirectFT {
     public static boolean WEIGHT_BY_ERRORS = true;
 
     /**
-     * true (default): prDistributionForFitting holds only the ns - 1 fitted heights, one per Shannon
+     * true: prDistributionForFitting holds only the ns - 1 fitted heights, one per Shannon
      * bin at its mid-point, in calculatePofRAtR units; the bin containing dmax, which has no fitted
      * height (fitting all ns heights is unstable without regularization), is left out of modelling.
-     * false: bin averages over every Shannon bin, including the one containing dmax, as for the
+     * false (default): bin averages over every Shannon bin, ceil(qmax dmax / pi) of them, including the one containing dmax, as for the
      * other transforms (IndirectFT.setShannonBinnedDistribution).
      */
-    public static boolean MODEL_FITTED_BINS_ONLY = true;
+    public static boolean MODEL_FITTED_BINS_ONLY = false;
 
     private double del_r;
     double[] r_vector;
@@ -158,7 +158,7 @@ public class SVD extends IndirectFT {
         sb.append(String.format("REMARK 265  COEFFICIENTS ARE THE HISTOGRAM HEIGHTS WITH EQUAL BIN WIDTHS %n"));
         sb.append(String.format("REMARK 265  CHI^2 %s %n", WEIGHT_BY_ERRORS ? "WEIGHTED BY 1/SIGMA^2" : "UNWEIGHTED"));
         sb.append(String.format("REMARK 265 %n"));
-        sb.append(String.format("REMARK 265           BIN WIDTH (delta r) : %.4f %n", del_r));   // was dmax/ns
+        sb.append(String.format("REMARK 265           BIN WIDTH (delta r) : %.4f %n", Math.PI/qmax));   // width of the written Shannon bins
         sb.append(String.format("REMARK 265            DISTRIBUTION SCORE : %.4f %n", prScore));
         sb.append(String.format("REMARK 265 %n"));
         if (includeBackground) {

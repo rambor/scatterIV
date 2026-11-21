@@ -330,8 +330,8 @@ public class DirectSineIntegralTransform extends IndirectFT {
         sb.append(String.format("REMARK 265  P(r) DISTRIBUTION OBTAINED AS DIRECT INVERSE FOURIER TRANSFORM OF I(q) %n"));
         sb.append(String.format("REMARK 265  COEFFICIENTS ARE THE HISTOGRAM HEIGHTS WITH EQUAL BIN WIDTHS %n"));
         sb.append(String.format("REMARK 265 %n"));
-        sb.append(String.format("REMARK 265            BIN WIDTH (delta r) : %.4f %n", del_r));   // was dmax/ns
-        sb.append(String.format("REMARK 265          SHANNON BIN (pi/qmax) : %.4f %n", bin_width));
+        sb.append(String.format("REMARK 265           BIN WIDTH (delta r) : %.4f %n", Math.PI/qmax));   // width of the written Shannon bins
+        sb.append(String.format("REMARK 265           MODEL GRID SPACING : %.4f %n", del_r));
         sb.append(String.format("REMARK 265             DISTRIBUTION SCORE : %.4f %n", prScore));
         sb.append(String.format("REMARK 265 %n"));
         if (!includeBackground) {

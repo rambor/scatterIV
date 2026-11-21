@@ -1,5 +1,6 @@
 import FileManager.WorkingDirectory;
 import version4.DoubleValue;
+import version4.SettingsValues;
 
 import javax.swing.*;
 import javax.swing.event.ChangeEvent;
@@ -12,7 +13,15 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Properties;
+import java.util.function.Consumer;
+import java.util.function.Function;
 
+/**
+ * The Settings tab. The values, their rules and how they are saved are in {@link SettingsValues};
+ * this class only shows them and passes edits on. Every accepted edit is saved with the other settings
+ * (see {@link Scatter#updateProp()}), so the values are the same the next time Scatter starts.
+ */
 public class Settings extends JDialog implements ChangeListener, PropertyChangeListener {
 
     private JPanel contentPane;
@@ -23,270 +32,170 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
     private  JTextField qmaxLimitField;
     private  JTextField qminLimitField;
     private  JTextField qmaxForPDBText;
-    private double qmaxForPDB = 0.4d;
     private  JCheckBox excludeWatersFromInputCheckBox;
     private  JComboBox refinementRoundsBox;
     private  JComboBox rejectionCutOffBox;
-    private  JTextField defaultDmaxField;
-    private  JTextField dmaxSearchMin;
-    private  JTextField dmaxSearchMax;
     private  JComboBox cBox;
     private static WorkingDirectory workingDirectory;
-    private static DoubleValue dmaxSearchMinValue;
-    private static DoubleValue dmaxSearchMaxValue;
     private static DoubleValue defaultDmax;
-    private static Settings singleton = new Settings();
+    private static Settings singleton;
     private static JLabel status;
     private static String programsDirectory;
 
+    private final SettingsValues values = new SettingsValues();
+    /** true while saved settings are being put into the fields, so that does not trigger a save */
+    private boolean applying;
+
     private Settings(){
-        dmaxSearchMinValue = new DoubleValue(37);
-        dmaxSearchMaxValue = new DoubleValue(176);
-        defaultDmax = new DoubleValue(97);
+        defaultDmax = new DoubleValue(values.defaultDmax);
+        showValues();
 
-        dmaxSearchMin.setText(String.format("%.1f", dmaxSearchMinValue.getValue()));
-        dmaxSearchMax.setText(String.format("%.1f", dmaxSearchMaxValue.getValue()));
+        workingDirButton.addActionListener(e -> {
+            File theCWD = new File(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+            JFileChooser chooser = new JFileChooser(theCWD);
+            chooser.setDialogTitle("Select Directory");
+            chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            chooser.setAcceptAllFileFilterUsed(false);
 
-        defaultDmaxField.setText(String.format("%.1f", defaultDmax.getValue()));
-        rejectionCutOffBox.setSelectedIndex(3);
-        refinementRoundsBox.setSelectedIndex(2);
-
-        workingDirButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                //Set working directory
-                File theCWD = new File(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
-
-                JFileChooser chooser = new JFileChooser(theCWD);
-                chooser.setDialogTitle("Select Directory");
-
-                chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-                chooser.setAcceptAllFileFilterUsed(false);
-
-                if (chooser.showOpenDialog(contentPane) == JFileChooser.APPROVE_OPTION){
-
-                    if (chooser.getSelectedFile().isDirectory()){
-                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getCurrentDirectory().toString());
-                        //Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getSelectedFile().toString());
-                    } else {
-                        Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getSelectedFile().toString());
-                        //Scatter.WORKING_DIRECTORY.setWorkingDirectory(chooser.getCurrentDirectory().toString());
-                    }
-
-                    workingDirLabel.setText(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
-                    //workingDirLabel.setText(chooser.getSelectedFile().getName()+"/");
-                    Scatter.updateProp();
-                }
+            if (chooser.showOpenDialog(contentPane) == JFileChooser.APPROVE_OPTION){
+                // the folder the user chose (this used to take the folder it is in, its parent)
+                File chosen = chooser.getSelectedFile();
+                String dir = (chosen != null && chosen.isDirectory()) ? chosen.toString() : chooser.getCurrentDirectory().toString();
+                Scatter.WORKING_DIRECTORY.setWorkingDirectory(dir);
+                workingDirLabel.setText(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
+                Scatter.updateProp();
             }
         });
-
 
         setContentPane(contentPane);
         setModal(true);
 
+        onEdit(qminLimitField, values::checkQmin, v -> values.qmin = v, SettingsValues::formatQ);
+        onEdit(qmaxLimitField, values::checkQmax, v -> values.qmax = v, SettingsValues::formatQ);
+        onEdit(qmaxForPDBText, values::checkQmaxForPDB, v -> values.qmaxForPDB = v, SettingsValues::format1);
 
-
-        qminLimitField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                super.focusLost(e);
-                double x = 0;
-                try {
-                    x = Double.parseDouble(qminLimitField.getText());
-
-                    if (x > Double.parseDouble(qmaxLimitField.getText())){
-                        qminLimitField.setText("0.02");
-                        status.setForeground(Color.RED);
-                        status.setText("qmin must be less than :: " + qmaxLimitField.getText());
-                    }
-
-                } catch (NumberFormatException ee) {
-                    qminLimitField.setText("0.02");
-                }
-            }
+        excludeWatersFromInputCheckBox.addActionListener(e -> {
+            values.excludeWaters = excludeWatersFromInputCheckBox.isSelected();
+            save();
         });
-
-        qmaxLimitField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                super.focusLost(e);
-                double x = 0;
-                try {
-                    x = Double.parseDouble(qmaxLimitField.getText());
-
-                    if (x < Double.parseDouble(qminLimitField.getText())){
-                        qmaxLimitField.setText("0.14");
-                        status.setForeground(Color.RED);
-                        status.setText("qmax must be greater than :: " + qminLimitField.getText());
-                    }
-                } catch (NumberFormatException ee) {
-                    qmaxLimitField.setText("0.14");
-                }
-            }
-        });
-
-        dmaxSearchMin.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                super.focusLost(e);
-                double x = 0;
-                try {
-                    x = Double.parseDouble(dmaxSearchMin.getText());
-
-                    if (x > Double.parseDouble(dmaxSearchMax.getText())){
-
-                        double value = Double.parseDouble(dmaxSearchMax.getText());
-                        x = (value - 0.1*value);
-                        dmaxSearchMin.setText(String.format("%.1f", x));
-                        status.setForeground(Color.RED);
-                        status.setText("min must be greater than :: " + dmaxSearchMax.getText());
-                    }
-
-                    dmaxSearchMinValue.setValue(x);
-
-                } catch (NumberFormatException ee) {
-                    dmaxSearchMin.setText("37");
-                    dmaxSearchMinValue.setValue(37.0);
-                    dmaxSearchMax.setText("176");
-                    dmaxSearchMaxValue.setValue(176.0);
-                }
-            }
-        });
-
-        dmaxSearchMax.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                super.focusLost(e);
-                double x = 0;
-                try {
-                    x = Double.parseDouble(dmaxSearchMax.getText());
-
-                    if (x < Double.parseDouble(dmaxSearchMin.getText())){
-
-                        double value = Double.parseDouble(dmaxSearchMin.getText());
-                        x = (value + 0.5*value);
-                        dmaxSearchMax.setText(String.format("%.1f", x));
-                        status.setForeground(Color.RED);
-                        status.setText("max must be greater than :: " + dmaxSearchMin.getText());
-                    }
-
-                    dmaxSearchMaxValue.setValue(x);
-
-                } catch (NumberFormatException ee) {
-                    dmaxSearchMin.setText("37");
-                    dmaxSearchMinValue.setValue(37.0);
-                    dmaxSearchMax.setText("176");
-                    dmaxSearchMaxValue.setValue(176.0);
-                }
-            }
-        });
-
-
-        qmaxForPDBText.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                super.focusLost(e);
-
-                try {
-                    double x = Double.parseDouble(qmaxForPDBText.getText());
-
-                    if (x > 2){
-                        x = 0.4;
-                        qmaxForPDBText.setText(String.format("%.1f", x));
-                        status.setForeground(Color.RED);
-                        status.setText("q-max too large!");
-                    }
-
-                    qmaxForPDB = x;
-
-                } catch (NumberFormatException ee) {
-                    qmaxForPDBText.setText(String.format("%.1f", 0.4));
-                    qmaxForPDB = 0.4;
-                }
-
-            }
-        });
-
-
-        defaultDmaxField.addFocusListener(new FocusAdapter() {
-            @Override
-            public void focusLost(FocusEvent e) {
-                super.focusLost(e);
-                try {
-                    double x = Double.parseDouble(defaultDmaxField.getText());
-
-                    if (x < 10){
-                        x = 97;
-                        defaultDmaxField.setText(String.format("%.1f", x));
-                        status.setForeground(Color.RED);
-                        status.setText("d-max too small!");
-                    }
-
-                    defaultDmax.setValue(x);
-
-                } catch (NumberFormatException ee) {
-                    defaultDmaxField.setText(String.format("%.1f", 97.0));
-                    defaultDmax.setValue(97);
-                }
-
-            }
-        });
+        refinementRoundsBox.addActionListener(e -> { values.refinementRoundsIndex = refinementRoundsBox.getSelectedIndex(); save(); });
+        rejectionCutOffBox.addActionListener(e -> { values.rejectionCutoffIndex = rejectionCutOffBox.getSelectedIndex(); save(); });
+        cBox.addActionListener(e -> { values.cIndex = cBox.getSelectedIndex(); save(); });
 
         workingDirLabel.setText(Scatter.WORKING_DIRECTORY.getWorkingDirectory());
 
-        programsDirButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                // folder with the modelling programs run by MODEL
-                File start = (programsDirectory != null && new File(programsDirectory).isDirectory())
-                        ? new File(programsDirectory) : new File(System.getProperty("user.home"));
-                JFileChooser chooser = new JFileChooser(start);
-                chooser.setDialogTitle("Select the modelling programs directory");
+        programsDirButton.addActionListener(e -> {
+            // folder with the modelling programs run by MODEL
+            File start = (programsDirectory != null && new File(programsDirectory).isDirectory())
+                    ? new File(programsDirectory) : new File(System.getProperty("user.home"));
+            JFileChooser chooser = new JFileChooser(start);
+            chooser.setDialogTitle("Select the modelling programs directory");
+            chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+            chooser.setAcceptAllFileFilterUsed(false);
 
-                chooser.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-                chooser.setAcceptAllFileFilterUsed(false);
-
-                if (chooser.showOpenDialog(contentPane) == JFileChooser.APPROVE_OPTION){
-                    if (chooser.getSelectedFile().isDirectory()){
-                        programsDirectory = chooser.getSelectedFile().toString();
-                    } else {
-                        programsDirectory = chooser.getCurrentDirectory().toString();
-                    }
-
-                    programsDirLabel.setText(programsDirectory);
-                    Scatter.updateProp();
+            if (chooser.showOpenDialog(contentPane) == JFileChooser.APPROVE_OPTION){
+                if (chooser.getSelectedFile().isDirectory()){
+                    programsDirectory = chooser.getSelectedFile().toString();
+                } else {
+                    programsDirectory = chooser.getCurrentDirectory().toString();
                 }
+                programsDirLabel.setText(programsDirectory);
+                Scatter.updateProp();
             }
         });
     }
 
-    /* Static 'instance' method */
+    /**
+     * Check a field when the user leaves it or presses Enter: an accepted value is kept and saved,
+     * anything else is replaced and the reason shown in the status bar.
+     */
+    private void onEdit(JTextField field, Function<String, SettingsValues.Checked> rule, Consumer<Double> set,
+                        Function<Double, String> format) {
+        Runnable check = () -> {
+            SettingsValues.Checked c = rule.apply(field.getText());
+            set.accept(c.value);
+            if (!c.accepted()) {
+                field.setText(format.apply(c.value));
+                showStatus(c.message);
+            }
+            save();
+        };
+        field.addFocusListener(new FocusAdapter() {
+            @Override
+            public void focusLost(FocusEvent e) { check.run(); }
+        });
+        field.addActionListener(e -> check.run());
+    }
+
+    private void showStatus(String message) {
+        if (status == null) return;      // before setFields
+        status.setForeground(Color.RED);
+        status.setText(message);
+    }
+
+    private void save() {
+        if (!applying) Scatter.updateProp();
+    }
+
+    /** Put the current values into the fields. */
+    private void showValues() {
+        applying = true;
+        try {
+            qminLimitField.setText(SettingsValues.formatQ(values.qmin));
+            qmaxLimitField.setText(SettingsValues.formatQ(values.qmax));
+            qmaxForPDBText.setText(SettingsValues.format1(values.qmaxForPDB));
+            excludeWatersFromInputCheckBox.setSelected(values.excludeWaters);
+            refinementRoundsBox.setSelectedIndex(values.refinementRoundsIndex);
+            rejectionCutOffBox.setSelectedIndex(values.rejectionCutoffIndex);
+            cBox.setSelectedIndex(values.cIndex);
+            defaultDmax.setValue(values.defaultDmax);
+        } finally {
+            applying = false;
+        }
+    }
+
+    /** The values saved last time (call on the Event Dispatch Thread, after {@link #setFields}). */
+    public void applySaved(Properties saved) {
+        SettingsValues loaded = SettingsValues.load(saved, refinementRoundsBox.getItemCount(),
+                rejectionCutOffBox.getItemCount(), cBox.getItemCount());
+        values.qmin = loaded.qmin;
+        values.qmax = loaded.qmax;
+        values.qmaxForPDB = loaded.qmaxForPDB;
+        values.excludeWaters = loaded.excludeWaters;
+        values.defaultDmax = loaded.defaultDmax;
+        values.dmaxSearchMin = loaded.dmaxSearchMin;
+        values.dmaxSearchMax = loaded.dmaxSearchMax;
+        values.refinementRoundsIndex = loaded.refinementRoundsIndex;
+        values.rejectionCutoffIndex = loaded.rejectionCutoffIndex;
+        values.cIndex = loaded.cIndex;
+        showValues();
+    }
+
+    /** Add the current values to the settings being saved. */
+    public void store(Properties prop) {
+        values.store(prop);
+    }
+
+    /* Static 'instance' method; created on first use, which must be on the Event Dispatch Thread */
     public static Settings getInstance( ) {
+        if (singleton == null) singleton = new Settings();
         return singleton;
     }
 
     public static void setFields(WorkingDirectory wd, JLabel tstatus){
         workingDirectory = wd;
-        workingDirectory.addPropertyChangeListener(singleton);
+        workingDirectory.addPropertyChangeListener(getInstance());
         status = tstatus;
     }
 
-
-    /*
-     * check if file is proper format for SEC, if single dat file, then search directory and build list
-     */
     public JPanel getPanel(){
         return contentPane;
     }
 
     @Override
     public void propertyChange(PropertyChangeEvent evt) {
-
-        if ( evt.getPropertyName() == "WorkingDirectory") {
-            WorkingDirectory t = (WorkingDirectory) evt.getSource();
-            // get the new value object
-            String o = (String)evt.getNewValue();
-            workingDirLabel.setText(o);
+        if ("WorkingDirectory".equals(evt.getPropertyName())) {
+            workingDirLabel.setText((String) evt.getNewValue());
         }
     }
 
@@ -295,13 +204,12 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
 
     }
 
-    public double getQminLimit(){
-        return Double.parseDouble(qminLimitField.getText());
-    }
+    public double getQminLimit(){ return values.qmin; }
 
-    public double getQmaxLimit(){
-        return Double.parseDouble(qmaxLimitField.getText());
-    }
+    public double getQmaxLimit(){ return values.qmax; }
+
+    /** Leave out water molecules when a PDB file is loaded. */
+    public boolean isExcludeWaters() { return values.excludeWaters; }
 
     public JComboBox getRefinementRoundsBox() {
         return refinementRoundsBox;
@@ -315,13 +223,6 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
         return cBox;
     }
 
-    public static DoubleValue getDmaxSearchMinValue() {
-        return dmaxSearchMinValue;
-    }
-
-    public static DoubleValue getDmaxSearchMaxValue() {
-        return dmaxSearchMaxValue;
-    }
 
     public static DoubleValue getDefaultDmax() {
         return defaultDmax;
@@ -334,14 +235,12 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
         if (Files.isDirectory(path)){
             programsDirectory = value;
             programsDirLabel.setText(value);
-        } else {
+        } else if (status != null) {
             status.setText("Programs directory does not exist :: " + value);
         }
     }
 
-
-
     public double getQmaxForPDB() {
-        return qmaxForPDB;
+        return values.qmaxForPDB;
     }
 }

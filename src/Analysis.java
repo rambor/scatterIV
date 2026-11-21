@@ -665,7 +665,7 @@ public class Analysis extends JDialog {
                                             mainProgressBar,
                                             WORKING_DIRECTORY.getWorkingDirectory());
 
-                                    rec1.setPDBParams(true, Settings.getInstance().getQmaxForPDB());
+                                    rec1.setPDBParams(Settings.getInstance().isExcludeWaters(), Settings.getInstance().getQmaxForPDB());
 
                                     rec1.run();
                                     rec1.get();
