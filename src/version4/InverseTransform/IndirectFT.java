@@ -1007,7 +1007,7 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
 
     /**
      * Porod volume V_p = 2 pi^2 I(0) / Q(L), in A^3 (the intensity scale cancels). Q is integrated to
-     * qLimit; use getPorodVolume() for the default cut-off min(qmax, 8/Rg) (Grant 2022; Manalastas-
+     * qLimit; use getPorodVolume() for the default cut-off (qmax; see POROD_CUTOFF_QRG) (Grant 2022; Manalastas-
      * Cantos et al. 2021), or POSITIVE_INFINITY for the analytic value where available.
      */
     public Estimate getPorodVolume(double qLimit) {
@@ -1033,13 +1033,22 @@ public abstract class IndirectFT implements RealSpacePrObjectInterface, Cloneabl
     /** gradient of the analytic infinite-q invariant (null unless a subclass provides it) */
     protected double[] porodInvariantInfiniteGradient() { return null; }
 
-    /** default Porod-volume cut-off: min(qmax, 8/Rg) */
+    /**
+     * q*Rg limit for the default Porod cut-off. 0 (default): integrate the model I(q) to qmax. The
+     * model is smooth to qmax, so the usual reason for stopping at 8/Rg (noise at high q) does not
+     * apply, and 8/Rg truncates Q badly for elongated particles (Rg is set by the length while the
+     * Porod regime starts near 1/thickness): a cylinder R 10, L 200 gives V_p/V = 2.8 at 8/Rg and 1.18
+     * at q 0.5. Set > 0 (e.g. 8) for min(qmax, POROD_CUTOFF_QRG/Rg), the previous behaviour.
+     */
+    public static double POROD_CUTOFF_QRG = 0;
+
+    /** default Porod-volume cut-off: qmax, or min(qmax, POROD_CUTOFF_QRG/Rg) when that is > 0 */
     public double defaultPorodCutoff() {
-        double g = (rg > 0 && !Double.isNaN(rg)) ? 8.0/rg : qmax;
-        return Math.min(qmax, g);
+        if (POROD_CUTOFF_QRG > 0 && rg > 0 && !Double.isNaN(rg)) return Math.min(qmax, POROD_CUTOFF_QRG/rg);
+        return qmax;
     }
 
-    /** Porod volume with the default cut-off min(qmax, 8/Rg) */
+    /** Porod volume with the default cut-off (defaultPorodCutoff) */
     public Estimate getPorodVolume() { return getPorodVolume(defaultPorodCutoff()); }
 
     /** volume of correlation V_c = I(0) / int_0^inf q I dq = sum w / sum (w/r^2), in A^2 */

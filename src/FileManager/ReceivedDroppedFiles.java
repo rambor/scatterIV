@@ -238,6 +238,8 @@ public class ReceivedDroppedFiles extends SwingWorker<Void, Integer> {
             if (tempFile.hasJson()){
                 targetCollection.getLast().setSasObject(tempFile.getJSONString());
             }
+            targetCollection.getLast().setSourceFile(tempFile.getFile());
+            targetCollection.getLast().markSaved();   // as read: nothing to save yet
             return true;
 
         } else {

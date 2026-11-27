@@ -15,7 +15,7 @@ public class SasSample implements Hidable{
 
     public SasSample(){
         cell_temperature = 273.0f + 25.0f;
-        calibration_details = "water";
+        calibration_details = "none";
     }
 
     public SasSample(SasSample sample){

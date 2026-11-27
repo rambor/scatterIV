@@ -35,6 +35,7 @@ public class LoadedFile {
     public XYSeries allData;
     public XYSeries allDataError;
     private String ext;
+    private File file;
     public String filebase;
     private final Pattern dataFormat = Pattern.compile("(-?[0-9].[0-9]+[Ee][+-]?[0-9]+)|(-?[0-9]+.[0-9]+)");
 
@@ -50,6 +51,7 @@ public class LoadedFile {
 
     //Constructor
     public LoadedFile(File file, int index, boolean convert) throws Exception {
+        this.file = file;
 
         if (loc.toString().equals("en_GB") || loc.toString().equals("en_US")){
             isUSUK = true;
@@ -164,6 +166,9 @@ public class LoadedFile {
 
     public boolean hasJson(){ return jsonPresent;}
     public String getJSONString() { return json;}
+
+    /** the file these data were read from */
+    public File getFile() { return file; }
 
 }
 

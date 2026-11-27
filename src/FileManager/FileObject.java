@@ -1,12 +1,14 @@
 package FileManager;
 
 
+import version4.InverseTransform.IndirectFT;
 import org.jfree.data.xy.XYDataItem;
 import org.jfree.data.xy.XYSeries;
 import version4.Collection;
 import version4.Constants;
 import version4.Dataset;
 import version4.RealSpace;
+import version4.sasCIF.SampleRecord;
 import version4.sasCIF.SasObject;
 
 import javax.swing.*;
@@ -76,6 +78,8 @@ public class FileObject {
             }
             out.write(sasObjectString);
             out.close();
+            data.setSourceFile(new File(outputname));   // this file is now the dataset's own
+            data.markSaved();                 // its details and results are now in a file
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -198,6 +202,7 @@ public class FileObject {
             out.write(modelText);
             //Close the output stream
             out.close();
+            dataset.markSaved();                 // its details and results are now in a file
         }catch (Exception e){//Catch exception if any
             System.err.println("Error: " + e.getMessage());
         }
@@ -436,8 +441,12 @@ public class FileObject {
         newLines += String.format("REMARK 265           RECI Rg ERROR (+/-) : %.3E %n", dataset.getGuinierRgerror());
         newLines += String.format("REMARK 265            PERCENT DIFFERENCE : %.3f %n", diff);
         newLines += String.format("REMARK 265                        VOLUME : %d (Angstroms^3) %n", dataset.getPorodVolume());
-        if (dataset.getPorodVolume() > 0){
+        if (dataset.getPorodVolumeReal() > 0){
             newLines += String.format("REMARK 265                   REAL VOLUME : %d (Angstroms^3) %n", dataset.getPorodVolumeReal());
+            IndirectFT ift = (dataset.getRealSpaceModel() == null) ? null : dataset.getRealSpaceModel().getIndirectFTModel();
+            if (ift != null) {
+                newLines += String.format("REMARK 265  REAL VOLUME Q LIMIT (P(r) I(q)) : %.4f (Angstroms^-1) %n", ift.defaultPorodCutoff());
+            }
         }
 //        newLines += String.format("REMARK 265    Porod Volume Mass (d 1.11) : %d (Angstroms^3) RECI %n", dataset.getPorodVolumeMass1p1());
 //        newLines += String.format("REMARK 265    Porod Volume Mass (d 1.11) : %d (Angstroms^3) REAL %n", dataset.getPorodVolumeRealMass1p1());
@@ -568,31 +577,22 @@ public class FileObject {
         return newLines;
     }
 
+    /**
+     * Buffer and concentration block of the header, from the dataset's {@link SampleRecord} (with the
+     * older free-text buffer fields where the record has no buffer). Values that are not known are
+     * written as NOT PROVIDED rather than as placeholders.
+     */
     private String createBufferRemark(Dataset data){
-        String temp = data.getBufferComposition();
-        // split at carriage return
-        // add REMARK
-        String tempHeader="";
-        String[] arrayOfLines = temp.replaceAll("\r\n", "\n").split("\n");
-        tempHeader = String.format("REMARK 265 BUFFER COMPOSITION %n");
-        tempHeader += "REMARK 265          TEMPERATURE (KELVIN) : 298\n";
-        if (arrayOfLines.length > 0 && arrayOfLines[0].length() > 0){
-
-            int total = arrayOfLines.length;
-            for(int i=0;i<total;i++){
-                tempHeader += String.format("REMARK 265                 SAMPLE BUFFER : %s %n", arrayOfLines[i].trim());
-            }
-
-        } else {
-            // example
-            tempHeader += "REMARK 265                            PH : X.X\n";
-            tempHeader += "REMARK 265                 SAMPLE BUFFER : XXX mM HEPES\n";
-            tempHeader += "REMARK 265                 SAMPLE BUFFER : XXX mM KCl\n";
-            tempHeader += "REMARK 265                 SAMPLE BUFFER : X mM TCEP\n";
-            tempHeader += "REMARK 265                 SAMPLE BUFFER : X mM KNitrate\n";
+        SampleRecord record = data.getSasObject().getEffectiveSampleRecord();
+        String text = data.getBufferComposition();
+        if (record.buffer.isEmpty() && text != null && !text.trim().isEmpty()) {
+            record.buffer.text = text.trim();
+            if (record.buffer.status == SampleRecord.Status.NONE) record.buffer.status = SampleRecord.Status.UNCONFIRMED;
         }
-        tempHeader += String.format("REMARK 265%n");
-        return tempHeader;
+        StringBuilder sb = new StringBuilder();
+        for (String line : record.remarkLines()) sb.append(line).append(System.lineSeparator());
+        sb.append(String.format("REMARK 265%n"));
+        return sb.toString();
     }
 
     private String createScatterHeader(){

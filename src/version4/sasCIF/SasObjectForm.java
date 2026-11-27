@@ -1,5 +1,10 @@
 package version4.sasCIF;
 
+import version4.Buffer.BufferEntryPanel;
+import version4.Buffer.BufferLibrary;
+import version4.Buffer.BufferRecords;
+import version4.Buffer.RecentBuffers;
+
 import version4.Constants;
 
 import javax.swing.*;
@@ -17,7 +22,7 @@ public class SasObjectForm extends JDialog{
     private JTextArea sas_sample_details_text;
     private JTextArea sas_buffer_comment;
     private JTextField sas_buffer_other;
-    private JTextField sas_buffer_salt;
+    private JTextField sas_sample_mass;
     private JTextField sas_buffer_name;
     private JTextField sas_buffer_pH;
     private JTextField sas_sample_calibration_details;
@@ -39,6 +44,12 @@ public class SasObjectForm extends JDialog{
     private JButton cancelButton;
     private JButton updateButton;
     private JPanel contentPane;
+    private BufferEntryPanel bufferEntry;
+    /** true once the user has pressed Update (not Cancel) */
+    private boolean updated;
+
+    /** did the user save the edits (Update) rather than cancel? */
+    public boolean isUpdated() { return updated; }
     private JTextField sas_beam_flux;
     private JComboBox sas_beam_sourceBox;
     private JLabel warningLabel;
@@ -100,7 +111,24 @@ public class SasObjectForm extends JDialog{
         sas_buffer_comment.setLineWrap(true);
         sas_buffer_comment.setWrapStyleWord(true);
 
-        setContentPane(contentPane);
+        // one-line buffer entry above the tabs; the free-text buffer fields follow it
+        bufferEntry = new BufferEntryPanel(BufferLibrary.standard(), RecentBuffers.standard(), this::sampleTemperatureC);
+        SampleRecord.Buffer stored = sasObject.getSampleRecord().buffer;
+        bufferEntry.setText(!stored.isEmpty() ? BufferRecords.lineFor(stored) : legacyBufferLine());
+        bufferEntry.addChangeListener(p -> {
+            if (p.isEmpty()) return;
+            sas_buffer_name.setText(p.text);
+            sas_buffer_other.setText("");
+            if (p.pH != null) sas_buffer_pH.setText(String.format("%.2f", p.pH));
+        });
+        for (JTextField f : new JTextField[]{sas_buffer_name, sas_buffer_other}) {
+            f.setEditable(false);
+            f.setToolTipText("set from the one-line buffer at the top");
+        }
+        JPanel withBuffer = new JPanel(new BorderLayout());
+        withBuffer.add(bufferEntry, BorderLayout.NORTH);
+        withBuffer.add(contentPane, BorderLayout.CENTER);
+        setContentPane(withBuffer);
         setModal(true);
         getRootPane().setDefaultButton(updateButton);
 
@@ -447,7 +475,48 @@ public class SasObjectForm extends JDialog{
     }
 
     // save all details to sasObject
+    /** the sample temperature field in C (the field has held both C and K: below 150 is taken as C) */
+    private Double sampleTemperatureC() {
+        try {
+            double t = Double.parseDouble(sas_sample_temperature.getText().trim());
+            return t < 150 ? t : t - 273.15;
+        } catch (RuntimeException e) {
+            return null;
+        }
+    }
+
+    /** the older free-text buffer fields as one line, for the first time a dataset is edited */
+    private String legacyBufferLine() {
+        SampleRecord legacy = SampleRecord.fromLegacy(sasObject.getSasBuffer(), sasObject.getSasSample());
+        if (legacy.buffer.isEmpty()) return "";
+        String text = legacy.buffer.text == null ? "" : legacy.buffer.text;
+        if (legacy.buffer.pH != null && !text.toLowerCase().contains("ph")) text = text + ", pH " + String.format("%.2f", legacy.buffer.pH);
+        return text;
+    }
+
     private void onUpdate(){
+        // theoretical mass: asked for, but not forced
+        String massText = sas_sample_mass.getText().trim();
+        Double mass = SampleRecord.parseMassDa(massText);
+        if (mass == null && !massText.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Cannot read the theoretical mass \"" + massText + "\".\nGive it in Da (66432) or kDa (66.4 kDa).",
+                    "Theoretical mass", JOptionPane.WARNING_MESSAGE);
+            sas_sample_mass.requestFocusInWindow();
+            return;
+        }
+        if (mass == null) {
+            Object[] options = {"Add mass", "Save without it"};
+            int choice = JOptionPane.showOptionDialog(this,
+                    "No theoretical mass is given.\nIt is needed to compare the mass from the data with the expected one.",
+                    "Theoretical mass", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE, null, options, options[0]);
+            if (choice != 1) {
+                sas_sample_mass.requestFocusInWindow();
+                return;
+            }
+        }
+        sasObject.getSampleRecord().theoreticalMassDa = mass;
+        if (sas_sample_calibration_details.getText().trim().isEmpty()) sas_sample_calibration_details.setText("none");
+
         /*
          SAS Beam tab
          */
@@ -527,8 +596,16 @@ public class SasObjectForm extends JDialog{
 
         sasBuffer.setName(sas_buffer_name.getText().replaceAll("(?:\\n|\\r)", "").trim());
         sasBuffer.setComment(sas_buffer_comment.getText().replaceAll("(?:\\n|\\r)", " ").trim());
-        sasBuffer.setSalt(sas_buffer_salt.getText());
+        sasBuffer.setSalt("");                         // salts are part of the one-line buffer
         sasBuffer.setOther(sas_buffer_other.getText().replaceAll("(?:\\n|\\r)", " ").trim());
+
+        // the structured buffer: entered or confirmed here; the free-text fields follow it
+        if (!bufferEntry.getParsed().isEmpty()) {
+            sasObject.getSampleRecord().buffer = bufferEntry.toRecord(SampleRecord.Status.CONFIRMED);
+            sasBuffer.setName(bufferEntry.getText());
+            sasBuffer.setOther("");
+            if (bufferEntry.getParsed().pH != null) sasBuffer.setpH(bufferEntry.getParsed().pH.floatValue());
+        }
 
         /*
          * update SAS details
@@ -575,7 +652,16 @@ public class SasObjectForm extends JDialog{
             sasObject.getSasResult().setComments(sas_results_comments.getText().replaceAll("(?:\\n|\\r)", " ").trim());
         }
 
+        updated = true;
         dispose();
+    }
+
+    /** calibration details ("none" when nothing is recorded) and the theoretical mass of the particle */
+    private void showCalibrationAndMass(String calibration) {
+        sas_sample_calibration_details.setText(calibration == null || calibration.trim().isEmpty() ? "none" : calibration);
+        Double m = sasObject.getSampleRecord().theoreticalMassDa;
+        sas_sample_mass.setText(m == null ? "" : String.format("%.0f", m));
+        sas_sample_mass.setToolTipText("Mass of the whole particle (all subunits) from its sequence: Da, or kDa with the unit");
     }
 
     private void setupSampleDetails(){
@@ -583,7 +669,7 @@ public class SasObjectForm extends JDialog{
         sas_sample_details_text.setText(sasSample.getDetails());
         sas_sample_thickness.setText(String.format("%.3f", sasSample.getThickness()));
         sas_sample_temperature.setText(String.format("%.1f", sasSample.getCell_temperature()));
-        sas_sample_calibration_details.setText(sasSample.getCalibration_details());
+        showCalibrationAndMass(sasSample.getCalibration_details());
         if (isSEC){
             sas_sample_sec_flow_rate.setText(String.format("%.2f", sasSample.getSec_flow_rate()));
             sas_sample_sec_column.setText(sasSample.getSec_column());
@@ -708,7 +794,7 @@ public class SasObjectForm extends JDialog{
         sas_sample_details_text.setText(sasObject.getSasSample().getDetails());
         sas_sample_thickness.setText(String.format("%.3f",sasObject.getSasSample().getThickness()));
         sas_sample_temperature.setText(String.format("%.1f", sasObject.getSasSample().getCell_temperature()));
-        sas_sample_calibration_details.setText(sasObject.getSasSample().getCalibration_details());
+        showCalibrationAndMass(sasObject.getSasSample().getCalibration_details());
 
          //update SAS Buffer
         SasBuffer sasBuffer = sasObject.getSasBuffer();
@@ -719,7 +805,6 @@ public class SasObjectForm extends JDialog{
         }
         sas_buffer_name.setText(sasBuffer.getName());
         sas_buffer_comment.setText(sasBuffer.getComment());
-        sas_buffer_salt.setText(sasBuffer.getSalt());
         sas_buffer_other.setText(sasBuffer.getOther());
 
         //scan details

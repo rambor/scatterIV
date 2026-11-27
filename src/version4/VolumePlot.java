@@ -682,7 +682,10 @@ public class VolumePlot {
         dataset.setPorodVolume(volumeOld);
         dataset.setInvariantQ(porodInvariantOld);
 
-        if (dataset.getRealRg() > 0){
+        // REAL VOLUME is the P(r) model's volume once a P(r) has been determined (RealSpace.setIndirectFTModel);
+        // only fall back to real I(0) / reciprocal Q when there is none, so the field keeps one meaning
+        boolean hasPrModel = dataset.getRealSpaceModel() != null && dataset.getRealSpaceModel().getIndirectFTModel() != null;
+        if (dataset.getRealRg() > 0 && !hasPrModel){
             dataset.setPorodVolumeReal((int)(Constants.TWO_PI_2*dataset.getRealIzero()/porodInvariantOld));
         }
         //porodVolumeList.get(fIndex).setText(scientific1dot2e1.format(volumeOld));

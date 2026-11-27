@@ -561,10 +561,56 @@ public class Scatter {
             frame = new JFrame("ScatterIV");
             version4.AppIcon.apply(frame);
             frame.setContentPane(new Scatter().bg);
-            frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            // closing asks first if datasets have changes not yet written to a file
+            frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
+            frame.addWindowListener(new java.awt.event.WindowAdapter() {
+                @Override
+                public void windowClosing(java.awt.event.WindowEvent e) {
+                    if (confirmExit()) System.exit(0);
+                }
+            });
+            if (java.awt.Desktop.isDesktopSupported()
+                    && java.awt.Desktop.getDesktop().isSupported(java.awt.Desktop.Action.APP_QUIT_HANDLER)) {
+                // Cmd-Q / Quit from the Dock menu on a Mac takes the same route
+                java.awt.Desktop.getDesktop().setQuitHandler((event, response) -> {
+                    if (confirmExit()) response.performQuit(); else response.cancelQuit();
+                });
+            }
             frame.pack();
             frame.setVisible(true);
         });
+    }
+
+    /**
+     * May Scatter close? If datasets have details or results not written to a file, ask:
+     * Save all (to the working folder, never overwriting a file), Close without saving, or Cancel.
+     * Call on the Event Dispatch Thread.
+     */
+    static boolean confirmExit() {
+        java.util.List<version4.Dataset> unsaved = version4.UnsavedChanges.unsaved(collectionSelected);
+        if (unsaved.isEmpty()) return true;
+        String dir = WORKING_DIRECTORY.getWorkingDirectory();
+        JTextArea names = new JTextArea(version4.UnsavedChanges.names(unsaved, 15));
+        names.setEditable(false);
+        names.setOpaque(false);
+        JPanel message = new JPanel(new java.awt.BorderLayout(0, 8));
+        message.add(new JLabel("<html>" + unsaved.size() + (unsaved.size() == 1 ? " dataset has" : " datasets have")
+                + " details or results not written to a file:</html>"), java.awt.BorderLayout.NORTH);
+        message.add(names, java.awt.BorderLayout.CENTER);
+        message.add(new JLabel("<html><i>Save all</i> writes them as .dat files to<br>" + dir
+                + "<br>An existing file is never overwritten: <i>_edited</i> is added to the name.</html>"), java.awt.BorderLayout.SOUTH);
+        Object[] options = {"Save all", "Close without saving", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(frame, message, "Unsaved changes",
+                JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.WARNING_MESSAGE, null, options, options[0]);
+        if (choice == 1) return true;
+        if (choice != 0) return false;
+        version4.UnsavedChanges.Result r = version4.UnsavedChanges.saveAll(unsaved, new java.io.File(dir), version);
+        if (!r.failed.isEmpty()) {
+            JOptionPane.showMessageDialog(frame, "Not saved:\n" + String.join("\n", r.failed)
+                    + "\n\nScatter stays open.", "Unsaved changes", JOptionPane.ERROR_MESSAGE);
+            return false;
+        }
+        return true;
     }
 
     public static void updateProp(){

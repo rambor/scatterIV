@@ -22,7 +22,7 @@ public class ShannonBinCountTest {
     private static final Pattern BIN = Pattern.compile("BIN_\\d+\\s+([0-9.]+)\\s*:");
     private static final Pattern WIDTH = Pattern.compile("BIN WIDTH \\(delta r\\) : ([0-9.]+)");
     private static final Pattern TOTAL = Pattern.compile("TOTAL BINS : (\\d+)");
-    private static final Pattern SHANNON = Pattern.compile("SHANNON NUMBER \\(QMAX\\*DMAX/PI\\) : ([0-9.]+)");
+    private static final Pattern SHANNON = Pattern.compile("SHANNON NUMBER (?:\\(QMAX\\*DMAX/PI\\) )?: ([0-9.]+)");
 
     /** q*I(q) of a uniform sphere of radius R, with 1% errors */
     private static XYSeries[] sphere(double radius, double qmax) {

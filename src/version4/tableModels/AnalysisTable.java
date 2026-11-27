@@ -271,8 +271,40 @@ public class AnalysisTable {
                     // select dataset with form factor
                     SasObjectForm editForm = new SasObjectForm(collectionSelected.getDataset(index).getSasObject(), false);
                     editForm.pack();
-                    editForm.setVisible(true);
+                    editForm.setVisible(true);          // modal
+                    if (editForm.isUpdated()) {
+                        status.setText("Details of " + collectionSelected.getDataset(index).getFileName()
+                                + " updated in Scatter; use Save File to write them to its file");
+                        ((AnalysisModel) analysisTable.getModel()).fireTableDataChanged();   // shows the * mark
+                    }
                 }
+            }
+        }));
+
+        popupMenu.add(new JMenuItem(new AbstractAction("Export Selected q-Range\u2026") {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                // only the points between start and end, to a new file (Save File writes the whole curve)
+                int index = analysisTable.getSelectedRow();
+                if (index < 0) return;
+                Dataset d = collectionSelected.getDataset(index);
+                java.io.File dir = new java.io.File(WORKING_DIRECTORY.getWorkingDirectory());
+                JFileChooser fc = new JFileChooser(dir);
+                fc.setDialogTitle("Export points " + d.getStart() + " to " + d.getEnd() + " of " + d.getFileName());
+                fc.setSelectedFile(DatasetSaver.datFile(dir, DatasetSaver.baseName(d.getFileName()) + "_range"));
+                if (fc.showSaveDialog(analysisTable) != JFileChooser.APPROVE_OPTION || fc.getSelectedFile() == null) return;
+                java.io.File target = DatasetSaver.datFile(fc.getSelectedFile().getAbsoluteFile().getParentFile(),
+                        DatasetSaver.baseName(fc.getSelectedFile().getName()));
+                if (target.equals(d.getSourceFile())) {
+                    JOptionPane.showMessageDialog(analysisTable, "That is the dataset's own file: exporting part of the curve\n"
+                            + "over it would lose the other points. Choose another name.", "Export", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                if (target.exists() && JOptionPane.showConfirmDialog(analysisTable, target.getName() + " exists. Replace it?",
+                        "Export", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) return;
+                new FileManager.FileObject(target.getParentFile())
+                        .writeSingleSAXSFile(DatasetSaver.baseName(target.getName()), d);
+                status.setText("Exported points " + d.getStart() + "-" + d.getEnd() + " to " + target);
             }
         }));
 

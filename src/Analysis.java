@@ -696,32 +696,32 @@ public class Analysis extends JDialog {
 
                 Dataset tempData = collectionSelected.getDataset(collectionSelected.getSelected());
 
-                JFileChooser fc = new JFileChooser(WORKING_DIRECTORY.getWorkingDirectory());
-                int option = fc.showSaveDialog(contentPane);
-                //set directory to default directory from Settings tab
-
-                if(option == JFileChooser.CANCEL_OPTION) {
+                // offers the dataset's own file: keep the name to overwrite it, or type a new one
+                File suggested = version4.DatasetSaver.suggestedFile(tempData, new File(WORKING_DIRECTORY.getWorkingDirectory()));
+                JFileChooser fc = new JFileChooser(suggested.getParentFile());
+                fc.setDialogTitle("Save " + tempData.getFileName() + " (whole curve, with its details and results)");
+                fc.setSelectedFile(suggested);
+                if (fc.showSaveDialog(contentPane) != JFileChooser.APPROVE_OPTION || fc.getSelectedFile() == null) {
                     return;
                 }
-
-                if(option == JFileChooser.APPROVE_OPTION){
-                    // remove dataset and write to file
-                    // make merged data show on top of other datasets
-                    File theFileToSave = fc.getSelectedFile();
-
-                    String cleaned = cleanUpFileName(fc.getSelectedFile().getName());
-
-                    if(fc.getSelectedFile()!=null){
-
-                        WORKING_DIRECTORY.setWorkingDirectory(fc.getCurrentDirectory().toString());
-                        FileObject dataToWrite = new FileObject(fc.getCurrentDirectory(), Scatter.version);
-                        dataToWrite.writeSingleSAXSFile(cleaned, tempData);
-
-                        //close the output stream
-                        status.setText(cleaned + ".dat written to " + fc.getCurrentDirectory());
-                        //Logger.getLogger(Scatter.class.getName()).log(Level.SEVERE, null, ex);
+                File target = version4.DatasetSaver.datFile(fc.getSelectedFile().getAbsoluteFile().getParentFile(),
+                        version4.DatasetSaver.baseName(fc.getSelectedFile().getName()));
+                if (version4.DatasetSaver.exists(target)) {
+                    String keep = version4.DatasetSaver.writtenByScatter(target) || version4.DatasetSaver.backupFile(target).exists()
+                            ? "" : "\nThe original will be kept as " + version4.DatasetSaver.backupFile(target).getName() + ".";
+                    if (JOptionPane.showConfirmDialog(contentPane, target.getName() + " exists. Replace it?" + keep,
+                            "Save File", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) != JOptionPane.YES_OPTION) {
+                        return;
                     }
                 }
+                try {
+                    version4.DatasetSaver.Outcome done = version4.DatasetSaver.save(tempData, target, Scatter.version);
+                    WORKING_DIRECTORY.setWorkingDirectory(target.getParent());
+                    status.setText(done.describe());
+                } catch (java.io.IOException ex) {
+                    status.setText("Not saved: " + ex.getMessage());
+                }
+                ((AnalysisModel) Scatter.analysisTable.getModel()).fireTableDataChanged();
 
             }
         });

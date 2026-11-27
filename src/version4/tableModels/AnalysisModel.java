@@ -21,6 +21,9 @@ import java.util.logging.Level;
  * Created by robertrambo on 11/01/2016.
  */
 public class AnalysisModel extends AbstractTableModel implements ChangeListener, PropertyChangeListener {
+    /** shown before the name of a dataset with changes not yet written to a file */
+    public static final String UNSAVED_MARK = "* ";
+
 
     private final LinkedList<Dataset> datalist;
     private WorkingDirectory currentWorkingDirectory;
@@ -84,7 +87,9 @@ public class AnalysisModel extends AbstractTableModel implements ChangeListener,
 
             } else if (col == 3) {
                 LogIt.log(Level.INFO, "Copying " + dataset.getFileName()+ " to " + (String)obj);
-                dataset.copyAndRenameDataset((String)obj, currentWorkingDirectory.getWorkingDirectory());
+                String newName = (String) obj;
+                if (newName.startsWith(UNSAVED_MARK)) newName = newName.substring(UNSAVED_MARK.length());
+                dataset.copyAndRenameDataset(newName, currentWorkingDirectory.getWorkingDirectory());
                 status.setText("Renamed(copied) original file");
             } else if (col == 4){
                 dataset.setStart((Integer)obj);
@@ -117,8 +122,8 @@ public class AnalysisModel extends AbstractTableModel implements ChangeListener,
                 return row+1;
             case 2: // rendered as a checkbox
                 return dataset.getInUse();
-            case 3:
-                return dataset.getFileName();
+            case 3: // "* " marks details or results not yet written to a file
+                return (dataset.hasUnsavedChanges() ? UNSAVED_MARK : "") + dataset.getFileName();
             case 4: //spinner
                 index = dataset.getStart();
                 return index;

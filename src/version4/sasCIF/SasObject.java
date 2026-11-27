@@ -22,6 +22,8 @@ public class SasObject implements Hidable {
     private SasSample sasSample;
     private SecFormat secFormat;
     private SasResult sasResult;
+    /** buffer, temperature and concentration with their sources (see {@link SampleRecord}) */
+    private SampleRecord sampleRecord;
 
     /*
      * constructor does not initialize secFormat
@@ -32,6 +34,7 @@ public class SasObject implements Hidable {
         sasScan = new SasScan();
         sasDetc = new SasDetc();
         sasSample = new SasSample();
+        sampleRecord = new SampleRecord();
 
         //secFormat = new SecFormat();
         /*
@@ -45,6 +48,7 @@ public class SasObject implements Hidable {
         this.sasScan = new SasScan(oldObject.getSasScan());
         this.sasDetc = new SasDetc(oldObject.getSasDetc());
         this.sasSample = new SasSample(oldObject.getSasSample());
+        this.sampleRecord = SampleRecord.copyOf(oldObject.sampleRecord);
 
         // may or may not be present as secFormat is for SEC-SAXS data
         if (oldObject.secFormat != null){
@@ -54,7 +58,16 @@ public class SasObject implements Hidable {
 
     public SasObject(String jsonString){
         this.parseJSONString(jsonString);
+        this.readFromFile = true;
     }
+
+    /** true when this came from a file's JSON (a dropped-in file, a *.sec header), not made in this session */
+    @JsonIgnore
+    private boolean readFromFile;
+
+    /** made from a file's JSON: its buffer and concentration were recorded elsewhere and may need confirming */
+    @JsonIgnore
+    public boolean isReadFromFile() { return readFromFile; }
 
     /**
      * first element in file must be JSON string
@@ -81,7 +94,7 @@ public class SasObject implements Hidable {
             if (!nameNode.isMissingNode()) {        // if "name" node is exist
                 sasBuffer = mapper.treeToValue(nameNode, SasBuffer.class);
             } else {
-                sasBeam = new SasBeam();
+                sasBuffer = new SasBuffer();        // (this used to reset sasBeam and leave sasBuffer null)
             }
 
             nameNode = root.path("sas_scan");
@@ -113,6 +126,13 @@ public class SasObject implements Hidable {
                 sasResult = mapper.treeToValue(nameNode, SasResult.class);
             }
 
+            nameNode = root.path("sample_record");
+            if (!nameNode.isMissingNode()) {
+                sampleRecord = SampleRecord.fromJson(nameNode);
+            } else {                                // written before the record existed: the free-text
+                sampleRecord = new SampleRecord();  // buffer fields stay in use (getEffectiveSampleRecord)
+            }
+
             nameNode = root.path("sec_format");
             if (!nameNode.isMissingNode()) {        // if "name" node is exist
                 secFormat = mapper.treeToValue(nameNode, SecFormat.class);
@@ -125,6 +145,13 @@ public class SasObject implements Hidable {
         } catch (IOException e) {
             e.printStackTrace();
         }
+        // a broken JSON string must not leave parts missing
+        if (sasBeam == null) sasBeam = new SasBeam();
+        if (sasBuffer == null) sasBuffer = new SasBuffer();
+        if (sasScan == null) sasScan = new SasScan();
+        if (sasSample == null) sasSample = new SasSample();
+        if (sasDetc == null) sasDetc = new SasDetc();
+        if (sampleRecord == null) sampleRecord = new SampleRecord();
     }
 
     public void setSasBeam(SasBeam beam){ this.sasBeam = new SasBeam(beam);}
@@ -165,6 +192,32 @@ public class SasObject implements Hidable {
     @JsonProperty("sas_sample")
     public SasSample getSasSample() {
         return sasSample;
+    }
+
+    @JsonProperty("sample_record")
+    public SampleRecord getSampleRecord() {
+        if (sampleRecord == null) sampleRecord = new SampleRecord();
+        return sampleRecord;
+    }
+
+    public void setSampleRecord(SampleRecord record) { this.sampleRecord = SampleRecord.copyOf(record); }
+
+    /**
+     * The record to report: the stored one, with the buffer and temperature taken from the older
+     * free-text fields ({@link SasBuffer}, {@link SasSample}) where the record has none. Those fields
+     * are still what the details form edits, so this keeps what the user typed in the output.
+     */
+    @JsonIgnore
+    public SampleRecord getEffectiveSampleRecord() {
+        SampleRecord r = SampleRecord.copyOf(getSampleRecord());
+        SampleRecord legacy = SampleRecord.fromLegacy(sasBuffer, sasSample);
+        if (r.buffer.isEmpty() && !legacy.buffer.isEmpty()) {
+            Double t = r.buffer.temperatureK;
+            r.buffer = legacy.buffer;
+            if (t != null) r.buffer.temperatureK = t;
+        }
+        if (r.buffer.temperatureK == null) r.buffer.temperatureK = legacy.buffer.temperatureK;
+        return r;
     }
 
     @JsonProperty("sec_format")

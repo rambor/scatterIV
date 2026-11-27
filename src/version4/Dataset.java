@@ -1130,6 +1130,58 @@ public class Dataset {
         return sasObject;
     }
 
+    // ------------------------------------------------------------------ unsaved changes
+
+    /** the file the dataset was read from or last written to in full (null if none) */
+    private java.io.File sourceFile;
+
+    public java.io.File getSourceFile() { return sourceFile; }
+
+    public void setSourceFile(java.io.File file) { this.sourceFile = file; }
+
+    /** what was in the last file written or read for this dataset; null if it never came from or went to one */
+    private String savedFingerprint;
+    private String cachedFingerprint;
+    private long cachedAt;
+
+    /**
+     * What a *.dat file of this dataset records beyond the data: its details (sample, buffer,
+     * concentration, mass) and analysis results (Guinier, P(r), volume, ...) as written in the JSON
+     * line, plus the notes.
+     */
+    String contentFingerprint() {
+        // the real-space volume is in the header but not the JSON line
+        return getSasObjectJSON() + "|" + experimentalNotes + "|" + porodVolumeReal;
+    }
+
+    /** the dataset's details and results are now in a file (just read from one, or just written) */
+    public void markSaved() {
+        savedFingerprint = contentFingerprint();
+        cachedFingerprint = savedFingerprint;
+        cachedAt = System.currentTimeMillis();
+    }
+
+    /**
+     * True if the details or results changed since the dataset was last read from or written to a
+     * file, or if it has never been in one (e.g. made in memory). Re-checked at most once a second, so
+     * tables can ask on every repaint.
+     */
+    public boolean hasUnsavedChanges() {
+        if (savedFingerprint == null) return true;
+        long now = System.currentTimeMillis();
+        if (cachedFingerprint == null || now - cachedAt > 1000) {
+            cachedFingerprint = contentFingerprint();
+            cachedAt = now;
+        }
+        return !savedFingerprint.equals(cachedFingerprint);
+    }
+
+    /** as {@link #hasUnsavedChanges()}, checked now */
+    public boolean hasUnsavedChangesNow() {
+        cachedFingerprint = null;
+        return hasUnsavedChanges();
+    }
+
     public void initializeSasObject(){
         sasObject = new SasObject();
     }

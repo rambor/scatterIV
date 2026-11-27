@@ -264,8 +264,16 @@ public class SECTool extends JDialog {
                 if (secFile instanceof Object){
                     SasObjectForm editForm = new SasObjectForm(secFile.getSasObject(), true);
                     editForm.pack();
-                    editForm.setVisible(true);
-                    status.setText("Must UPDATE sec file by clicking TRACE/UPDATE button after editing DETAILS");
+                    editForm.setVisible(true);             // modal: returns when the form is closed
+                    if (editForm.isUpdated()) {
+                        // save the details in the file now (header line only, atomic rewrite if it grows)
+                        try {
+                            secFile.updateHeader();
+                            status.setText("Details saved in " + secFile.getFilename());
+                        } catch (RuntimeException ex) {
+                            status.setText("Could not save the details in the file: " + ex.getMessage());
+                        }
+                    }
                 } else {
 
                 }
