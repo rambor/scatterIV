@@ -318,6 +318,12 @@ public class LnpPanel extends JPanel {
         tabs.addTab("Cargo", buildCargoTab());
         tabs.setToolTipTextAt(tabs.getTabCount() - 1,
                 "Which arrangement of the cargo the data supports, as a probability over the alternatives");
+        tabs.addTab("Lamellarity", buildLamellarityTab());
+        tabs.setToolTipTextAt(tabs.getTabCount() - 1,
+                "How many bilayers the vesicles actually have, and how much of the lipid is reachable from outside");
+        tabs.addTab("Summary", buildSummaryTab());
+        tabs.setToolTipTextAt(tabs.getTabCount() - 1,
+                "Everything this panel concluded about the dataset, collected into one page");
         tabs.addTab("Methods", LnpFormulas.panel());
         tabs.setToolTipTextAt(tabs.getTabCount() - 1,
                 "Every formula this panel applies, with the paper it comes from");
@@ -403,6 +409,33 @@ public class LnpPanel extends JPanel {
 
     private JPanel modelBox() {
         Fields.Form f = new Fields.Form(titled("Model"));
+        // Say what this section is for: everything in it is a form factor, which is the wrong tool for a
+        // stacked or ordered phase, and somebody looking for multilamellar vesicles would otherwise look
+        // for them in this list.
+        //
+        // Fixed width, exactly as the other explanatory labels in this column do it.
+        //
+        // Two earlier attempts both broke the form. Asking the form for its panel so the label could track
+        // it is what closes the form off — it adds the vertical glue and advances the row counter — so
+        // every later row landed below the glue. Attaching the tracking afterwards instead removed that
+        // but introduced a worse one: inside a GridBagLayout a label whose preferred width follows its
+        // container is a feedback loop, each wider measurement widening the column that is measured, and
+        // the parameter table was pushed off to the right until its numbers were out of sight. A fixed
+        // width has no such loop, and 290 px is what this column is built around.
+        JLabel scope = new JLabel("<html><div style='width:290px'>Form factors of <b>discrete particles</b>: "
+                + "the scattering of one particle, averaged over a distribution of sizes."
+                + "<br><br>Ordered phases &mdash; cubosomes, hexosomes &mdash; are not fitted here: their signal "
+                + "is a <b>structure factor</b>, the repeat of a lattice rather than the shape of one object, "
+                + "and they are indexed on the <b>Structure</b> tab."
+                + "<br><br><b>Multilamellar vesicles are not a separate case.</b> A real vesicle preparation is "
+                + "a mixture &mdash; some vesicles with one bilayer, some with several &mdash; so form factor "
+                + "and structure factor are present together and in a proportion that is itself the result "
+                + "worth having. Fit that on the <b>Lamellarity</b> tab, which reports how much of the lipid is "
+                + "reachable from outside. Treat a good fit here as describing the bilayer, not as evidence "
+                + "that the sample is unilamellar.</div></html>");
+        scope.setForeground(new Color(0x6e7781));
+        scope.setBorder(new EmptyBorder(0, 0, 6, 0));
+        f.full(scope);
         f.row("Particle", presetBox, "Choose a template: the three Comirnaty architectures of Trollmann & Böckmann (2022) Fig. 5 d–f, or a simpler sphere");
         presetHelp.setForeground(new Color(0x6e7781));
         f.full(presetHelp);
@@ -459,21 +492,32 @@ public class LnpPanel extends JPanel {
         Fields.Form f = new Fields.Form(titled("What you expect"));
         refreshCompositionMenu("Comirnaty (BNT162b2)");
         compositionBox.addActionListener(e -> { if (!menuUpdating) compositionChosen(); });
-        JButton editComp = new JButton("Edit…"), applyComp = new JButton("Use for model"), library = new JButton("Library…");
-        library.setToolTipText("Your private lipid library: add proprietary lipids, import or export them");
+        JButton editComp = new JButton("Edit mix…"), applyComp = new JButton("Use for model"),
+                library = new JButton("Lipid library…");
+        // These three were called "Edit…", "Use for model" and "Library…" next to a heading that said
+        // "Lipids", and the drop-down beside them lists formulations rather than lipids. Someone looking
+        // for DPPC opened the Library, found it there, selected it, and nothing happened to the mix —
+        // because the library is the catalogue of what lipids exist, not the mix being modelled. The names
+        // now say which is which.
+        library.setToolTipText("<html><div style='width:280px'>The catalogue of lipids that exist: add "
+                + "proprietary ones, import or export them.<br><br><b>This does not change the mix you are "
+                + "modelling.</b> To put a lipid into the mix, press <b>Edit mix…</b> and add a row.</div></html>");
         library.addActionListener(e -> {
             if (LnpLibraryDialog.manage(this)) refreshCompositionMenu(String.valueOf(compositionBox.getSelectedItem()));
         });
-        editComp.setToolTipText("Edit the lipids and their mol %");
+        editComp.setToolTipText("<html><div style='width:280px'>Add or remove lipids and set their mol %. "
+                + "This is where a lipid from the library is put into the mix.</div></html>");
         applyComp.setToolTipText("Set the core and PEG-corona densities and the corona thickness from the composition");
         editComp.addActionListener(e -> editComposition());
         applyComp.addActionListener(e -> applyComposition());
         // "Lipids" is a heading on its own line and the controls sit under it, so the drop-down and its two
         // buttons share the whole width of the column instead of competing with a label beside them. A formulation
         // name is long, and in a narrow window the buttons were pushed out of sight.
-        JLabel lipidsTitle = new JLabel("Lipids");
+        JLabel lipidsTitle = new JLabel("Lipid mix");
         lipidsTitle.setFont(lipidsTitle.getFont().deriveFont(Font.BOLD));
-        lipidsTitle.setToolTipText("Lipid mix of the formulation (mol %): a preset, one of your saved formulations, or Custom…");
+        lipidsTitle.setToolTipText("<html><div style='width:280px'>The whole mix, as mol %: a built-in "
+                + "preset, one of your saved formulations, or Custom… The list holds formulations, not "
+                + "individual lipids.</div></html>");
         f.full(lipidsTitle);
         // leave room for both buttons on the same line; the full name stays in the list and the tooltip
         compositionBox.setPreferredSize(new Dimension(205, compositionBox.getPreferredSize().height));
@@ -1703,10 +1747,22 @@ public class LnpPanel extends JPanel {
         dataQmin = lo;
         dataQmax = hi;
         datasetInfo.setText(String.format("%d points, q %.4f – %.4f Å⁻¹", all[0].length, lo, hi));
-        if (i != assessedIndex) {   // results of another dataset no longer apply
+        if (i != assessedIndex) {
+            // Results of another dataset no longer apply, and leaving its curves on screen is worse than
+            // showing nothing: the plots carry no dataset name of their own, so a fit of the previous file
+            // sitting under a newly chosen one reads as a fit of the new one. Clear the lot back to the
+            // placeholders and let the user press Assess.
             assessment = null;
             lastData = null;
+            result = null;
+            resultName = "";
+            latticeResult = null;
+            phaseResult = null;
+            spongeResult = null;
+            waxsResult = null;
+            population = null;
             updateChecks();
+            showEmpty();
         }
         if (!same || qminField.getText().trim().isEmpty()) {
             qminField.setText(String.format("%.5f", lo));
@@ -1752,6 +1808,9 @@ public class LnpPanel extends JPanel {
 
     /** visible for testing: the help text currently shown under the particle dropdown */
     String presetHelpText() { return presetHelp.getText(); }
+
+    /** visible for testing: whether data from a previous assessment is still held */
+    boolean hasCachedData() { return lastData != null; }
 
     /** visible for testing: run the assessment as the user does from the button */
     void runAssessment() { assess(); }
@@ -2517,7 +2576,7 @@ public class LnpPanel extends JPanel {
     /** how many rungs the simulated ladder has, and how far below the fitted radius it reaches */
     private final JSpinner ladderSteps = new JSpinner(new SpinnerNumberModel(6, 3, 12, 1));
     private final JSpinner ladderDecades = new JSpinner(new SpinnerNumberModel(1.2, 0.3, 2.5, 0.1));
-    private final JLabel limitVerdict = new JLabel();
+    private final JLabel limitVerdict = new Fields.Wrapping(limitTab);
 
     /**
      * Draws the fitted particle as it would have looked at a range of smaller radii.
@@ -2560,7 +2619,10 @@ public class LnpPanel extends JPanel {
         bar.add(new JLabel("decades below the fitted radius"));
         wrap.add(bar, BorderLayout.NORTH);
 
-        StringBuilder sb = new StringBuilder("<html><div style='width:760px'>").append(res.verdict());
+        // The body only; the wrapping is applied below against the tab that holds it. This note used to carry
+        // a fixed width:760px, which made the Fit tab refuse to be narrower than that and cut off the ends of
+        // these lines in any ordinary window.
+        StringBuilder sb = new StringBuilder(res.verdict());
         sb.append("<br><br><b>How far each simulated radius sits from the fitted one</b>, in units of this "
                 + "data's own error bars, after scaling the curves together:<br>");
         for (LnpSizeLimit.Rung k : res.rungs) {
@@ -2573,8 +2635,7 @@ public class LnpPanel extends JPanel {
                 + "no other parameter is allowed to absorb the difference; in a real fit the thicknesses, the "
                 + "spread and the scale all move to follow a changed radius, and two sizes that look separable "
                 + "above can still give the same χ².</i>");
-        sb.append("</div></html>");
-        limitVerdict.setText(sb.toString());
+        Fields.setWrappingText(limitVerdict, limitTab, sb.toString());
         limitVerdict.setVerticalAlignment(SwingConstants.TOP);
         limitVerdict.setBorder(new EmptyBorder(8, 10, 10, 10));
         JScrollPane sc = new JScrollPane(limitVerdict);
@@ -2605,6 +2666,239 @@ public class LnpPanel extends JPanel {
         double[] a = new double[LnpModel.NPAR];
         java.util.Arrays.fill(a, Double.NaN);
         return a;
+    }
+
+    // ------------------------------------------------------------------ summary
+
+    private final JTextArea lamText = new JTextArea();
+    private final JPanel lamChart = new JPanel(new BorderLayout());
+    private final JPanel lamDistChart = new JPanel(new BorderLayout());
+    private final JTextField lamQmin = Fields.num("0.05"), lamQmax = Fields.num(""), lamRadius = Fields.num("");
+    private LnpLamellarity.Result lamResult;
+    private SwingWorker<LnpLamellarity.Result, Void> lamWorker;
+
+    /**
+     * Lamellarity: how many bilayers, and how much lipid is on the outside.
+     *
+     * <p>Kept as its own step rather than folded into the particle fit, because it answers a different question
+     * and over a different q range. The particle fit asks how big the vesicles are; this asks how many bilayers
+     * each one has, which is read from the interlamellar correlations above q &asymp; 0.05 and is the question an
+     * extruded preparation most often fails.</p>
+     */
+    private JComponent buildLamellarityTab() {
+        JPanel p = new JPanel(new BorderLayout(0, 6));
+        JPanel top = new JPanel();
+        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
+        top.setBorder(new EmptyBorder(8, 10, 4, 10));
+        top.add(Fields.wrappingLabel(p, "Extrusion is assumed to give <b>unilamellar</b> vesicles and for "
+                + "neutral phosphatidylcholines it often does not: Scott et al. find prominent lamellar "
+                + "reflections surviving extrusion through 100 nm pores, confirmed by cryo-EM, leaving only "
+                + "about 35&nbsp;% of the lipid reachable from outside &mdash; and their multilamellar and "
+                + "unilamellar vesicles were the <i>same size</i>, so a clean size distribution proves "
+                + "nothing. This fits one bilayer form factor times the structure factor of a stack, averaged "
+                + "over a distribution of the number of bilayers, and reports <b>f_acc</b>, the externally "
+                + "accessible lipid fraction. <b>f_acc = 0.5 is perfectly unilamellar</b>: only the outer "
+                + "leaflet of the outer bilayer is ever accessible, so 0.5 is the ceiling and not 1."));
+        top.add(Box.createVerticalStrut(6));
+        JPanel row = new JPanel(new Fields.WrapLayout(FlowLayout.LEFT, 8, 4));
+        row.add(new JLabel("Fit from q"));
+        row.add(lamQmin);
+        row.add(new JLabel("to"));
+        row.add(lamQmax);
+        row.add(new JLabel("Å⁻¹ (blank = to the end)"));
+        top.add(row);
+        JPanel row2 = new JPanel(new Fields.WrapLayout(FlowLayout.LEFT, 8, 4));
+        row2.add(new JLabel("Vesicle radius"));
+        row2.add(lamRadius);
+        row2.add(new JLabel("Å (blank = equal bilayer areas; filled from the fit when there is one)"));
+        top.add(row2);
+        JPanel go = new JPanel(new Fields.WrapLayout(FlowLayout.LEFT, 8, 2));
+        JButton run = new JButton("Measure lamellarity");
+        run.addActionListener(e -> runLamellarity());
+        go.add(run);
+        top.add(go);
+        for (Component c : top.getComponents()) ((JComponent) c).setAlignmentX(LEFT_ALIGNMENT);
+
+        lamText.setEditable(false);
+        lamText.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        lamText.setText("Not measured yet.\n\nThe fit needs the interlamellar region, so it starts at\n"
+                + "q = 0.05 Å⁻¹ by default; measure to at least\nq = 0.25 Å⁻¹ for this to mean anything.");
+        JScrollPane lamScroll = new JScrollPane(lamText);
+        // A JScrollPane takes its preferred width from the longest line in the text area, and the report's
+        // lines are wide: at a 1024 px window that demand (687 px) exceeded the whole tab (647 px) and became
+        // the tab's minimum, which is the same overflow as the labels above by a different route. A scroll pane
+        // exists to be smaller than its contents, so it is told it may be.
+        lamScroll.setPreferredSize(new Dimension(420, 240));
+        lamScroll.setMinimumSize(new Dimension(220, 90));
+        JSplitPane charts = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, lamChart, lamDistChart);
+        charts.setResizeWeight(0.62);
+        charts.setContinuousLayout(true);
+        JSplitPane split = new JSplitPane(JSplitPane.VERTICAL_SPLIT, charts, lamScroll);
+        split.setResizeWeight(0.55);
+        p.add(top, BorderLayout.NORTH);
+        p.add(split, BorderLayout.CENTER);
+        return p;
+    }
+
+    private void runLamellarity() {
+        if (lamWorker != null) return;
+        final double[][] d;
+        try {
+            d = currentData();
+        } catch (RuntimeException e) {
+            lamText.setText("Cannot read the dataset: " + e.getMessage());
+            return;
+        }
+        final double qlo, qhi, radius;
+        try {
+            qlo = Fields.pos(lamQmin, "Fit from q");
+            String hi = lamQmax.getText().trim();
+            qhi = hi.isEmpty() ? d[0][d[0].length - 1] : Fields.pos(lamQmax, "to q");
+            Fields.order(qlo, qhi, "the fitting range");
+            String rad = lamRadius.getText().trim();
+            radius = rad.isEmpty()
+                    ? (result != null ? result.model.outerRadius(result.params) : Double.NaN)
+                    : Fields.pos(lamRadius, "Vesicle radius");
+        } catch (RuntimeException e) {
+            lamText.setText(e.getMessage());
+            return;
+        }
+        // the assessment's first peak is much the strongest guess at the repeat, where there is one
+        double dStart = Double.NaN;
+        if (assessment != null && !assessment.peaks.isEmpty()) dStart = assessment.peaks.get(0).d();
+
+        final double dRepeat = dStart;
+        say("Measuring lamellarity…");
+        lamText.setText("Fitting…");
+        lamWorker = new SwingWorker<LnpLamellarity.Result, Void>() {
+            @Override protected LnpLamellarity.Result doInBackground() {
+                return LnpLamellarity.fit(d[0], d[1], d[2], qlo, qhi, dRepeat, radius);
+            }
+            @Override protected void done() {
+                lamWorker = null;
+                try {
+                    lamResult = get();
+                    // the composition says what lamellarity to expect, and the expectation is the half of the
+                    // answer a reader cannot get from the fit: a clean unilamellar result on a neutral PC is
+                    // the one that should be questioned
+                    String expect = composition != null
+                            ? "WHAT THIS MIX SHOULD GIVE\n  " + wrap(composition.lamellarityExpectation(), 92) + "\n\n"
+                            : "";
+                    lamText.setText(unitLine() + expect + LnpLamellarity.describe(lamResult));
+                    lamText.setCaretPosition(0);
+                    setChart(lamChart, LnpCharts.lamellarityChart(lamResult, "Lamellarity – " + datasetBox.getSelectedItem()));
+                    setChart(lamDistChart, LnpCharts.lamellaeChart(lamResult));
+                    if (Double.isNaN(parse(lamRadius, Double.NaN)) && !Double.isNaN(lamResult.radius))
+                        lamRadius.setText(String.format("%.0f", lamResult.radius));
+                    say(String.format("Lamellarity: f_acc = %.3f, ⟨N⟩ = %.2f, reduced χ² = %.2f",
+                            lamResult.accessible, lamResult.meanLamellae, lamResult.chi2Reduced));
+                } catch (java.util.concurrent.CancellationException ignored) {
+                    say("Cancelled");
+                } catch (Exception ex) {
+                    Throwable c = ex.getCause() != null ? ex.getCause() : ex;
+                    lamText.setText("Lamellarity fit failed.\n\n" + c.getMessage());
+                    say("Lamellarity failed – see the tab");
+                }
+            }
+        };
+        lamWorker.execute();
+    }
+
+    private final JTextArea briefText = new JTextArea();
+    private final JLabel summaryStatus = new JLabel(" ");
+
+    /**
+     * Everything the panel has concluded about the current dataset, as one piece of text.
+     *
+     * <p>Assembled from the reports the tabs have already written, not recomputed. That matters for more than
+     * tidiness: the numbers a reader sees on the Fit tab and the numbers here are then the same numbers by
+     * construction. Sections with nothing in them are left out, so the brief says only what has been run.</p>
+     */
+    String brief() {
+        LnpBrief.Builder b = new LnpBrief.Builder();
+        StringBuilder head = new StringBuilder();
+        head.append("Dataset: ").append(resultName.isEmpty() ? String.valueOf(datasetBox.getSelectedItem()) : resultName).append('\n');
+        if (lastData != null && lastData[0].length > 0) {
+            double[] q = lastData[0];
+            head.append(String.format("q range of the data: %.5f to %.4f, %d points%n",
+                    q[0], q[q.length - 1], q.length));
+            if (!unitNote.isEmpty()) head.append("Units as read: ").append(unitNote).append('\n');
+        }
+        if (composition != null) {
+            head.append("Lipid mix: ").append(composition.summary(parse(npField, 6), 0.24)).append('\n');
+        } else {
+            head.append("Lipid mix: none declared; generic defaults were used.\n");
+        }
+        LnpExpectations.Cargo cargo = (LnpExpectations.Cargo) cargoBox.getSelectedItem();
+        if (cargo != null) head.append("Declared cargo: ").append(cargo).append('\n');
+        b.add("Sample as declared by the user", head.toString());
+        b.add("Assessment, fit and expectation checks", report.getText());
+        b.add("Structure (Bragg indexing)", phaseText.getText());
+        b.add("Lamellarity and accessible lipid", lamText.getText());
+        b.add("Populations", popText.getText());
+        b.add("Chain packing (WAXS)", waxsText.getText());
+        b.add("Cargo arrangement", cargoReport.getText());
+        b.add("Series across datasets", seriesText.getText());
+        return b.build();
+    }
+
+    private JComponent buildSummaryTab() {
+        JPanel p = new JPanel(new BorderLayout());
+        JPanel top = new JPanel();
+        top.setLayout(new BoxLayout(top, BoxLayout.Y_AXIS));
+        top.setBorder(new EmptyBorder(8, 10, 6, 10));
+        top.add(Fields.wrappingLabel(p, "Everything the other tabs have concluded about this dataset, in one "
+                + "piece of text, rebuilt each time you open this tab. Nothing here is recomputed &mdash; these "
+                + "are the same numbers the tabs display &mdash; so this is the page to copy into a notebook or "
+                + "a methods section, and the page to read when deciding what the sample is: the readings only "
+                + "make sense against each other."));
+        JPanel row = new JPanel(new Fields.WrapLayout(FlowLayout.LEFT, 8, 4));
+        JButton copy = new JButton("Copy to clipboard");
+        row.add(copy);
+        JButton refresh = new JButton("Rebuild");
+        row.add(refresh);
+        top.add(row);
+        summaryStatus.setForeground(new Color(0x6e7781));
+        top.add(Fields.flow(summaryStatus));
+        p.add(top, BorderLayout.NORTH);
+
+        briefText.setEditable(false);
+        briefText.setFont(new Font(Font.MONOSPACED, Font.PLAIN, 12));
+        briefText.setBorder(new EmptyBorder(6, 8, 6, 8));
+        p.add(new JScrollPane(briefText), BorderLayout.CENTER);
+
+        refresh.addActionListener(e -> refreshBrief());
+        copy.addActionListener(e -> {
+            refreshBrief();
+            briefText.selectAll();
+            briefText.copy();
+            briefText.select(0, 0);
+            summaryStatus.setText("Copied");
+        });
+        tabs.addChangeListener(e -> {
+            if (tabs.getSelectedComponent() == p) refreshBrief();
+        });
+        return p;
+    }
+
+    private void refreshBrief() {
+        String b = brief();
+        briefText.setText(b.isEmpty() ? "Nothing to summarise yet. Press '1. Assess sample', then '2. Fit model'." : b);
+        briefText.setCaretPosition(0);
+        summaryStatus.setText(b.isEmpty() ? " " : b.split("\n").length + " lines");
+    }
+
+    /** hard-wraps a sentence for the monospaced report panes, which do not wrap themselves */
+    static String wrap(String text, int width) {
+        StringBuilder sb = new StringBuilder();
+        int line = 0;
+        for (String word : text.split(" ")) {
+            if (line > 0 && line + word.length() + 1 > width) { sb.append("\n  "); line = 0; }
+            else if (line > 0) { sb.append(' '); line++; }
+            sb.append(word);
+            line += word.length();
+        }
+        return sb.toString();
     }
 
     private void say(String s) {

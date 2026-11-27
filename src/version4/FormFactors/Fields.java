@@ -23,9 +23,46 @@ final class Fields {
      * @param body   the label's HTML, without the surrounding html and div tags
      */
     static JLabel wrappingLabel(JComponent tracks, String body) {
-        JLabel label = new JLabel();
+        JLabel label = new Wrapping(tracks);
         setWrappingText(label, tracks, body);
         return label;
+    }
+
+    /**
+     * A label that wraps to its container without demanding more width than the container has.
+     *
+     * <p>Setting the CSS width makes the text wrap, but Swing then reports a preferred width about 1.3 times
+     * that width anyway — measured at 1127 px for a declared 867, and in the same ratio at every window size,
+     * so it is not one long unbreakable word. In a BoxLayout column that surplus demand becomes the tab's
+     * minimum width, the panel is laid out wider than the window, and the ends of the sentences cannot be read
+     * without dragging the frame out. Eight tabs did this.</p>
+     *
+     * <p>The text has already been wrapped to the CSS width, so the extra demand buys nothing and is refused.
+     * Refusing it is safe in a way that tracking the container is not: the height still comes from the HTML
+     * engine, measured at a width slightly narrower than the label will be given, so the label is at worst a
+     * line too tall and never too short. And because the width returned is only ever the container's own, it
+     * cannot feed back into the container's width the way a label that grows to match its parent does inside a
+     * GridBagLayout — which is the other way this has gone wrong here before.</p>
+     *
+     * <p>Use this for any label that {@link #setWrappingText} is called on. A plain JLabel passed to that
+     * method wraps but keeps the surplus demand, which is the whole defect.</p>
+     */
+    static final class Wrapping extends JLabel {
+        private final JComponent tracks;
+
+        Wrapping(JComponent tracks) { this.tracks = tracks; }
+
+        @Override public Dimension getPreferredSize() {
+            Dimension d = super.getPreferredSize();
+            int avail = tracks.getWidth();
+            return avail > 0 && d.width > avail ? new Dimension(avail, d.height) : d;
+        }
+
+        /** a paragraph must never be what stops a panel being made narrower */
+        @Override public Dimension getMinimumSize() {
+            Dimension d = getPreferredSize();
+            return new Dimension(Math.min(d.width, 180), d.height);
+        }
     }
 
     /** the same, for a label whose text changes: it re-wraps both on resize and on each new message */

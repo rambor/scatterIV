@@ -42,6 +42,16 @@ public final class LnpComposition {
          * for the description to mean anything (phytantriol, ALC-0315).
          */
         public final String chains;
+        /**
+         * Formal headgroup charge at neutral pH: 0 for a zwitterionic or uncharged lipid, -1 for a
+         * phosphatidylglycerol or phosphatidylserine, -2 for a cardiolipin with its two phosphates. Separate
+         * from {@link Role#IONIZABLE}, which marks the pH-switchable amino lipids of a delivery formulation and
+         * is a different property: an ionizable lipid is cationic at low pH and neutral at physiological pH,
+         * whereas these carry their charge throughout. It matters because interlamellar electrostatic repulsion
+         * is what separates bilayers during extrusion (Scott et al. 2019), so this is what decides whether a
+         * preparation should be expected to come out unilamellar.
+         */
+        public final int charge;
 
         Lipid(String name, Role role, double electrons, double volume, int pegUnits, String propensity) {
             this(name, role, electrons, volume, pegUnits, propensity, "", Double.NaN, true, "");
@@ -58,11 +68,25 @@ public final class LnpComposition {
             this.pegUnits = pegUnits; this.propensity = propensity == null ? "" : propensity;
             this.formula = formula == null ? "" : formula; this.mw = mw; this.builtIn = builtIn;
             this.notes = notes == null ? "" : notes; this.chains = chains == null ? "" : chains;
+            this.charge = 0;
         }
+
+        private Lipid(Lipid from, int charge) {
+            this.name = from.name; this.role = from.role; this.electrons = from.electrons;
+            this.volume = from.volume; this.pegUnits = from.pegUnits; this.propensity = from.propensity;
+            this.formula = from.formula; this.mw = from.mw; this.builtIn = from.builtIn;
+            this.notes = from.notes; this.chains = from.chains;
+            this.charge = charge;
+        }
+
+        /** the same lipid with its formal headgroup charge declared */
+        public Lipid withCharge(int c) { return new Lipid(this, c); }
 
         /** the same lipid with its acyl chains declared */
         public Lipid withChains(String spec) {
-            return new Lipid(name, role, electrons, volume, pegUnits, propensity, formula, mw, builtIn, notes, spec);
+            Lipid withSpec = new Lipid(name, role, electrons, volume, pegUnits, propensity, formula, mw, builtIn,
+                    notes, spec);
+            return charge == 0 ? withSpec : withSpec.withCharge(charge);
         }
 
         /** mean electron density of the molecule (e/A^3) */
@@ -149,14 +173,17 @@ public final class LnpComposition {
         add(new Lipid("DPPE (16:0 PE)", Role.HELPER, 382, 1080, 0, "HII", "C37H74NO8P", 691.9, true,
                 "Zwitterionic, saturated; gel well above room temperature.").withChains("16:0/16:0"));
         add(new Lipid("POPG (16:0-18:1 PG)", Role.HELPER, 412, 1210, 0, "lamellar", "C40H77O10P", 770.9, true,
-                "Anionic at neutral pH. Bacterial membranes and surfactant preparations.").withChains("16:0/18:1"));
+                "Anionic at neutral pH. Bacterial membranes and surfactant preparations.").withChains("16:0/18:1").withCharge(-1));
         add(new Lipid("DPPG (16:0 PG)", Role.HELPER, 398, 1130, 0, "lamellar", "C38H75O10P", 744.9, true,
-                "Anionic, saturated; gel below about 41 C.").withChains("16:0/16:0"));
+                "Anionic, saturated; gel below about 41 C.").withChains("16:0/16:0").withCharge(-1));
+        add(new Lipid("POPS (16:0-18:1 PS)", Role.HELPER, 414, 1215, 0, "lamellar", "C40H75NO10PNa", 783.0, true,
+                "Anionic at neutral pH. Used as the charged dopant in the extrusion study of Scott et al. "
+                        + "(2019), where a few mol% markedly raises the unilamellar fraction.").withChains("16:0/18:1").withCharge(-1));
         add(new Lipid("Cardiolipin TOCL (18:1)4", Role.HELPER, 794, 2460, 0, "lamellar", "C81H142O17P2", 1457.9, true,
                 "Mitochondrial and bacterial. Two phosphates and four chains in one molecule, so it counts once "
-                        + "but carries twice the charge and twice the chains; divalent cations drive it to HII.").withChains("18:1/18:1/18:1/18:1"));
+                        + "but carries twice the charge and twice the chains; divalent cations drive it to HII.").withChains("18:1/18:1/18:1/18:1").withCharge(-2));
         add(new Lipid("Cardiolipin TMCL (14:0)4", Role.HELPER, 682, 2080, 0, "lamellar", "C65H126O17P2", 1241.6, true,
-                "Saturated cardiolipin, gel at room temperature.").withChains("14:0/14:0/14:0/14:0"));
+                "Saturated cardiolipin, gel at room temperature.").withChains("14:0/14:0/14:0/14:0").withCharge(-2));
         add(new Lipid("Sphingomyelin (16:0 SM)", Role.HELPER, 390, 1150, 0, "lamellar", "C39H79N2O6P", 703.0, true,
                 "Zwitterionic sphingolipid; orders chains and partners cholesterol in raft-like mixtures.").withChains("16:0/18:1"));
         add(new Lipid("Ceramide (C16)", Role.HELPER, 302, 900, 0, "lamellar", "C34H67NO3", 537.9, true,
@@ -174,9 +201,41 @@ public final class LnpComposition {
     private static void add(Lipid l) { BUILT_IN.put(l.name, l); }
 
     /** a lipid by name; private lipids cannot reuse a built-in name, so names are unique */
+    /**
+     * Finds a lipid by name.
+     *
+     * <p>Most of the library is catalogued under a full name that carries the chains as well as the
+     * abbreviation — "DPPC (16:0 PC)" — but the abbreviation is what anyone types, and an exact-match
+     * lookup answered "DPPC" with nothing at all. Fourteen of the thirty-one entries were unreachable that
+     * way, including every phosphatidylcholine but two.
+     *
+     * <p>So the search widens in steps: the exact name first, then the same ignoring case, then the
+     * abbreviation standing at the front of a fuller name. The last of those is only accepted when it picks
+     * out one lipid; "Cardiolipin" matches two and is left for the user to disambiguate rather than guessed
+     * at, since the two differ in both chains and phase behaviour.
+     */
     public static Lipid lookup(String name) {
-        Lipid l = BUILT_IN.get(name);
-        return l != null ? l : LnpLipidLibrary.get().lipid(name);
+        if (name == null) return null;
+        String want = name.trim();
+        if (want.isEmpty()) return null;
+
+        Lipid l = BUILT_IN.get(want);
+        if (l != null) return l;
+        l = LnpLipidLibrary.get().lipid(want);
+        if (l != null) return l;
+
+        List<Lipid> all = allLipids();
+        for (Lipid k : all) if (k.name.equalsIgnoreCase(want)) return k;
+
+        Lipid only = null;
+        for (Lipid k : all) {
+            int brace = k.name.indexOf(" (");
+            String bare = brace < 0 ? k.name : k.name.substring(0, brace);
+            if (!bare.equalsIgnoreCase(want)) continue;
+            if (only != null) return null;          // ambiguous: let the caller choose the full name
+            only = k;
+        }
+        return only;
     }
 
     /** built-in lipids followed by the user's private ones */
@@ -324,6 +383,65 @@ public final class LnpComposition {
     }
 
     public double ionizableMolPercent() { return 100 * fraction(Role.IONIZABLE); }
+
+    /**
+     * Anionic charge carried by the mix, in units of elementary charge per hundred lipid molecules. A
+     * cardiolipin counts twice, which is the point of using the charge rather than counting species.
+     */
+    public double anionicChargePer100() {
+        double t = total();
+        if (t <= 0) return 0;
+        double c = 0;
+        for (int i = 0; i < lipids.size(); i++) {
+            int z = lipids.get(i).charge;
+            if (z < 0) c += -z * molPercent.get(i);
+        }
+        return c / t * 100;
+    }
+
+    /** mol% of species carrying a fixed negative charge, counting each species once */
+    public double anionicMolPercent() {
+        double t = total();
+        if (t <= 0) return 0;
+        double c = 0;
+        for (int i = 0; i < lipids.size(); i++) if (lipids.get(i).charge < 0) c += molPercent.get(i);
+        return c / t * 100;
+    }
+
+    /**
+     * What lamellarity this mix should be expected to give after extrusion, from Scott et al.
+     * (<i>Biophys. J.</i> <b>117</b>, 1381 (2019)).
+     *
+     * <p>The expectation exists because the usual assumption is the dangerous one. A neutral
+     * phosphatidylcholine extruded through 100 nm pores in physiological buffer is <em>expected</em> to be
+     * substantially multilamellar, so a clean unilamellar fit on such a sample is the result that should prompt
+     * a second look, not the one that passes without comment.</p>
+     */
+    public String lamellarityExpectation() {
+        double charged = anionicChargePer100();
+        boolean ionizable = ionizableMolPercent() > 1;
+        StringBuilder sb = new StringBuilder();
+        if (charged < 2 && !ionizable) {
+            sb.append(String.format("This mix carries essentially no fixed charge (%.1f e per 100 lipids). "
+                    + "Extruded through 100 nm pores it should be EXPECTED to be substantially multilamellar: "
+                    + "Scott et al. measure f_acc near 0.35 for neutral PC in physiological buffer and 0.39-0.46 "
+                    + "across eight phosphatidylcholines. An f_acc near 0.5 here is worth checking rather than "
+                    + "assuming.", charged));
+        } else if (charged < 10) {
+            sb.append(String.format("This mix carries %.1f e per 100 lipids. A few mol%% of charged lipid "
+                    + "measurably raises the unilamellar fraction, so expect f_acc above the 0.35 of a neutral "
+                    + "PC but not at the 0.5 ceiling.", charged));
+        } else {
+            sb.append(String.format("This mix is strongly charged (%.1f e per 100 lipids), which favours "
+                    + "lamellar separation during extrusion; f_acc near the unilamellar ceiling of 0.5 is "
+                    + "plausible here.", charged));
+        }
+        if (ionizable)
+            sb.append(" The ionizable lipid is neutral at physiological pH and charged at the low pH of "
+                    + "formulation, so which regime applies depends on the buffer this sample was measured in.");
+        sb.append(" Lower ionic strength, smaller pores and sonication all raise f_acc.");
+        return sb.toString();
+    }
 
     /** PEG-lipid content; with none there is no corona to put in a model */
     public double pegMolPercent() { return 100 * fraction(Role.PEG); }

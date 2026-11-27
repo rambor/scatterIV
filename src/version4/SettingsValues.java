@@ -19,18 +19,15 @@ public final class SettingsValues {
     public static final double QMIN = 0.02, QMAX = 0.14;
     public static final double QMAX_PDB = 0.4, QMAX_PDB_LIMIT = 2.0;
     public static final double DEFAULT_DMAX = 97, DMAX_LOWER_LIMIT = 10;
-    public static final double DMAX_SEARCH_MIN = 37, DMAX_SEARCH_MAX = 176;
     public static final boolean EXCLUDE_WATERS = true;
     public static final int REFINEMENT_ROUNDS_INDEX = 2, REJECTION_CUTOFF_INDEX = 3, C_INDEX = 0;
 
     // keys in the settings file
     static final String K_QMIN = "scalingQmin", K_QMAX = "scalingQmax", K_QMAX_PDB = "pdbQmax",
-            K_EXCLUDE_WATERS = "pdbExcludeWaters", K_DMAX = "defaultDmax", K_DMAX_MIN = "dmaxSearchMin",
-            K_DMAX_MAX = "dmaxSearchMax", K_ROUNDS = "refinementRoundsIndex", K_CUTOFF = "rejectionCutoffIndex",
-            K_C = "pointsFactorIndex";
+            K_EXCLUDE_WATERS = "pdbExcludeWaters", K_DMAX = "defaultDmax", K_ROUNDS = "refinementRoundsIndex",
+            K_CUTOFF = "rejectionCutoffIndex", K_C = "pointsFactorIndex";
 
     public double qmin = QMIN, qmax = QMAX, qmaxForPDB = QMAX_PDB, defaultDmax = DEFAULT_DMAX;
-    public double dmaxSearchMin = DMAX_SEARCH_MIN, dmaxSearchMax = DMAX_SEARCH_MAX;
     public boolean excludeWaters = EXCLUDE_WATERS;
     public int refinementRoundsIndex = REFINEMENT_ROUNDS_INDEX, rejectionCutoffIndex = REJECTION_CUTOFF_INDEX, cIndex = C_INDEX;
 
@@ -110,23 +107,6 @@ public final class SettingsValues {
         return new Checked(v, null);
     }
 
-    /** Lower end of the dmax search: positive and below the upper end (else 90 % of it). */
-    public Checked checkDmaxSearchMin(String text) {
-        double v = parse(text);
-        if (Double.isNaN(v)) return new Checked(DMAX_SEARCH_MIN, "min is not a number; set to " + format1(DMAX_SEARCH_MIN));
-        if (v <= 0) return new Checked(Math.min(DMAX_SEARCH_MIN, 0.9 * dmaxSearchMax), "min must be greater than 0");
-        if (v >= dmaxSearchMax) return new Checked(0.9 * dmaxSearchMax, "min must be less than max :: " + format1(dmaxSearchMax));
-        return new Checked(v, null);
-    }
-
-    /** Upper end of the dmax search: above the lower end (else 1.5 times it). */
-    public Checked checkDmaxSearchMax(String text) {
-        double v = parse(text);
-        if (Double.isNaN(v)) return new Checked(Math.max(DMAX_SEARCH_MAX, 1.5 * dmaxSearchMin), "max is not a number");
-        if (v <= dmaxSearchMin) return new Checked(1.5 * dmaxSearchMin, "max must be greater than min :: " + format1(dmaxSearchMin));
-        return new Checked(v, null);
-    }
-
     // ------------------------------------------------------------------ settings file
 
     /** Adds these values to the settings to be saved. */
@@ -136,8 +116,6 @@ public final class SettingsValues {
         p.setProperty(K_QMAX_PDB, Double.toString(qmaxForPDB));
         p.setProperty(K_EXCLUDE_WATERS, Boolean.toString(excludeWaters));
         p.setProperty(K_DMAX, Double.toString(defaultDmax));
-        p.setProperty(K_DMAX_MIN, Double.toString(dmaxSearchMin));
-        p.setProperty(K_DMAX_MAX, Double.toString(dmaxSearchMax));
         p.setProperty(K_ROUNDS, Integer.toString(refinementRoundsIndex));
         p.setProperty(K_CUTOFF, Integer.toString(rejectionCutoffIndex));
         p.setProperty(K_C, Integer.toString(cIndex));
@@ -159,8 +137,6 @@ public final class SettingsValues {
         if ("true".equalsIgnoreCase(waters) || "false".equalsIgnoreCase(waters)) v.excludeWaters = Boolean.parseBoolean(waters);
         double dmax = parse(p.getProperty(K_DMAX));
         if (dmax >= DMAX_LOWER_LIMIT) v.defaultDmax = dmax;
-        double lo = parse(p.getProperty(K_DMAX_MIN)), hi = parse(p.getProperty(K_DMAX_MAX));
-        if (lo > 0 && hi > lo) { v.dmaxSearchMin = lo; v.dmaxSearchMax = hi; }
         v.refinementRoundsIndex = index(p.getProperty(K_ROUNDS), roundsChoices, REFINEMENT_ROUNDS_INDEX);
         v.rejectionCutoffIndex = index(p.getProperty(K_CUTOFF), cutoffChoices, REJECTION_CUTOFF_INDEX);
         v.cIndex = index(p.getProperty(K_C), cChoices, C_INDEX);

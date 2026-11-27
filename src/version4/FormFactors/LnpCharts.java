@@ -171,6 +171,95 @@ final class LnpCharts {
         return chart;
     }
 
+    /**
+     * The lamellarity fit: the data, the mixture model over it, and the same bilayer with every vesicle
+     * unilamellar. That last curve is the one to read — where it sits below the data at the interlamellar
+     * peaks, the difference is the multilamellar population, which is the comparison Scott et al. draw in
+     * their Fig. 1A and the clearest way to see that an extruded preparation is not what it was assumed to be.
+     */
+    static JFreeChart lamellarityChart(LnpLamellarity.Result r, String title) {
+        double[] ymin = new double[1];
+        XYPlot top = dataPlot(r.q, r.I, r.sigma, ymin);
+        XYSeriesCollection lines = new XYSeriesCollection();
+        XYLineAndShapeRenderer lr = new XYLineAndShapeRenderer(true, false);
+
+        XYSeries tot = new XYSeries(String.format("mixture, f_acc %.3f (red. \u03c7\u00b2 %.2f)",
+                r.accessible, r.chi2Reduced), false, true);
+        for (int j = 0; j < r.q.length; j++) if (r.fit[j] > 0) tot.add(r.q[j], r.fit[j]);
+        lines.addSeries(tot);
+        lr.setSeriesPaint(0, MODEL);
+        lr.setSeriesStroke(0, MODEL_STROKE);
+
+        XYSeries uni = new XYSeries("same bilayer, all unilamellar", false, true);
+        for (int j = 0; j < r.q.length; j++)
+            if (r.unilamellarOnly[j] > ymin[0] * 0.02) uni.add(r.q[j], r.unilamellarOnly[j]);
+        if (uni.getItemCount() > 0) {
+            lines.addSeries(uni);
+            lr.setSeriesPaint(1, ACCENT);
+            lr.setSeriesStroke(1, COMPONENT_DASH);
+        }
+        top.setDataset(0, lines);
+        top.setRenderer(0, lr);
+
+        // where the orders of the fitted repeat fall, so a reader can see which features the stack term claims
+        for (int h = 1; h <= 4; h++) {
+            double qh = 2 * Math.PI * h / r.params[LnpLamellarity.D];
+            if (qh < r.qmin || qh > r.qmax) continue;
+            ValueMarker m = new ValueMarker(qh, MUTED, new BasicStroke(0.7f));
+            m.setLabel(h + (h == 1 ? " (d = " + Fields.fmt(r.params[LnpLamellarity.D]) + " \u00c5)" : ""));
+            m.setLabelFont(SMALL);
+            top.addDomainMarker(m, Layer.BACKGROUND);
+        }
+
+        XYSeries res = new XYSeries("residuals", false, true);
+        for (int j = 0; j < r.q.length; j++) res.add(r.q[j], (r.I[j] - r.fit[j]) / r.sigma[j]);
+        XYLineAndShapeRenderer rr = new XYLineAndShapeRenderer(true, true);
+        rr.setSeriesPaint(0, FIT);
+        rr.setSeriesShape(0, new Ellipse2D.Double(-1.5, -1.5, 3, 3));
+        rr.setSeriesStroke(0, new BasicStroke(0.8f));
+        rr.setSeriesVisibleInLegend(0, false);
+        NumberAxis ry = new NumberAxis("(I \u2212 model)/\u03c3");
+        ry.setTickLabelFont(SMALL);
+        XYPlot bottom = new XYPlot(new XYSeriesCollection(res), null, ry, rr);
+        style(bottom);
+        bottom.addRangeMarker(new IntervalMarker(-2, 2, new Color(0xd0d7de), new BasicStroke(0f), null, null, 0.35f), Layer.BACKGROUND);
+        bottom.addRangeMarker(new ValueMarker(0, MUTED, new BasicStroke(0.8f)));
+
+        org.jfree.chart.axis.LogAxis x = logAxis("q (\u00c5\u207b\u00b9)");
+        x.setSmallestValue(1e-5);
+        CombinedDomainXYPlot plot = new CombinedDomainXYPlot(x);
+        plot.setGap(6);
+        plot.add(top, 3);
+        plot.add(bottom, 1);
+        JFreeChart chart = new JFreeChart(title, TITLE, plot, true);
+        finish(chart);
+        return chart;
+    }
+
+    /** the number-weighted distribution of lamellae, as a bar chart */
+    static JFreeChart lamellaeChart(LnpLamellarity.Result r) {
+        XYSeries s = new XYSeries("P(N)", false, true);
+        int last = 1;
+        for (int i = 0; i < r.distribution.length; i++) if (r.distribution[i] >= 0.002) last = i + 1;
+        for (int i = 0; i < Math.max(last, 5); i++) s.add(i + 1.0, r.distribution[i]);
+        org.jfree.chart.renderer.xy.XYBarRenderer br = new org.jfree.chart.renderer.xy.XYBarRenderer(0.15);
+        br.setSeriesPaint(0, ACCENT);
+        br.setShadowVisible(false);
+        br.setBarPainter(new org.jfree.chart.renderer.xy.StandardXYBarPainter());
+        br.setSeriesVisibleInLegend(0, false);
+        NumberAxis xa = new NumberAxis("number of bilayers N");
+        xa.setStandardTickUnits(NumberAxis.createIntegerTickUnits());
+        xa.setTickLabelFont(SMALL);
+        NumberAxis ya = new NumberAxis("number-weighted probability");
+        ya.setTickLabelFont(SMALL);
+        XYPlot plot = new XYPlot(new XYSeriesCollection(s), xa, ya, br);
+        style(plot);
+        JFreeChart chart = new JFreeChart(String.format("Lamellae: \u27e8N\u27e9 = %.2f, f_acc = %.3f",
+                r.meanLamellae, r.accessible), TITLE, plot, false);
+        finish(chart);
+        return chart;
+    }
+
     /** data, peak-search baseline and detected peaks / oscillations */
     static JFreeChart assessmentChart(double[] q, double[] I, double[] s, LnpAssessment.Report rep, String title) {
         return assessmentChart(q, I, s, rep, title, Weight.NONE);

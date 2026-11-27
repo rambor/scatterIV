@@ -29,8 +29,6 @@ public class SettingsValuesTest {
         assertEquals(0.14, v.qmax, 0);
         assertEquals(0.4, v.qmaxForPDB, 0);
         assertEquals(97, v.defaultDmax, 0);
-        assertEquals(37, v.dmaxSearchMin, 0);
-        assertEquals(176, v.dmaxSearchMax, 0);
         assertTrue(v.excludeWaters);
         assertEquals(2, v.refinementRoundsIndex);
         assertEquals(3, v.rejectionCutoffIndex);
@@ -139,21 +137,18 @@ public class SettingsValuesTest {
     }
 
     @Test
-    public void dmaxSearchRangeKeepsMinBelowMax() {
-        SettingsValues v = new SettingsValues();
-        assertTrue(v.checkDmaxSearchMin("50").accepted());
-        SettingsValues.Checked lo = v.checkDmaxSearchMin("200");
-        assertFalse(lo.accepted());
-        assertEquals(0.9 * 176, lo.value, 1e-9);
-        assertTrue("the message says less than", lo.message.contains("less than"));
-        assertFalse(v.checkDmaxSearchMin("0").accepted());
-        assertFalse(v.checkDmaxSearchMin("-5").accepted());
-
-        assertTrue(v.checkDmaxSearchMax("300").accepted());
-        SettingsValues.Checked hi = v.checkDmaxSearchMax("20");
-        assertFalse(hi.accepted());
-        assertEquals(1.5 * 37, hi.value, 1e-9);
-        assertFalse("equal to min", v.checkDmaxSearchMax("37").accepted());
+    public void oldDmaxSearchEntriesAreIgnoredAndNotWrittenAgain() {
+        Properties old = new Properties();
+        old.setProperty("dmaxSearchMin", "20");             // written by earlier versions
+        old.setProperty("dmaxSearchMax", "300");
+        old.setProperty(SettingsValues.K_DMAX, "120");
+        SettingsValues v = SettingsValues.load(old, ROUNDS, CUTOFFS, CS);
+        assertEquals(120, v.defaultDmax, 0);
+        Properties saved = new Properties();                // Scatter.updateProp saves into a new Properties
+        v.store(saved);
+        assertNull(saved.getProperty("dmaxSearchMin"));
+        assertNull(saved.getProperty("dmaxSearchMax"));
+        assertEquals(120, Double.parseDouble(saved.getProperty(SettingsValues.K_DMAX)), 0);
     }
 
     // ---------------------------------------------------------------- settings file
@@ -162,7 +157,7 @@ public class SettingsValuesTest {
     public void everyValueSurvivesSavingAndLoading() {
         SettingsValues v = new SettingsValues();
         v.qmin = 0.011; v.qmax = 0.21; v.qmaxForPDB = 0.75; v.excludeWaters = false; v.defaultDmax = 140.5;
-        v.dmaxSearchMin = 20; v.dmaxSearchMax = 300; v.refinementRoundsIndex = 4; v.rejectionCutoffIndex = 0; v.cIndex = 5;
+        v.refinementRoundsIndex = 4; v.rejectionCutoffIndex = 0; v.cIndex = 5;
         Properties p = new Properties();
         v.store(p);
         SettingsValues back = SettingsValues.load(p, ROUNDS, CUTOFFS, CS);
@@ -171,8 +166,6 @@ public class SettingsValuesTest {
         assertEquals(0.75, back.qmaxForPDB, 0);
         assertFalse(back.excludeWaters);
         assertEquals(140.5, back.defaultDmax, 0);
-        assertEquals(20, back.dmaxSearchMin, 0);
-        assertEquals(300, back.dmaxSearchMax, 0);
         assertEquals(4, back.refinementRoundsIndex);
         assertEquals(0, back.rejectionCutoffIndex);
         assertEquals(5, back.cIndex);
@@ -198,8 +191,6 @@ public class SettingsValuesTest {
         p.setProperty(SettingsValues.K_QMAX_PDB, "5");
         p.setProperty(SettingsValues.K_EXCLUDE_WATERS, "maybe");
         p.setProperty(SettingsValues.K_DMAX, "3");
-        p.setProperty(SettingsValues.K_DMAX_MIN, "-1");
-        p.setProperty(SettingsValues.K_DMAX_MAX, "100");
         p.setProperty(SettingsValues.K_ROUNDS, "9");         // only 5 choices
         p.setProperty(SettingsValues.K_CUTOFF, "1.5");       // not an index
         p.setProperty(SettingsValues.K_C, "-1");
@@ -209,8 +200,6 @@ public class SettingsValuesTest {
         assertEquals(0.4, v.qmaxForPDB, 0);
         assertTrue(v.excludeWaters);
         assertEquals(97, v.defaultDmax, 0);
-        assertEquals(37, v.dmaxSearchMin, 0);
-        assertEquals(176, v.dmaxSearchMax, 0);
         assertEquals(2, v.refinementRoundsIndex);
         assertEquals(3, v.rejectionCutoffIndex);
         assertEquals(0, v.cIndex);

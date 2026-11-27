@@ -163,8 +163,6 @@ public class Settings extends JDialog implements ChangeListener, PropertyChangeL
         values.qmaxForPDB = loaded.qmaxForPDB;
         values.excludeWaters = loaded.excludeWaters;
         values.defaultDmax = loaded.defaultDmax;
-        values.dmaxSearchMin = loaded.dmaxSearchMin;
-        values.dmaxSearchMax = loaded.dmaxSearchMax;
         values.refinementRoundsIndex = loaded.refinementRoundsIndex;
         values.rejectionCutoffIndex = loaded.rejectionCutoffIndex;
         values.cIndex = loaded.cIndex;

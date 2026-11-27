@@ -71,11 +71,28 @@ public class Lnp {
             Collection collection = Scatter.collectionSelected;
             listed.clear();
             int total = collection == null ? 0 : collection.getTotalDatasets();
-            for (int i = 0; i < total; i++) if (collection.getDataset(i).getInUse()) listed.add(i);
-            if (listed.isEmpty()) for (int i = 0; i < total; i++) listed.add(i);
+            listed.addAll(listedIndices(total));
             lnpPanel.refreshDatasets();
         }
         return contentPane;
+    }
+
+    /**
+     * Which of the loaded datasets the panel offers: all of them.
+     *
+     * <p>This used to list only the datasets marked in use, falling back to all of them when none was.
+     * Loading four files and having one of them active then left a dropdown with a single entry and no
+     * indication that the other three existed — the panel appeared to have lost them. Whether a dataset is
+     * in use governs what the Analysis panel plots; here the user is picking one dataset deliberately from
+     * a list, which is a different question, and hiding the rest answers it wrongly.
+     *
+     * <p>The order is the collection's own, so the numbers in this dropdown are the numbers the dataset
+     * carries everywhere else in SCATTER.
+     */
+    static List<Integer> listedIndices(int total) {
+        List<Integer> out = new ArrayList<>();
+        for (int i = 0; i < Math.max(total, 0); i++) out.add(i);
+        return out;
     }
 
     private Dataset dataset(int i) {

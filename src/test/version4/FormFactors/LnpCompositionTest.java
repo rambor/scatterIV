@@ -95,4 +95,52 @@ public class LnpCompositionTest {
         assertEquals(0.0, c.pegMolPercent(), 1e-9);
         assertEquals("no PEG-lipid, so the corona thickness is zero", 0.0, c.corona(500, 540)[0], 1e-9);
     }
+
+    /**
+     * A lipid is found by the abbreviation anyone would type.
+     *
+     * <p>Most of the library is catalogued with the chains in the name — "DPPC (16:0 PC)" — and an
+     * exact-match lookup answered "DPPC" with nothing. Fourteen of the thirty-one entries were unreachable
+     * that way, which is how a user looking for DPPC concluded it was not in the library at all.
+     */
+    @Test
+    public void lipidsAreFoundByTheirAbbreviation() {
+        for (String bare : new String[]{"DPPC", "DMPC", "POPC", "POPE", "DPPE", "POPG", "DPPG",
+                "GMO", "Sphingomyelin", "Ceramide", "ALC-0159"}) {
+            LnpComposition.Lipid l = LnpComposition.lookup(bare);
+            assertNotNull("'" + bare + "' should be found", l);
+            assertTrue("'" + bare + "' found " + l.name, l.name.startsWith(bare));
+        }
+    }
+
+    /** and case is not a trap */
+    @Test
+    public void lookupIgnoresCase() {
+        assertNotNull(LnpComposition.lookup("dppc"));
+        assertNotNull(LnpComposition.lookup("Cholesterol"));
+        assertNotNull(LnpComposition.lookup("cholesterol"));
+    }
+
+    /**
+     * An abbreviation shared by two lipids is not guessed at. The two cardiolipins differ in their chains
+     * and in whether they are gel or fluid at room temperature, so picking one silently would put the wrong
+     * chain density into the model.
+     */
+    @Test
+    public void anAmbiguousAbbreviationIsNotGuessed() {
+        assertNull("'Cardiolipin' matches two entries and should return neither",
+                LnpComposition.lookup("Cardiolipin"));
+        assertNotNull("the full names still work",
+                LnpComposition.lookup("Cardiolipin TMCL (14:0)4"));
+        assertNotNull(LnpComposition.lookup("Cardiolipin TOCL (18:1)4"));
+    }
+
+    /** nothing and nonsense return nothing rather than throwing */
+    @Test
+    public void unknownNamesReturnNull() {
+        assertNull(LnpComposition.lookup(null));
+        assertNull(LnpComposition.lookup(""));
+        assertNull(LnpComposition.lookup("   "));
+        assertNull(LnpComposition.lookup("Unobtainium"));
+    }
 }
